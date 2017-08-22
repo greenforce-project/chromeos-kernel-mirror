@@ -458,8 +458,10 @@ int skl_sst_dsp_init(struct device *dev, void __iomem *mmio_base, int irq,
 	sst->fw_ops = skl_fw_ops;
 
 	ret = skl_ipc_init(dev, skl);
-	if (ret)
+	if (ret) {
+		skl_dsp_free(sst);
 		return ret;
+	}
 
 	/* load_fw requires DSP IRQ is set up. */
 	ret = skl_dsp_acquire_irq(sst);
