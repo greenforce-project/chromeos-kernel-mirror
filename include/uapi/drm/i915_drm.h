@@ -1521,6 +1521,11 @@ struct drm_i915_perf_oa_config {
 	__u32 n_boolean_regs;
 	__u32 n_flex_regs;
 
+	/*
+	 * These fields are pointers to tuples of u32 values (register
+	 * address, value). For example the expected length of the buffer
+	 * pointed by mux_regs_ptr is (2 * sizeof(u32) * n_mux_regs).
+	 */
 	__u64 __user mux_regs_ptr;
 	__u64 __user boolean_regs_ptr;
 	__u64 __user flex_regs_ptr;
