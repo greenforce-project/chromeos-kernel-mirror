@@ -95,6 +95,6 @@ static inline const char *intel_uc_fw_type_repr(enum intel_uc_fw_type type)
 void intel_uc_fw_fetch(struct drm_i915_private *dev_priv,
 		       struct intel_uc_fw *uc_fw);
 void intel_uc_fw_fini(struct intel_uc_fw *uc_fw);
-void intel_uc_fw_dump(struct intel_uc_fw *uc_fw, struct drm_printer *p);
+void intel_uc_fw_dump(const struct intel_uc_fw *uc_fw, struct drm_printer *p);
 
 #endif
