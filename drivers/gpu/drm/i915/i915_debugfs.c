@@ -64,6 +64,7 @@ static int i915_capabilities(struct seq_file *m, void *data)
 	seq_printf(m, "pch: %d\n", INTEL_PCH_TYPE(dev_priv));
 
 	intel_device_info_dump_flags(info, &p);
+	intel_device_info_dump_runtime(info, &p);
 
 	kernel_param_lock(THIS_MODULE);
 #define PRINT_PARAM(T, x, ...) seq_print_param(m, #x, #T, &i915_modparams.x);
