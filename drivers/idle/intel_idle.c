@@ -107,6 +107,7 @@ struct idle_cpu {
 
 static bool slp_s0_check;
 static unsigned int slp_s0_seconds;
+static unsigned int slp_s0_seed = 1;
 
 static DEFINE_SPINLOCK(slp_s0_check_lock);
 static unsigned int slp_s0_num_cpus;
@@ -1075,7 +1076,7 @@ static int slp_s0_check_prepare(struct notifier_block *nb, unsigned long action,
 				void *data)
 {
 	if (action == PM_SUSPEND_PREPARE)
-		slp_s0_seconds = slp_s0_check ? 1 : 0;
+		slp_s0_seconds = slp_s0_check ? slp_s0_seed : 0;
 
 	return NOTIFY_DONE;
 }
@@ -1633,3 +1634,4 @@ device_initcall(intel_idle_init);
  */
 module_param(max_cstate, int, 0444);
 module_param(slp_s0_check, bool, 0644);
+module_param(slp_s0_seed, int, 0644);
