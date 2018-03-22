@@ -1954,6 +1954,8 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode)
 		      QCA_REV_40XX(ar)))
 			val |= WMI_10_4_COEX_GPIO_SUPPORT;
 
+		if (test_bit(WMI_SERVICE_TX_DATA_ACK_RSSI, ar->wmi.svc_map))
+			val |= WMI_10_4_TX_DATA_ACK_RSSI;
 		status = ath10k_wmi_ext_resource_config(ar,
 							ar->hw_params.platform_type, val);
 		if (status) {

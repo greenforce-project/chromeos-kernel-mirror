@@ -1695,6 +1695,8 @@ static void ath10k_htt_rx_frm_tx_compl(struct ath10k *ar,
 	int status = MS(resp->data_tx_completion.flags, HTT_DATA_TX_STATUS);
 	__le16 msdu_id;
 	int i;
+	bool rssi_enabled;
+	__le16 msdu_count;
 
 	switch (status) {
 	case HTT_DATA_TX_STATUS_NO_ACK:
@@ -1717,9 +1719,25 @@ static void ath10k_htt_rx_frm_tx_compl(struct ath10k *ar,
 	ath10k_dbg(ar, ATH10K_DBG_HTT, "htt tx completion num_msdus %d\n",
 		   resp->data_tx_completion.num_msdus);
 
+	if(resp->data_tx_completion.flags2 & HTT_TX_CMPL_FLAG_DATA_RSSI) {
+		rssi_enabled = true;
+		msdu_count = __le16_to_cpu(resp->data_tx_completion.num_msdus);
+	}
 	for (i = 0; i < resp->data_tx_completion.num_msdus; i++) {
 		msdu_id = resp->data_tx_completion.msdus[i];
 		tx_done.msdu_id = __le16_to_cpu(msdu_id);
+		if (rssi_enabled) {
+			/* Total no of MSDUs should be even,
+			 * if odd MSDUs are sent firmware fills
+			 * last msdu id with 0xffff
+			 */
+			if (msdu_count & 0x01)
+				tx_done.ack_rssi =
+				resp->data_tx_completion.msdus[msdu_count +  i + 1];
+			else
+				tx_done.ack_rssi =
+				resp->data_tx_completion.msdus[msdu_count + i];
+		}
 		ath10k_txrx_tx_unref(htt, &tx_done);
 	}
 }

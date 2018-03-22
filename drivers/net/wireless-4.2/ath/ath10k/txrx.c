@@ -200,6 +200,10 @@ int ath10k_txrx_tx_unref(struct ath10k_htt *htt,
 	if (!(info->flags & IEEE80211_TX_CTL_NO_ACK))
 		info->flags |= IEEE80211_TX_STAT_ACK;
 
+	if (tx_done->ack_rssi != ATH10K_INVALID_RSSI)
+		info->status.ack_signal = ATH10K_DEFAULT_NOISE_FLOOR +
+			tx_done->ack_rssi;
+
 	if (tx_done->no_ack)
 		info->flags &= ~IEEE80211_TX_STAT_ACK;
 
