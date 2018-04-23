@@ -528,6 +528,7 @@ struct sta_info {
 	u64 tx_msdu_retries[IEEE80211_NUM_TIDS + 1];
 	u64 tx_msdu_failed[IEEE80211_NUM_TIDS + 1];
 	u64 rx_msdu[IEEE80211_NUM_TIDS + 1];
+	bool ack_signal_filled;
 
 	/*
 	 * Aggregation information, locked with lock.

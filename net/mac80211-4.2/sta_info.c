@@ -2075,6 +2075,13 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo)
 		sinfo->filled |= BIT(NL80211_STA_INFO_EXPECTED_THROUGHPUT);
 		sinfo->expected_throughput = thr;
 	}
+
+	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL)) &&
+		sta->last_ack_signal) {
+		sinfo->ack_signal = sta->last_ack_signal;
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
+	}
+
 	if (ieee80211_hw_check(&sta->local->hw, REPORTS_TX_ACK_STATUS)) {
 		if (!(sinfo->filled &
 			BIT_ULL(NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG))) {

@@ -188,8 +188,13 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 
 	if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 		sta->last_rx = jiffies;
+		if (info->status.is_valid_ack_signal) {
+		sta->last_ack_signal =
+			 (s8) info->status.ack_signal;
+		sta->ack_signal_filled = true;
 		ewma_add(&sta->ave_data_rssi,
 			 -(info->status.ack_signal));
+		}
 	}
 
 	if (ieee80211_is_data_qos(mgmt->frame_control)) {
@@ -489,6 +494,8 @@ static void ieee80211_report_ack_skb(struct ieee80211_local *local,
 			    ieee80211_is_qos_nullfunc(hdr->frame_control))
 				cfg80211_probe_status(sdata->dev, hdr->addr1,
 						      cookie, acked,
+						      info->status.ack_signal,
+						      info->status.is_valid_ack_signal,
 						      GFP_ATOMIC);
 			else
 				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
