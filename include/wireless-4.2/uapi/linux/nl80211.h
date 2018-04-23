@@ -2129,6 +2129,7 @@ enum nl80211_attrs {
 	NL80211_ATTR_SCHED_SCAN_DELAY,
 
 	NL80211_ATTR_REG_INDOOR,
+	NL80211_ATTR_ACK_SIGNAL,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -2433,6 +2434,7 @@ enum nl80211_sta_bss_param {
  * @NL80211_STA_INFO_RX_DURATION: aggregate PPDU duration for all frames
  *      received from the station (u64, usec)
  * @NL80211_STA_INFO_PAD: attribute used for padding for 64-bit alignment
+ * @NL80211_STA_INFO_ACK_SIGNAL: signal strength of the last ACK frame(s8, dBm)
  * @NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG: avg signal strength of data ACK
  *      frame(s8, dBm)
  * @__NL80211_STA_INFO_AFTER_LAST: internal
@@ -2473,6 +2475,7 @@ enum nl80211_sta_info {
 	NL80211_STA_INFO_TID_STATS,
 	NL80211_STA_INFO_RX_DURATION,
 	NL80211_STA_INFO_PAD,
+	NL80211_STA_INFO_ACK_SIGNAL,
 	NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG,
 
 	/* keep last */
