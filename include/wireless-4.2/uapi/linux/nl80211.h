@@ -2435,8 +2435,7 @@ enum nl80211_sta_bss_param {
  *      received from the station (u64, usec)
  * @NL80211_STA_INFO_PAD: attribute used for padding for 64-bit alignment
  * @NL80211_STA_INFO_ACK_SIGNAL: signal strength of the last ACK frame(s8, dBm)
- * @NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG: avg signal strength of data ACK
- *      frame(s8, dBm)
+ * @NL80211_STA_INFO_ACK_SIGNAL_AVG: avg signal strength of ACK frames(s8, dBm)
  * @__NL80211_STA_INFO_AFTER_LAST: internal
  * @NL80211_STA_INFO_MAX: highest possible station info attribute
  */
@@ -2476,7 +2475,7 @@ enum nl80211_sta_info {
 	NL80211_STA_INFO_RX_DURATION,
 	NL80211_STA_INFO_PAD,
 	NL80211_STA_INFO_ACK_SIGNAL,
-	NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG,
+	NL80211_STA_INFO_ACK_SIGNAL_AVG,
 
 	/* keep last */
 	__NL80211_STA_INFO_AFTER_LAST,
@@ -4369,8 +4368,8 @@ enum nl80211_feature_flags {
 /**
  * enum nl80211_ext_feature_index - bit index of extended features.
  * @NL80211_EXT_FEATURE_VHT_IBSS: This driver supports IBSS with VHT datarates.
- * @NL80211_EXT_FEATURE_DATA_ACK_RSSI_SUPPORT: This Driver support data ack rssi
- *	if firmware support, this flag is to intimate about ack rssi suppport to
+ * @NL80211_EXT_FEATURE_ACK_SIGNAL_SUPPORT: Driver supporti ack rssi if
+ *	firmware support, this flag is to intimate about ack rssi suppport to
  *	nl80211.
  *
  * @NUM_NL80211_EXT_FEATURES: number of extended features.
@@ -4378,7 +4377,7 @@ enum nl80211_feature_flags {
  */
 enum nl80211_ext_feature_index {
 	NL80211_EXT_FEATURE_VHT_IBSS,
-	NL80211_EXT_FEATURE_DATA_ACK_RSSI_SUPPORT,
+	NL80211_EXT_FEATURE_ACK_SIGNAL_SUPPORT,
 
 	/* add new features before the definition below */
 	NUM_NL80211_EXT_FEATURES,

@@ -192,7 +192,7 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 		sta->last_ack_signal =
 			 (s8) info->status.ack_signal;
 		sta->ack_signal_filled = true;
-		ewma_add(&sta->ave_data_rssi,
+		ewma_add(&sta->avg_ack_signal,
 			 -(info->status.ack_signal));
 		}
 	}

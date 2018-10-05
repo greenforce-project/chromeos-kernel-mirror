@@ -575,7 +575,7 @@ struct sta_info {
 
 	struct cfg80211_chan_def tdls_chandef;
 
-	struct ewma ave_data_rssi;
+	struct ewma avg_ack_signal;
 	/* keep last! */
 	struct ieee80211_sta sta;
 };

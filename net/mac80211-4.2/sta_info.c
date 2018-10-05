@@ -370,6 +370,7 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 	ktime_get_ts(&uptime);
 	sta->last_connected = uptime.tv_sec;
 	ewma_init(&sta->avg_signal, 1024, 8);
+	ewma_init(&sta->avg_ack_signal, 1024, 8);
 	for (i = 0; i < ARRAY_SIZE(sta->chain_signal_avg); i++)
 		ewma_init(&sta->chain_signal_avg[i], 1024, 8);
 
@@ -1873,7 +1874,6 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo)
 			 BIT(NL80211_STA_INFO_RX_DROP_MISC) |
 			 BIT(NL80211_STA_INFO_BEACON_LOSS);
 
-	ewma_init(&sta->ave_data_rssi, 1024, 8);
 	ktime_get_ts(&uptime);
 	sinfo->connected_time = uptime.tv_sec - sta->last_connected;
 	sinfo->inactive_time = jiffies_to_msecs(jiffies - sta->last_rx);
@@ -2075,20 +2075,19 @@ void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo)
 		sinfo->filled |= BIT(NL80211_STA_INFO_EXPECTED_THROUGHPUT);
 		sinfo->expected_throughput = thr;
 	}
-
-	if (!(sinfo->filled & BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL)) &&
-		sta->last_ack_signal) {
-		sinfo->ack_signal = sta->last_ack_signal;
-		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
-	}
-
 	if (ieee80211_hw_check(&sta->local->hw, REPORTS_TX_ACK_STATUS)) {
-		if (!(sinfo->filled &
-			BIT_ULL(NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG))) {
-			sinfo->avg_ack_rssi =
-			(s8) -ewma_read(&sta->ave_data_rssi);
-			sinfo->filled |=
-			BIT_ULL(NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG);
+		if (sta->ack_signal_filled && ((!(sinfo->filled &
+			BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL))) ||
+			(!(sinfo->filled &
+			BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG))))) {
+				sinfo->ack_signal =
+					sta->last_ack_signal;
+				sinfo->filled |=
+					BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL);
+				sinfo->avg_ack_signal =
+					-(s8)ewma_read(&sta->avg_ack_signal);
+				sinfo->filled |=
+					BIT_ULL(NL80211_STA_INFO_ACK_SIGNAL_AVG);
 		}
 	}
 }
