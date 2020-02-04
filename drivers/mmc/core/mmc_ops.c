@@ -831,7 +831,7 @@ int mmc_bus_test(struct mmc_card *card, u8 bus_width)
 	return mmc_send_bus_test(card, card->host, MMC_BUS_TEST_R, width);
 }
 
-static int mmc_send_hpi_cmd(struct mmc_card *card, u32 *status)
+static int mmc_send_hpi_cmd(struct mmc_card *card)
 {
 	struct mmc_command cmd = {};
 	unsigned int opcode;
@@ -853,8 +853,6 @@ static int mmc_send_hpi_cmd(struct mmc_card *card, u32 *status)
 			err, cmd.resp[0]);
 		return err;
 	}
-	if (status)
-		*status = cmd.resp[0];
 
 	return 0;
 }
@@ -903,7 +901,7 @@ int mmc_interrupt_hpi(struct mmc_card *card)
 		goto out;
 	}
 
-	err = mmc_send_hpi_cmd(card, &status);
+	err = mmc_send_hpi_cmd(card);
 	if (err)
 		goto out;
 
