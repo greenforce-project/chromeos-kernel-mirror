@@ -623,6 +623,8 @@ struct l2cap_ops {
 						     unsigned char *kdata,
 						     struct msghdr *msg,
 						     int len);
+	int			(*filter) (struct l2cap_chan * chan,
+					   struct sk_buff *skb);
 };
 
 struct l2cap_conn {
