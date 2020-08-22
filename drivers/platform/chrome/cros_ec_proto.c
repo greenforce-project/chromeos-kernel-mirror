@@ -589,7 +589,7 @@ EXPORT_SYMBOL(cros_ec_cmd_xfer);
  *
  * Return:
  * >=0 - The number of bytes transferred
- * -ENOTSUPP - Operation not supported
+ * -ENOPROTOOPT - Operation not supported
  * -EPROTO - Protocol error
  */
 int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
@@ -603,7 +603,7 @@ int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
 	} else if (msg->result == EC_RES_INVALID_VERSION) {
 		dev_dbg(ec_dev->dev, "Command invalid version (err:%d)\n",
 			msg->result);
-		return -ENOTSUPP;
+		return -ENOPROTOOPT;
 	} else if (msg->result != EC_RES_SUCCESS) {
 		dev_dbg(ec_dev->dev, "Command result (err: %d)\n", msg->result);
 		return -EPROTO;
