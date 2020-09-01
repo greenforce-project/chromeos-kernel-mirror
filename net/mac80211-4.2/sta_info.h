@@ -323,7 +323,7 @@ struct mesh_sta {
 	enum nl80211_mesh_power_mode nonpeer_pm;
 
 	/* moving percentage of failed MSDUs */
-	unsigned int fail_avg;
+	struct ewma fail_avg;
 
 	/* moving avg of bitrate in 1kbps */
 	u32 bitrate_avg;
