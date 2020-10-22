@@ -1642,8 +1642,6 @@ const u8 *bp_cfg80211_find_ie_match(u8 eid, const u8 *ies, int len,
 
 #define NL80211_EXT_FEATURE_MU_MIMO_AIR_SNIFFER -1
 
-int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
-				  const u8 *addr, enum nl80211_iftype iftype);
 /* manually renamed to avoid symbol issues with cfg80211 */
 #define ieee80211_amsdu_to_8023s iwl7000_ieee80211_amsdu_to_8023s
 void ieee80211_amsdu_to_8023s(struct sk_buff *skb, struct sk_buff_head *list,
@@ -2343,10 +2341,6 @@ static inline bool iwl7000_cfg80211_rx_control_port(struct net_device *dev,
 #define WIPHY_PARAM_TXQ_MEMORY_LIMIT	0
 #define WIPHY_PARAM_TXQ_QUANTUM		0
 
-#define ieee80211_data_to_8023_exthdr iwl7000_ieee80211_data_to_8023_exthdr
-int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
-				  const u8 *addr, enum nl80211_iftype iftype,
-				  u8 data_offset);
 #else
 static inline int
 backport_cfg80211_sinfo_alloc_tid_stats(struct station_info *sinfo, gfp_t gfp)
@@ -2707,3 +2701,17 @@ static inline void cfg80211_bss_iter(struct wiphy *wiphy,
 	 */
 }
 #endif /* CFG80211_VERSION < KERNEL_VERSION(5,3,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(5,13,0)
+#define ieee80211_data_to_8023_exthdr iwl7000_ieee80211_data_to_8023_exthdr
+int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
+				  const u8 *addr, enum nl80211_iftype iftype,
+				  u8 data_offset, bool is_amsdu);
+
+#define ieee80211_data_to_8023 iwl7000_ieee80211_data_to_8023
+static inline int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
+					 enum nl80211_iftype iftype)
+{
+	return ieee80211_data_to_8023_exthdr(skb, NULL, addr, iftype, 0, false);
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(5,13,0) */
