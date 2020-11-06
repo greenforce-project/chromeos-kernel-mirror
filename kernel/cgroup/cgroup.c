@@ -3456,7 +3456,7 @@ static void cgroup_pressure_release(struct kernfs_open_file *of)
 
 static int cgroup_file_open(struct kernfs_open_file *of)
 {
-	struct cftype *cft = of->kn->priv;
+	struct cftype *cft = of_cft(of);
 	struct cgroup_file_ctx *ctx;
 	int ret;
 
@@ -3481,7 +3481,7 @@ static int cgroup_file_open(struct kernfs_open_file *of)
 
 static void cgroup_file_release(struct kernfs_open_file *of)
 {
-	struct cftype *cft = of->kn->priv;
+	struct cftype *cft = of_cft(of);
 	struct cgroup_file_ctx *ctx = of->priv;
 
 	if (cft->release)
@@ -3495,7 +3495,7 @@ static ssize_t cgroup_file_write(struct kernfs_open_file *of, char *buf,
 {
 	struct cgroup_file_ctx *ctx = of->priv;
 	struct cgroup *cgrp = of->kn->parent->priv;
-	struct cftype *cft = of->kn->priv;
+	struct cftype *cft = of_cft(of);
 	struct cgroup_subsys_state *css;
 	int ret;
 
@@ -3546,7 +3546,7 @@ static ssize_t cgroup_file_write(struct kernfs_open_file *of, char *buf,
 static unsigned int cgroup_file_poll(struct kernfs_open_file *of,
 				     poll_table *pt)
 {
-	struct cftype *cft = of->kn->priv;
+	struct cftype *cft = of_cft(of);
 
 	if (cft->poll)
 		return cft->poll(of, pt);
