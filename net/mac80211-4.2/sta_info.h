@@ -107,6 +107,10 @@ enum ieee80211_sta_info_flags {
 #define HT_AGG_STATE_WANT_START		4
 #define HT_AGG_STATE_WANT_STOP		5
 
+#define MAX_TX_FAIL_CNT			50
+#define MESH_RESET_TX_FAIL_COUNT	1
+#define MESH_ENABLE_TX_FAIL_COUNT_LOG	2
+
 enum ieee80211_agg_stop_reason {
 	AGG_STOP_DECLINED,
 	AGG_STOP_LOCAL_REQUEST,
@@ -321,6 +325,9 @@ struct mesh_sta {
 	enum nl80211_mesh_power_mode local_pm;
 	enum nl80211_mesh_power_mode peer_pm;
 	enum nl80211_mesh_power_mode nonpeer_pm;
+	u32 fail_cnt;
+	u32 tx_fail_cnt[MAX_TX_FAIL_CNT];
+	u8 tx_fail_log;
 
 	/* moving percentage of failed MSDUs */
 	struct ewma fail_avg;
@@ -748,5 +755,6 @@ void mc_bc_burst_size(struct sta_info *sta);
 void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta);
 void ieee80211_sta_ps_deliver_poll_response(struct sta_info *sta);
 void ieee80211_sta_ps_deliver_uapsd(struct sta_info *sta);
+void mesh_continuous_tx_fail_cnt(struct sta_info *sta);
 
 #endif /* STA_INFO_H */

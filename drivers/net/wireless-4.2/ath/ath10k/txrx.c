@@ -127,6 +127,8 @@ int ath10k_txrx_tx_unref(struct ath10k_htt *htt,
 	struct ieee80211_tx_info *info;
 	struct ieee80211_txq *txq;
 	struct ath10k_skb_cb *skb_cb;
+	struct ieee80211_vif *vif;
+	struct ath10k_vif *arvif;
 	struct ath10k_txq *artxq;
 	struct sk_buff *msdu;
 
@@ -152,6 +154,10 @@ int ath10k_txrx_tx_unref(struct ath10k_htt *htt,
 
 	skb_cb = ATH10K_SKB_CB(msdu);
 	txq = skb_cb->txq;
+	vif = skb_cb->vif;
+	arvif = (void *)vif->drv_priv;
+
+	arvif->pkt_status[tx_done->status]++;
 
 	if (txq) {
 		artxq = (void *)txq->drv_priv;

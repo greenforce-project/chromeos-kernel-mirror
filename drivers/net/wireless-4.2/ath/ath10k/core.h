@@ -531,6 +531,7 @@ struct ath10k_vif {
 	struct delayed_work connection_loss_work;
 	struct cfg80211_bitrate_mask bitrate_mask;
 	u64 tbttoffset_list[WMI_MAX_AP_VDEV];
+	u32 pkt_status[HTT_TX_COMPL_STATE_DISCARD + 1];
 };
 
 struct ath10k_vif_iter {

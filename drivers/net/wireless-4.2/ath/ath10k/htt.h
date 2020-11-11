@@ -1649,9 +1649,18 @@ struct htt_resp {
 
 struct htt_tx_done {
 	u32 msdu_id;
+	u16 status;
 	bool discard;
 	bool no_ack;
 	bool success;
+};
+
+enum htt_tx_compl_state {
+	HTT_TX_COMPL_STATE_NONE,
+	HTT_TX_COMPL_STATE_ACK,
+	HTT_TX_COMPL_STATE_NOACK,
+	HTT_TX_COMPL_STATE_DISCARD,
+	HTT_TX_COMPL_STATES_MAX,
 };
 
 struct htt_peer_map_event {

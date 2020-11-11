@@ -843,7 +843,7 @@ void mesh_plink_broken(struct sta_info *sta)
 	struct mpath_node *node;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
 	int i;
-	int paths_deactivated=0;
+	int paths_deactivated = 0, signal_avg;
 
 	rcu_read_lock();
 	tbl = rcu_dereference(mesh_paths);
@@ -864,9 +864,14 @@ void mesh_plink_broken(struct sta_info *sta)
 		}
 	}
 	rcu_read_unlock();
-	if (paths_deactivated > 0)
-		sdata_info(sta->sdata, "MESH MPL the link to %pM is broken and %d path deactivated\n",
-			   sta->addr, paths_deactivated);
+	if (paths_deactivated > 0) {
+		signal_avg = (s8) -ewma_read(&sta->avg_signal);
+		sdata_info(sta->sdata, " MESH MPL the link to %pM is broken and %d path deactivated signal %d dbm signal_avg %d dbm\n",
+			   sta->addr, paths_deactivated,
+			   sta->last_signal,
+			   signal_avg);
+		mesh_continuous_tx_fail_cnt(sta);
+	}
 }
 
 static void mesh_path_node_reclaim(struct rcu_head *rp)
