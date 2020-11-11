@@ -464,6 +464,7 @@ struct ath10k_sta {
 	struct ath10k_smart_ant_sta *smart_ant_sta;
 	struct ath10k_cfr_capture cfr_capture;
 	bool pspoll_sta_ko_enable;
+	u32 pkt_status[HTT_TX_COMPL_STATES_MAX];
 };
 
 #define ATH10K_VDEV_SETUP_TIMEOUT_HZ (5*HZ)
@@ -531,7 +532,7 @@ struct ath10k_vif {
 	struct delayed_work connection_loss_work;
 	struct cfg80211_bitrate_mask bitrate_mask;
 	u64 tbttoffset_list[WMI_MAX_AP_VDEV];
-	u32 pkt_status[HTT_TX_COMPL_STATE_DISCARD + 1];
+	u32 pkt_status[HTT_TX_COMPL_STATES_MAX];
 };
 
 struct ath10k_vif_iter {
