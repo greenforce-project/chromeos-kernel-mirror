@@ -4819,6 +4819,7 @@ static int ath10k_start(struct ieee80211_hw *hw)
 	ath10k_thermal_set_throttling(ar);
 
 	ar->aggr_sw_retry_thold = ATH10K_AGGR_SW_RETRY_THRESHOLD;
+	ar->non_aggr_sw_retry_thold = ATH10K_AGGR_SW_RETRY_THRESHOLD;
 
 	mutex_unlock(&ar->conf_mutex);
 	return 0;
