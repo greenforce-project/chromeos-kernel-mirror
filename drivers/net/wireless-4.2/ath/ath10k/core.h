@@ -69,6 +69,9 @@
 #define ATH10K_KEEPALIVE_MAX_IDLE 3895
 #define ATH10K_KEEPALIVE_MAX_UNRESPONSIVE 3900
 
+#define ATH10K_MAX_AGGR_RETRY_COUNT 255
+#define ATH10K_AGGR_SW_RETRY_THRESHOLD 30
+
 struct ath10k;
 
 enum ath10k_bus {
@@ -1196,6 +1199,12 @@ struct ath10k {
 	struct rchan *rfs_cfr_capture;
 
 	u32 burst_dur[4];
+	bool calc_busy;
+	u8 ofdm_level;
+	u8 cck_level;
+
+	u8 aggr_sw_retry_thold;
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
