@@ -3663,12 +3663,6 @@ another_round:
 			goto unlock;
 	}
 
-	fast_recv = rcu_dereference(fast_nat_recv);
-	if (fast_recv && fast_recv(skb)) {
-		ret = NET_RX_SUCCESS;
-		goto unlock;
-	}
-
 #ifdef CONFIG_NET_CLS_ACT
 	if (skb->tc_verd & TC_NCLS) {
 		skb->tc_verd = CLR_TC_NCLS(skb->tc_verd);
@@ -3694,6 +3688,12 @@ skip_taps:
 		goto unlock;
 ncls:
 #endif
+
+	fast_recv = rcu_dereference(fast_nat_recv);
+	if (fast_recv && fast_recv(skb)) {
+		ret = NET_RX_SUCCESS;
+		goto unlock;
+	}
 
 	if (pfmemalloc && !skb_pfmemalloc_protocol(skb))
 		goto drop;
