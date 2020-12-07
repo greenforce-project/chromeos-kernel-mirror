@@ -490,6 +490,7 @@ struct ath10k_sta {
 	struct ath10k_cfr_capture cfr_capture;
 	bool pspoll_sta_ko_enable;
 	u32 pkt_status[HTT_TX_COMPL_STATES_MAX];
+	u32 tx_retry_count;
 	enum ath10k_peer_stats_version version;
 };
 

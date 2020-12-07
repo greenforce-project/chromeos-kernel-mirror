@@ -305,6 +305,8 @@ void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 		}
 	}
 
+	arsta->tx_retry_count += peer_stats->retry_pkts;
+
 	txrate.flags = pream;
 	txrate.mcs = mcs;
 	txrate.nss = nss + 1;
