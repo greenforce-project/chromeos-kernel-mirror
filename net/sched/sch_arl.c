@@ -1184,7 +1184,6 @@ static void arl_enqueue_update(struct Qdisc *sch, unsigned int len)
 /* GSO packets maybe too big and takes more than maxmium tokens to transmit.
  * Segment the GSO packets that is larger than max_size.
  */
-
 static int gso_segment(struct sk_buff *skb, struct Qdisc *sch)
 {
 	struct arl_sched_data *q = qdisc_priv(sch);
@@ -1204,6 +1203,10 @@ static int gso_segment(struct sk_buff *skb, struct Qdisc *sch)
 		segs->next = NULL;
 		qdisc_skb_cb(segs)->pkt_len = segs->len;
 		len += segs->len;
+
+		/* Complete the latency sampling on the last segment */
+		if (unlikely(!nskb && q->params.mode == ARL_INGRESS))
+			arl_sample_latency_ingress(q, segs);
 		ret = qdisc_enqueue(segs, q->qdisc);
 		if (ret != NET_XMIT_SUCCESS) {
 			if (net_xmit_drop_count(ret))
@@ -1217,6 +1220,8 @@ static int gso_segment(struct sk_buff *skb, struct Qdisc *sch)
 	if (nb > 1)
 		qdisc_tree_decrease_qlen(sch, 1 - nb);
 	sch->qstats.backlog += len;
+	if (q->params.mode == ARL_INGRESS)
+		q->vars.bw_est_bytes_sent += len;
 	consume_skb(skb);
 
 	return nb > 0 ? NET_XMIT_SUCCESS : NET_XMIT_DROP;
@@ -1525,7 +1530,7 @@ static int arl_dump(struct Qdisc *sch, struct sk_buff *skb)
 			 q->params.buffer / NSEC_PER_USEC)) ||
 	    (nla_put_u64(skb, TCA_ARL_MIN_RATE, q->params.min_rate * 1000)) ||
 	    (nla_put_u32(skb, TCA_ARL_LIMIT, q->params.limit)) ||
-	    (nla_put_u64(skb, TCA_ARL_MAX_BW, q->params.max_bw)) * 1000 ||
+	    (nla_put_u64(skb, TCA_ARL_MAX_BW, q->params.max_bw * 1000)) ||
 	    (nla_put_u32(skb, TCA_ARL_MODE, q->params.mode)) ||
 	    (nla_put_u32(skb, TCA_ARL_LATENCY_HYSTERESIS,
 			 q->params.latency_hysteresis)) ||
