@@ -2318,6 +2318,7 @@ ath10k_htt_fetch_10_4_peer_stats(struct ath10k *ar, struct sk_buff *skb)
 	struct ieee80211_sta *sta = NULL;
 	struct ath10k_sta *arsta;
 	struct ath10k_peer *peer;
+	enum ath10k_peer_stats_version version;
 	u32 peer_id = 0, i;
 	u8 ppdu_len, num_ppdu;
 
@@ -2332,6 +2333,7 @@ ath10k_htt_fetch_10_4_peer_stats(struct ath10k *ar, struct sk_buff *skb)
 	tx_stats = (struct htt_per_peer_tx_stats_ind *)
 			(resp->peer_tx_stats.payload);
 	peer_id = tx_stats->peer_id;
+	version = resp->peer_tx_stats.version;
 
 	rcu_read_lock();
 	spin_lock_bh(&ar->data_lock);
@@ -2349,7 +2351,8 @@ ath10k_htt_fetch_10_4_peer_stats(struct ath10k *ar, struct sk_buff *skb)
 
 		arsta = (struct ath10k_sta *)sta->drv_priv;
 		ath10k_update_per_peer_stats(p_tx_stats, NULL, tx_stats, i);
-		ath10k_accumulate_per_peer_tx_stats(ar, sta, p_tx_stats);
+		arsta->version = version;
+		ath10k_accumulate_per_peer_tx_stats(ar, sta, p_tx_stats, version);
 		arsta->tx_stats.tx_duration +=
 			__le16_to_cpu(tx_stats->tx_duration);
 	}
@@ -2405,7 +2408,8 @@ static void ath10k_fetch_10_4_tx_stats(struct ath10k *ar, u8 *data)
 			ath10k_update_per_peer_stats(p_tx_stats, tx_stats,
 						     NULL, i);
 			ath10k_accumulate_per_peer_tx_stats(ar, sta,
-							    p_tx_stats);
+							    p_tx_stats,
+							    ATH10K_HTT_T2H_PEER_STATS_V1);
 		}
 		arsta->tx_stats.tx_duration +=
 				__le32_to_cpu(tx_stats->tx_duration);
@@ -2618,7 +2622,8 @@ static void ath10k_fetch_10_2_tx_stats(struct ath10k *ar, u8 *data)
 	arsta = (struct ath10k_sta *)sta->drv_priv;
 	for (i = 0; i < tx_stats->tx_ppdu_cnt; i++) {
 		ath10k_update_per_peer_stats(p_tx_stats, tx_stats, NULL, i);
-		ath10k_accumulate_per_peer_tx_stats(ar, sta, p_tx_stats);
+		ath10k_accumulate_per_peer_tx_stats(ar, sta, p_tx_stats,
+						    ATH10K_HTT_T2H_PEER_STATS_V1);
 	}
 
 	arsta->tx_stats.tx_duration += __le32_to_cpu(tx_stats->tx_duration);

@@ -4820,6 +4820,7 @@ enum wmi_rate_preamble {
 #define ATH10K_HW_BW(flags)		(((flags) >> 3) & 0x3)
 #define ATH10K_HW_GI(flags)		(((flags) >> 5) & 0x1)
 #define ATH10K_HW_DATA_PKT(flags)	(((flags) >> 6) & 0x1)
+#define ATH10K_HW_RETRY_TYPE(flags)	(((flags) >> 7) & 0x1)
 
 /* Value to disable fixed rate setting */
 #define WMI_FIXED_RATE_NONE    (0xff)

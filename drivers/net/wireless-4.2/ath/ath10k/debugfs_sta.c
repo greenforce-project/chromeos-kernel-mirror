@@ -123,12 +123,14 @@ static void ath10k_fill_tx_bitrate(struct ieee80211_hw *hw,
 void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 					 struct ieee80211_sta *sta,
 					 struct ath10k_peer_tx_stats
-					 *peer_stats)
+					 *peer_stats,
+					 enum ath10k_peer_stats_version version)
 {
 	struct ath10k_sta *arsta = (struct ath10k_sta *)sta->drv_priv;
 	u8 pream, bw, mcs, nss, rate, gi;
 	int idx;
 	struct ath10k_tx_stats *tx_stats = &arsta->tx_stats;
+	enum ath10k_stats_retry_type retry_type;
 	bool legacy_rate, skip_auto_rate;
 	struct rate_info txrate;
 
@@ -138,6 +140,8 @@ void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 
 	gi = ATH10K_HW_GI(peer_stats->flags);
 	skip_auto_rate = ATH10K_HW_DATA_PKT(peer_stats->flags);
+
+	retry_type = ATH10K_HW_RETRY_TYPE(peer_stats->flags);
 
 	if (legacy_rate) {
 		rate = ATH10K_HW_LEGACY_RATE(peer_stats->ratecode);
@@ -153,10 +157,18 @@ void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 				(peer_stats->failed_bytes);
 		tx_stats->fail_pkts_legacy_rates[mcs] +=
 				(peer_stats->failed_pkts);
-		tx_stats->retry_bytes_legacy_rates[mcs] +=
-				(peer_stats->retry_bytes);
-		tx_stats->retry_pkts_legacy_rates[mcs] +=
-				(peer_stats->retry_pkts);
+		if (version == ATH10K_HTT_T2H_PEER_STATS_V2 &&
+		    retry_type == ATH10K_STATS_RTS_RETRY) {
+			tx_stats->rts_retry_pkts_legacy_rates[mcs] +=
+					(peer_stats->retry_pkts);
+			tx_stats->rts_retry_bytes_legacy_rates[mcs] +=
+					(peer_stats->retry_bytes);
+		} else {
+			tx_stats->retry_bytes_legacy_rates[mcs] +=
+					(peer_stats->retry_bytes);
+			tx_stats->retry_pkts_legacy_rates[mcs] +=
+					(peer_stats->retry_pkts);
+		}
 		tx_stats->ack_fails +=
 				ATH10K_HW_BA_FAIL(peer_stats->flags);
 	} else {
@@ -215,10 +227,6 @@ void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 				(peer_stats->failed_bytes);
 		tx_stats->fail_pkts_mcs[mcs] +=
 				(peer_stats->failed_pkts);
-		tx_stats->retry_bytes_mcs[mcs] +=
-				(peer_stats->retry_bytes);
-		tx_stats->retry_pkts_mcs[mcs] +=
-				(peer_stats->retry_pkts);
 		tx_stats->succ_bytes_bw[bw] +=
 			(peer_stats->succ_bytes);
 		tx_stats->succ_bytes_nss[nss] +=
@@ -251,22 +259,50 @@ void ath10k_accumulate_per_peer_tx_stats(struct ath10k *ar,
 			(peer_stats->failed_pkts);
 		tx_stats->fail_pkts_rate_num[idx] +=
 			(peer_stats->failed_pkts);
-		tx_stats->retry_bytes_bw[bw] +=
-			(peer_stats->retry_bytes);
-		tx_stats->retry_bytes_nss[nss] +=
-			(peer_stats->retry_bytes);
-		tx_stats->retry_bytes_gi[gi] +=
-			(peer_stats->retry_bytes);
-		tx_stats->retry_bytes_rate_num[idx] +=
-			(peer_stats->retry_bytes);
-		tx_stats->retry_pkts_bw[bw] +=
-			(peer_stats->retry_pkts);
-		tx_stats->retry_pkts_nss[nss] +=
-			(peer_stats->retry_pkts);
-		tx_stats->retry_pkts_gi[gi] +=
-			(peer_stats->retry_pkts);
-		tx_stats->retry_pkts_rate_num[idx] +=
-			(peer_stats->retry_pkts);
+		if (version == ATH10K_HTT_T2H_PEER_STATS_V2 &&
+		    retry_type == ATH10K_STATS_RTS_RETRY) {
+			tx_stats->rts_retry_bytes_mcs[mcs] +=
+				(peer_stats->retry_bytes);
+			tx_stats->rts_retry_pkts_mcs[mcs] +=
+				(peer_stats->retry_pkts);
+			tx_stats->rts_retry_bytes_bw[bw] +=
+				(peer_stats->retry_bytes);
+			tx_stats->rts_retry_bytes_nss[nss] +=
+				(peer_stats->retry_bytes);
+			tx_stats->rts_retry_bytes_gi[gi] +=
+				(peer_stats->retry_bytes);
+			tx_stats->rts_retry_bytes_rate_num[idx] +=
+				(peer_stats->retry_bytes);
+			tx_stats->rts_retry_pkts_bw[bw] +=
+				(peer_stats->retry_pkts);
+			tx_stats->rts_retry_pkts_nss[nss] +=
+				(peer_stats->retry_pkts);
+			tx_stats->rts_retry_pkts_gi[gi] +=
+				(peer_stats->retry_pkts);
+			tx_stats->rts_retry_pkts_rate_num[idx] +=
+				(peer_stats->retry_pkts);
+		} else {
+			tx_stats->retry_bytes_mcs[mcs] +=
+				(peer_stats->retry_bytes);
+			tx_stats->retry_pkts_mcs[mcs] +=
+				(peer_stats->retry_pkts);
+			tx_stats->retry_bytes_bw[bw] +=
+				(peer_stats->retry_bytes);
+			tx_stats->retry_bytes_nss[nss] +=
+				(peer_stats->retry_bytes);
+			tx_stats->retry_bytes_gi[gi] +=
+				(peer_stats->retry_bytes);
+			tx_stats->retry_bytes_rate_num[idx] +=
+				(peer_stats->retry_bytes);
+			tx_stats->retry_pkts_bw[bw] +=
+				(peer_stats->retry_pkts);
+			tx_stats->retry_pkts_nss[nss] +=
+				(peer_stats->retry_pkts);
+			tx_stats->retry_pkts_gi[gi] +=
+				(peer_stats->retry_pkts);
+			tx_stats->retry_pkts_rate_num[idx] +=
+				(peer_stats->retry_pkts);
+		}
 	}
 
 	txrate.flags = pream;
@@ -652,6 +688,10 @@ static ssize_t ath10k_dbg_sta_dump_tx_stats(struct file *file,
 	STATS_OUTPUT_FORMAT(fail_bytes);
 	STATS_OUTPUT_FORMAT(retry_pkts);
 	STATS_OUTPUT_FORMAT(retry_bytes);
+	if (arsta->version == ATH10K_HTT_T2H_PEER_STATS_V2) {
+		STATS_OUTPUT_FORMAT(rts_retry_pkts);
+		STATS_OUTPUT_FORMAT(rts_retry_bytes);
+	}
 
 	len += scnprintf(buf + len, size - len,
 			 "\nTX duration:\t %llu usecs\n",

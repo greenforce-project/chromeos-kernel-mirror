@@ -399,6 +399,20 @@ struct ath10k_tx_stats {
 	u64 retry_pkts_gi[VHT_GI_NUM];
 	u64 retry_pkts_rate_num[VHT_RATE_NUM];
 
+	u64 rts_retry_bytes_mcs[VHT_MCS_NUM];
+	u64 rts_retry_bytes_bw[VHT_BW_NUM];
+	u64 rts_retry_bytes_nss[VHT_NSS_NUM];
+	u64 rts_retry_bytes_legacy_rates[LEGACY_RATE_NUM];
+	u64 rts_retry_bytes_gi[VHT_GI_NUM];
+	u64 rts_retry_bytes_rate_num[VHT_RATE_NUM];
+
+	u64 rts_retry_pkts_mcs[VHT_MCS_NUM];
+	u64 rts_retry_pkts_bw[VHT_BW_NUM];
+	u64 rts_retry_pkts_nss[VHT_NSS_NUM];
+	u64 rts_retry_pkts_legacy_rates[LEGACY_RATE_NUM];
+	u64 rts_retry_pkts_gi[VHT_GI_NUM];
+	u64 rts_retry_pkts_rate_num[VHT_RATE_NUM];
+
 	u64 tx_duration;
 	u64 ba_fails;
 	u64 ack_fails;
@@ -438,6 +452,16 @@ struct ath10k_cfr_capture {
 	u32 cfr_method;
 };
 
+enum ath10k_stats_retry_type {
+	ATH10K_STATS_DATA_RETRY,
+	ATH10K_STATS_RTS_RETRY,
+};
+
+enum ath10k_peer_stats_version {
+	ATH10K_HTT_T2H_PEER_STATS_V1 = 1,
+	ATH10K_HTT_T2H_PEER_STATS_V2,
+};
+
 struct ath10k_sta {
 	struct ath10k_vif *arvif;
 
@@ -465,6 +489,7 @@ struct ath10k_sta {
 	struct ath10k_cfr_capture cfr_capture;
 	bool pspoll_sta_ko_enable;
 	u32 pkt_status[HTT_TX_COMPL_STATES_MAX];
+	enum ath10k_peer_stats_version version;
 };
 
 #define ATH10K_VDEV_SETUP_TIMEOUT_HZ (5*HZ)
