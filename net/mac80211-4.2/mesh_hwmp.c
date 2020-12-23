@@ -400,14 +400,20 @@ u32 airtime_link_metric_get(struct ieee80211_local *local,
 	unsigned long fail_avg =
 		ewma_read(&sta->mesh->fail_avg);
 
-	if (fail_avg > LINK_FAIL_THRESH)
+	if (fail_avg > LINK_FAIL_THRESH) {
+		pr_warn("Fail average(%lu) exceeds the fail threshold(95)\n",
+			fail_avg);
 		return MAX_METRIC;
+	}
 
 	if (!sta->mesh->bitrate_avg) {
 		sta_set_rate_info_tx(sta, &sta->last_tx_rate, &rinfo);
 		sta->mesh->bitrate_avg = cfg80211_calculate_bitrate(&rinfo);
-		if (WARN_ON(!sta->mesh->bitrate_avg))
+		if (WARN_ON(!sta->mesh->bitrate_avg)) {
+			pr_warn("TX bitrate of last non-data frame returns %uKbps\n",
+				sta->mesh->bitrate_avg);
 			return MAX_METRIC;
+		}
 	}
 
 	bitrate_avg = sta->mesh->bitrate_avg;
