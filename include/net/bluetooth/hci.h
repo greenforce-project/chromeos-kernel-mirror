@@ -192,6 +192,9 @@ enum {
 	 * This quirk must be set before hci_register_dev is called.
 	 */
 	HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED,
+
+	/* This quirk will be set when running on Intel SdP/StP controller */
+	HCI_QUIRK_RESTRICT_CONN_PARAMS,
 };
 
 /* HCI device flags */
