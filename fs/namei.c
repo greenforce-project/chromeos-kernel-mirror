@@ -832,6 +832,8 @@ follow_link(struct path *link, struct nameidata *nd, void **p)
 		mntget(link->mnt);
 
 	error = -ELOOP;
+	if (nd->path.mnt->mnt_flags & MNT_NOSYMFOLLOW)
+		goto out_put_nd_path;
 	if (unlikely(current->total_link_count >= 40))
 		goto out_put_nd_path;
 
