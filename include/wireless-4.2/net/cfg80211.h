@@ -1058,7 +1058,6 @@ struct cfg80211_tid_stats {
  *	from this peer
  * @pertid: per-TID statistics, see &struct cfg80211_tid_stats, using the last
  *	(IEEE80211_NUM_TIDS) index for MSDUs not encapsulated in QoS-MPDUs.
- * @ack_signal: signal strength (in dBm) of the last ACK frame in dBm.
  * @NL80211_STA_INFO_DATA_ACK_SIGNAL_AVG: avg signal strength of data ACK
  *	frame(s8, dBm)
  */
@@ -1104,7 +1103,6 @@ struct station_info {
 	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
 	struct cfg80211_tid_stats pertid[IEEE80211_NUM_TIDS + 1];
-	s8 ack_signal;
 	s8 avg_ack_rssi;
 };
 
@@ -4854,13 +4852,10 @@ bool cfg80211_rx_unexpected_4addr_frame(struct net_device *dev,
  * @addr: the address of the peer
  * @cookie: the cookie filled in @probe_client previously
  * @acked: indicates whether probe was acked or not
- * @ack_signal: signal strength (in dBm) of the ACK frame.
- * @is_valid_ack_signal: indicates the ack_signal is valid or not.
  * @gfp: allocation flags
  */
 void cfg80211_probe_status(struct net_device *dev, const u8 *addr,
-			   u64 cookie, bool acked, s32 ack_signal,
-			   bool is_valid_ack_signal, gfp_t gfp);
+			   u64 cookie, bool acked, gfp_t gfp);
 
 /**
  * cfg80211_report_obss_beacon - report beacon from other APs
