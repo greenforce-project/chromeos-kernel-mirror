@@ -1150,7 +1150,7 @@ err_alloc:
  * edma_axi_remove is called by the platform subsystem to alert the driver
  * that it should release a platform device.
  */
-static int edma_axi_remove(struct platform_device *pdev)
+static int __maybe_unused edma_axi_remove(struct platform_device *pdev)
 {
 	struct edma_adapter *adapter = netdev_priv(edma_netdev[0]);
 	struct edma_common_info *edma_cinfo = adapter->edma_cinfo;
@@ -1209,10 +1209,20 @@ static struct platform_driver edma_axi_driver = {
 		.of_match_table = edma_of_mtable,
 	},
 	.probe    = edma_axi_probe,
-	.remove   = edma_axi_remove,
+	/* b/177380545#comment11: There are enough bugs in the removal path
+	 * that it's better to drop support for removal than to pretend we
+	 * support it, and be left with panics, lockups, etc., when someone
+	 * tries to use it.
+	 */
+	/* .remove   = edma_axi_remove, */
 };
 
-module_platform_driver(edma_axi_driver);
+static int __init edma_axi_init(void)
+{
+	return platform_driver_probe(&edma_axi_driver, edma_axi_probe);
+}
+module_init(edma_axi_init);
+/* module_exit() omitted, so driver cannot be unloaded. */
 
 MODULE_AUTHOR("Qualcomm Atheros Inc");
 MODULE_DESCRIPTION("QCA ESS EDMA driver");
