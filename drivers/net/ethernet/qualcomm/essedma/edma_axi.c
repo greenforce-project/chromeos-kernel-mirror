@@ -1139,7 +1139,7 @@ err_ioremap:
 			free_netdev(edma_netdev[i]);
 	}
 err_cinfo:
-	vfree(edma_cinfo);
+	kfree(edma_cinfo);
 err_alloc:
 	return err;
 }
@@ -1192,7 +1192,7 @@ static int edma_axi_remove(struct platform_device *pdev)
 	for (i = 0; i < edma_cinfo->num_gmac; i++)
 		free_netdev(edma_netdev[i]);
 
-	vfree(edma_cinfo);
+	kfree(edma_cinfo);
 
 	return 0;
 }
