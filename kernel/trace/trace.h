@@ -1363,7 +1363,7 @@ __event_trigger_test_discard(struct trace_event_file *file,
 	unsigned long eflags = file->flags;
 
 	if (eflags & EVENT_FILE_FL_TRIGGER_COND)
-		*tt = event_triggers_call(file, entry, event);
+		*tt = event_triggers_call(file, buffer, entry, event);
 
 	if (likely(!(file->flags & (EVENT_FILE_FL_SOFT_DISABLED |
 				    EVENT_FILE_FL_FILTERED |
@@ -1676,7 +1676,7 @@ extern void event_file_put(struct trace_event_file *file);
  */
 struct event_trigger_ops {
 	void			(*func)(struct event_trigger_data *data,
-					void *rec,
+					struct trace_buffer *buffer, void *rec,
 					struct ring_buffer_event *rbe);
 	int			(*init)(struct event_trigger_ops *ops,
 					struct event_trigger_data *data);
