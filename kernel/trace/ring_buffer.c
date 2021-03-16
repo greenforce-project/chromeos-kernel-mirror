@@ -478,6 +478,8 @@ struct rb_time_struct {
 #endif
 typedef struct rb_time_struct rb_time_t;
 
+#define MAX_NEST	5
+
 /*
  * head_page == tail_page && head == tail then buffer is empty.
  */
@@ -516,6 +518,7 @@ struct ring_buffer_per_cpu {
 	unsigned long			read_bytes;
 	rb_time_t			write_stamp;
 	rb_time_t			before_stamp;
+	u64				event_stamp[MAX_NEST];
 	u64				read_stamp;
 	/* pages removed since last reset */
 	unsigned long			pages_removed;
@@ -2835,6 +2838,10 @@ rb_update_event(struct ring_buffer_per_cpu *cpu_buffer,
 {
 	unsigned length = info->length;
 	u64 delta = info->delta;
+	unsigned int nest = local_read(&cpu_buffer->committing) - 1;
+
+	if (nest < MAX_NEST)
+		cpu_buffer->event_stamp[nest] = info->ts;
 
 	/*
 	 * If we need to add a timestamp, then we
@@ -3576,7 +3583,6 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 				    info->after, ts)) {
 			/* Nothing came after this event between C and E */
 			info->delta = ts - info->after;
-			info->ts = ts;
 		} else {
 			/*
 			 * Interrupted beween C and E:
@@ -3588,6 +3594,7 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 			 */
 			info->delta = 0;
 		}
+		info->ts = ts;
 		info->add_timestamp &= ~RB_ADD_STAMP_FORCE;
 	}
 
@@ -5216,6 +5223,8 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 
 	rb_time_set(&cpu_buffer->write_stamp, 0);
 	rb_time_set(&cpu_buffer->before_stamp, 0);
+
+	memset(cpu_buffer->event_stamp, 0, sizeof(cpu_buffer->event_stamp));
 
 	cpu_buffer->lost_events = 0;
 	cpu_buffer->last_overrun = 0;
