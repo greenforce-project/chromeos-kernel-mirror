@@ -458,7 +458,7 @@ static int mmc_busy_cb(void *cb_data, bool *busy)
 	u32 status = 0;
 	int err;
 
-	if (host->ops->card_busy) {
+	if (data->busy_cmd != MMC_BUSY_IO && host->ops->card_busy) {
 		*busy = host->ops->card_busy(host);
 		return 0;
 	}
@@ -479,6 +479,7 @@ static int mmc_busy_cb(void *cb_data, bool *busy)
 		err = R1_STATUS(status) ? -EIO : 0;
 		break;
 	case MMC_BUSY_HPI:
+	case MMC_BUSY_IO:
 		break;
 	default:
 		err = -EINVAL;
@@ -543,6 +544,7 @@ int mmc_poll_for_busy(struct mmc_card *card, unsigned int timeout_ms,
 
 	return __mmc_poll_for_busy(card, timeout_ms, &mmc_busy_cb, &cb_data);
 }
+EXPORT_SYMBOL_GPL(mmc_poll_for_busy);
 
 bool mmc_prepare_busy_cmd(struct mmc_host *host, struct mmc_command *cmd,
 			  unsigned int timeout_ms)
