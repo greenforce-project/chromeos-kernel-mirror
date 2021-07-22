@@ -798,28 +798,25 @@ static inline u16 sta_stats_encode_rate(struct ieee80211_rx_status *s)
 {
 	u16 r = s->rate_idx;
 
-	if (s->enc_flags & RX_ENC_FLAG_80MHZ)
-		r |= RATE_INFO_BW_80 << STA_STATS_RATE_BW_SHIFT;
-	else if (s->enc_flags & RX_ENC_FLAG_160MHZ)
-		r |= RATE_INFO_BW_160 << STA_STATS_RATE_BW_SHIFT;
-	else if (s->enc_flags & RX_ENC_FLAG_40MHZ)
-		r |= RATE_INFO_BW_40 << STA_STATS_RATE_BW_SHIFT;
-	else if (s->enc_flags & RX_ENC_FLAG_10MHZ)
-		r |= RATE_INFO_BW_10 << STA_STATS_RATE_BW_SHIFT;
-	else if (s->enc_flags & RX_ENC_FLAG_5MHZ)
-		r |= RATE_INFO_BW_5 << STA_STATS_RATE_BW_SHIFT;
-	else
-		r |= RATE_INFO_BW_20 << STA_STATS_RATE_BW_SHIFT;
+	r |= s->bw << STA_STATS_RATE_BW_SHIFT;
 
 	if (s->enc_flags & RX_ENC_FLAG_SHORT_GI)
 		r |= STA_STATS_RATE_SGI;
 
-	if (s->enc_flags & RX_ENC_FLAG_VHT)
+	switch (s->encoding) {
+	case RX_ENC_VHT:
 		r |= STA_STATS_RATE_VHT | (s->vht_nss << 4);
-	else if (s->enc_flags & RX_ENC_FLAG_HT)
+		break;
+	case RX_ENC_HT:
 		r |= STA_STATS_RATE_HT;
-	else
+		break;
+	default:
+		WARN_ON(1);
+		/* fall through */
+	case RX_ENC_LEGACY:
 		r |= STA_STATS_RATE_LEGACY | (s->band << 4);
+		break;
+	}
 
 	return r;
 }
