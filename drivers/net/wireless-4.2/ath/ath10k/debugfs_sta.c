@@ -85,7 +85,6 @@ static void ath10k_fill_tx_bitrate(struct ieee80211_hw *hw,
 		}
 		info.status.rates[0].flags |= IEEE80211_TX_RC_MCS;
 		arsta->tx_stats.txrate.nss = txrate->nss;
-		arsta->tx_stats.txrate.bw = txrate->bw + RATE_INFO_BW_20;
 		break;
 	case WMI_RATE_PREAMBLE_VHT:
 		ieee80211_rate_set_vht(&info.status.rates[0], txrate->mcs,
@@ -99,9 +98,10 @@ static void ath10k_fill_tx_bitrate(struct ieee80211_hw *hw,
 		}
 		info.status.rates[0].flags |= IEEE80211_TX_RC_VHT_MCS;
 		arsta->tx_stats.txrate.nss = txrate->nss;
-		arsta->tx_stats.txrate.bw = txrate->bw + RATE_INFO_BW_20;
 		break;
 	}
+
+	arsta->tx_stats.txrate.bw = ath10k_bw_to_mac80211_bw(txrate->bw);
 
 	switch (arsta->tx_stats.txrate.bw) {
 	case RATE_INFO_BW_40:
