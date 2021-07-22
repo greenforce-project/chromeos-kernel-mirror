@@ -889,7 +889,7 @@ void ieee80211_rx_h_sta_stats(struct sta_info *sta, struct sk_buff *skb)
 		mcs_idx = mcs_idx % 8;
 	} else if (status->encoding & RX_ENC_VHT) {
 		mcs_idx = status->rate_idx;
-		nss_idx = status->vht_nss - 1;
+		nss_idx = status->nss - 1;
 
 		if (nss_idx > IEEE80211_NSS_NUM - 1 ||
 		    mcs_idx > (IEEE80211_VHT_MCS_NUM - 1))
