@@ -550,10 +550,7 @@ struct sta_info {
 	struct mc_bc_stats mc_bc_stat;
 	struct rx_rate_limit mc_rx_limit, bc_rx_limit;
 	struct ieee80211_tx_rate last_tx_rate;
-	int last_rx_rate_idx;
-	u32 last_rx_rate_flag;
-	u32 last_rx_rate_vht_flag;
-	u8 last_rx_rate_vht_nss;
+	u16 last_rate;
 	u16 tid_seq[IEEE80211_QOS_CTL_TID_MASK + 1];
 	u64 tx_msdu[IEEE80211_NUM_TIDS + 1];
 	u64 tx_msdu_retries[IEEE80211_NUM_TIDS + 1];
@@ -775,8 +772,6 @@ static inline int sta_info_flush(struct ieee80211_sub_if_data *sdata)
 void sta_set_rate_info_tx(struct sta_info *sta,
 			  const struct ieee80211_tx_rate *rate,
 			  struct rate_info *rinfo);
-void sta_set_rate_info_rx(struct sta_info *sta,
-			  struct rate_info *rinfo);
 void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo);
 
 void ieee80211_sta_expire(struct ieee80211_sub_if_data *sdata,
@@ -790,5 +785,43 @@ void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta);
 void ieee80211_sta_ps_deliver_poll_response(struct sta_info *sta);
 void ieee80211_sta_ps_deliver_uapsd(struct sta_info *sta);
 void mesh_continuous_tx_fail_cnt(struct sta_info *sta);
+
+#define STA_STATS_RATE_INVALID		0
+#define STA_STATS_RATE_VHT		0x8000
+#define STA_STATS_RATE_HT		0x4000
+#define STA_STATS_RATE_LEGACY		0x2000
+#define STA_STATS_RATE_SGI		0x1000
+#define STA_STATS_RATE_BW_SHIFT		9
+#define STA_STATS_RATE_BW_MASK		(0x7 << STA_STATS_RATE_BW_SHIFT)
+
+static inline u16 sta_stats_encode_rate(struct ieee80211_rx_status *s)
+{
+	u16 r = s->rate_idx;
+
+	if (s->vht_flag & RX_VHT_FLAG_80MHZ)
+		r |= RATE_INFO_BW_80 << STA_STATS_RATE_BW_SHIFT;
+	else if (s->vht_flag & RX_VHT_FLAG_160MHZ)
+		r |= RATE_INFO_BW_160 << STA_STATS_RATE_BW_SHIFT;
+	else if (s->flag & RX_FLAG_40MHZ)
+		r |= RATE_INFO_BW_40 << STA_STATS_RATE_BW_SHIFT;
+	else if (s->flag & RX_FLAG_10MHZ)
+		r |= RATE_INFO_BW_10 << STA_STATS_RATE_BW_SHIFT;
+	else if (s->flag & RX_FLAG_5MHZ)
+		r |= RATE_INFO_BW_5 << STA_STATS_RATE_BW_SHIFT;
+	else
+		r |= RATE_INFO_BW_20 << STA_STATS_RATE_BW_SHIFT;
+
+	if (s->flag & RX_FLAG_SHORT_GI)
+		r |= STA_STATS_RATE_SGI;
+
+	if (s->flag & RX_FLAG_VHT)
+		r |= STA_STATS_RATE_VHT | (s->vht_nss << 4);
+	else if (s->flag & RX_FLAG_HT)
+		r |= STA_STATS_RATE_HT;
+	else
+		r |= STA_STATS_RATE_LEGACY | (s->band << 4);
+
+	return r;
+}
 
 #endif /* STA_INFO_H */

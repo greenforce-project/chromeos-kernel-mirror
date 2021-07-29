@@ -1850,6 +1850,50 @@ u8 sta_info_tx_streams(struct sta_info *sta)
 			>> IEEE80211_HT_MCS_TX_MAX_STREAMS_SHIFT) + 1;
 }
 
+static void sta_stats_decode_rate(struct ieee80211_local *local, u16 rate,
+				  struct rate_info *rinfo)
+{
+	rinfo->bw = (rate & STA_STATS_RATE_BW_MASK) >>
+		STA_STATS_RATE_BW_SHIFT;
+
+	if (rate & STA_STATS_RATE_VHT) {
+		rinfo->flags = RATE_INFO_FLAGS_VHT_MCS;
+		rinfo->mcs = rate & 0xf;
+		rinfo->nss = (rate & 0xf0) >> 4;
+	} else if (rate & STA_STATS_RATE_HT) {
+		rinfo->flags = RATE_INFO_FLAGS_MCS;
+		rinfo->mcs = rate & 0xff;
+	} else if (rate & STA_STATS_RATE_LEGACY) {
+		struct ieee80211_supported_band *sband;
+		u16 brate;
+		unsigned int shift;
+
+		sband = local->hw.wiphy->bands[(rate >> 4) & 0xf];
+		brate = sband->bitrates[rate & 0xf].bitrate;
+		if (rinfo->bw == RATE_INFO_BW_5)
+			shift = 2;
+		else if (rinfo->bw == RATE_INFO_BW_10)
+			shift = 1;
+		else
+			shift = 0;
+
+		rinfo->legacy = DIV_ROUND_UP(brate, 1 << shift);
+	}
+
+	if (rate & STA_STATS_RATE_SGI)
+		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
+}
+
+static void sta_set_rate_info_rx(struct sta_info *sta, struct rate_info *rinfo)
+{
+	u16 rate = ACCESS_ONCE(sta->last_rate);
+
+	if (rate == STA_STATS_RATE_INVALID)
+		rinfo->flags = 0;
+	else
+		sta_stats_decode_rate(sta->local, rate, rinfo);
+}
+
 void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo)
 {
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
