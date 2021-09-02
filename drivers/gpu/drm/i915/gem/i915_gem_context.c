@@ -1793,15 +1793,12 @@ static int get_ppgtt(struct drm_i915_file_private *file_priv,
 	if (!i915_gem_context_has_full_ppgtt(ctx))
 		return -ENODEV;
 
-	rcu_read_lock();
-	vm = context_get_vm_rcu(ctx);
-	rcu_read_unlock();
-	if (!vm)
-		return -ENODEV;
+	vm = ctx->vm;
+	GEM_BUG_ON(!vm);
 
 	err = xa_alloc(&file_priv->vm_xa, &id, vm, xa_limit_32b, GFP_KERNEL);
 	if (err)
-		goto err_put;
+		return err;
 
 	i915_vm_open(vm);
 

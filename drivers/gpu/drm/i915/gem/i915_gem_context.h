@@ -156,9 +156,9 @@ i915_gem_context_vm(struct i915_gem_context *ctx)
 
 static inline bool i915_gem_context_has_full_ppgtt(struct i915_gem_context *ctx)
 {
-	GEM_BUG_ON(!!rcu_access_pointer(ctx->vm) != HAS_FULL_PPGTT(ctx->i915));
+	GEM_BUG_ON(!!ctx->vm != HAS_FULL_PPGTT(ctx->i915));
 
-	return !!rcu_access_pointer(ctx->vm);
+	return !!ctx->vm;
 }
 
 static inline struct i915_address_space *
