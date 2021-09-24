@@ -415,6 +415,9 @@ static int pxp_terminate_all_sessions_and_global(struct intel_pxp *pxp)
 
 	intel_pxp_tee_end_all_fw_sessions(pxp, active_sip_slots);
 
+	/* invalidate protected objects */
+	intel_pxp_invalidate(pxp);
+
 	/* terminate the hw sessions */
 	ret = pxp_terminate_all_sessions(pxp);
 	if (ret) {
