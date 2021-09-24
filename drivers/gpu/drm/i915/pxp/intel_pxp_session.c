@@ -415,9 +415,6 @@ static int pxp_terminate_all_sessions_and_global(struct intel_pxp *pxp)
 
 	intel_pxp_tee_end_all_fw_sessions(pxp, active_sip_slots);
 
-	/* invalidate protected objects */
-	intel_pxp_invalidate(pxp);
-
 	/* terminate the hw sessions */
 	ret = pxp_terminate_all_sessions(pxp);
 	if (ret) {
@@ -494,6 +491,9 @@ void intel_pxp_session_work(struct work_struct *work)
 	wakeref = intel_runtime_pm_get_if_in_use(gt->uncore->rpm);
 	if (!wakeref)
 		return;
+
+	if (events & PXP_INVAL_REQUIRED)
+		intel_pxp_invalidate(pxp);
 
 	if (events & PXP_TERMINATION_REQUEST) {
 		events &= ~PXP_TERMINATION_COMPLETE;
