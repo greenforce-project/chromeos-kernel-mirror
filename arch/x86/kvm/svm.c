@@ -5700,6 +5700,8 @@ static void svm_setup_mce(struct kvm_vcpu *vcpu)
 }
 
 static struct kvm_x86_ops svm_x86_ops __ro_after_init = {
+	.name = "kvm_amd",
+
 	.cpu_has_kvm_support = has_svm,
 	.disabled_by_bios = is_disabled,
 	.hardware_setup = svm_hardware_setup,
