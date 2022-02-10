@@ -12,6 +12,7 @@
 #include "gem/i915_gem_context.h"
 
 #include "i915_drv.h"
+#include "i915_file_private.h"
 #include "i915_gpu_error.h"
 #include "i915_irq.h"
 #include "intel_breadcrumbs.h"
