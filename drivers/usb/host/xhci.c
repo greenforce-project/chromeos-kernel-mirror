@@ -741,7 +741,7 @@ int xhci_run(struct usb_hcd *hcd)
 
 	set_bit(HCD_FLAG_DEFER_RH_REGISTER, &hcd->flags);
 
-	xhci_dbc_init(xhci);
+	xhci_create_dbc_dev(xhci);
 
 	xhci_debugfs_init(xhci);
 
@@ -771,7 +771,7 @@ static void xhci_stop(struct usb_hcd *hcd)
 		return;
 	}
 
-	xhci_dbc_exit(xhci);
+	xhci_remove_dbc_dev(xhci);
 
 	spin_lock_irq(&xhci->lock);
 	xhci->xhc_state |= XHCI_STATE_HALTED;
