@@ -352,12 +352,12 @@ request_to_scheduling_context(struct i915_request *rq)
 
 static inline bool context_guc_id_invalid(struct intel_context *ce)
 {
-	return ce->guc_id.id == GUC_INVALID_LRC_ID;
+	return ce->guc_id.id == GUC_INVALID_CONTEXT_ID;
 }
 
 static inline void set_context_guc_id_invalid(struct intel_context *ce)
 {
-	ce->guc_id.id = GUC_INVALID_LRC_ID;
+	ce->guc_id.id = GUC_INVALID_CONTEXT_ID;
 }
 
 static inline struct intel_guc *ce_to_guc(struct intel_context *ce)
@@ -472,7 +472,7 @@ static struct guc_lrc_desc *__get_lrc_desc(struct intel_guc *guc, u32 index)
 {
 	struct guc_lrc_desc *base = guc->lrc_desc_pool_vaddr;
 
-	GEM_BUG_ON(index >= GUC_MAX_LRC_DESCRIPTORS);
+	GEM_BUG_ON(index >= GUC_MAX_CONTEXT_ID);
 
 	return &base[index];
 }
@@ -481,7 +481,7 @@ static inline struct intel_context *__get_context(struct intel_guc *guc, u32 id)
 {
 	struct intel_context *ce = xa_load(&guc->context_lookup, id);
 
-	GEM_BUG_ON(id >= GUC_MAX_LRC_DESCRIPTORS);
+	GEM_BUG_ON(id >= GUC_MAX_CONTEXT_ID);
 
 	return ce;
 }
@@ -492,7 +492,7 @@ static int guc_lrc_desc_pool_create(struct intel_guc *guc)
 	int ret;
 
 	size = PAGE_ALIGN(sizeof(struct guc_lrc_desc) *
-			  GUC_MAX_LRC_DESCRIPTORS);
+			  GUC_MAX_CONTEXT_ID);
 	ret = intel_guc_allocate_and_map_vma(guc, size, &guc->lrc_desc_pool,
 					     (void **)&guc->lrc_desc_pool_vaddr);
 	if (ret)
@@ -2360,7 +2360,7 @@ static void __guc_context_sched_disable(struct intel_guc *guc,
 		GUC_CONTEXT_DISABLE
 	};
 
-	GEM_BUG_ON(guc_id == GUC_INVALID_LRC_ID);
+	GEM_BUG_ON(guc_id == GUC_INVALID_CONTEXT_ID);
 
 	GEM_BUG_ON(intel_context_is_child(ce));
 	trace_intel_context_sched_disable(ce);
@@ -3754,7 +3754,7 @@ static bool __guc_submission_selected(struct intel_guc *guc)
 
 void intel_guc_submission_init_early(struct intel_guc *guc)
 {
-	guc->submission_state.num_guc_ids = GUC_MAX_LRC_DESCRIPTORS;
+	guc->submission_state.num_guc_ids = GUC_MAX_CONTEXT_ID;
 	guc->submission_supported = __guc_submission_supported(guc);
 	guc->submission_selected = __guc_submission_selected(guc);
 }
@@ -3764,7 +3764,7 @@ g2h_context_lookup(struct intel_guc *guc, u32 desc_idx)
 {
 	struct intel_context *ce;
 
-	if (unlikely(desc_idx >= GUC_MAX_LRC_DESCRIPTORS)) {
+	if (unlikely(desc_idx >= GUC_MAX_CONTEXT_ID)) {
 		drm_err(&guc_to_gt(guc)->i915->drm,
 			"Invalid desc_idx %u", desc_idx);
 		return NULL;
