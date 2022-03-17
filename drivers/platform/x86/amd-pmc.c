@@ -583,9 +583,9 @@ static int amd_pmc_verify_czn_rtc(struct amd_pmc_dev *pdev, u32 *arg)
 	return rc;
 }
 
-static int __maybe_unused amd_pmc_suspend(struct device *dev)
+static void amd_pmc_s2idle_prepare(void)
 {
-	struct amd_pmc_dev *pdev = dev_get_drvdata(dev);
+	struct amd_pmc_dev *pdev = &pmc;
 	int rc;
 	u8 msg;
 	u32 arg = 1;
@@ -598,11 +598,11 @@ static int __maybe_unused amd_pmc_suspend(struct device *dev)
 	if (pdev->cpu_id == AMD_CPU_ID_CZN && false) {
 		rc = amd_pmc_verify_czn_rtc(pdev, &arg);
 		if (rc < 0)
-			return rc;
+			dev_err(pdev->dev, "failed to apply RTC workaround: %d\n", rc);
 	}
 
 	/* Dump the IdleMask before we send hint to SMU */
-	amd_pmc_idlemask_read(pdev, dev, NULL);
+	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 	msg = amd_pmc_get_os_hint(pdev);
 	rc = amd_pmc_send_cmd(pdev, arg, NULL, msg, 0);
 	if (rc)
@@ -613,13 +613,11 @@ static int __maybe_unused amd_pmc_suspend(struct device *dev)
 		if (rc)
 			dev_err(pdev->dev, "error writing to STB\n");
 	}
-
-	return rc;
 }
 
-static int __maybe_unused amd_pmc_resume(struct device *dev)
+static void amd_pmc_s2idle_restore(void)
 {
-	struct amd_pmc_dev *pdev = dev_get_drvdata(dev);
+	struct amd_pmc_dev *pdev = &pmc;
 	int rc;
 	u8 msg;
 
@@ -632,7 +630,7 @@ static int __maybe_unused amd_pmc_resume(struct device *dev)
 	amd_pmc_send_cmd(pdev, 0, NULL, SMU_MSG_LOG_DUMP_DATA, 0);
 
 	/* Dump the IdleMask to see the blockers */
-	amd_pmc_idlemask_read(pdev, dev, NULL);
+	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 
 	/* Write data incremented by 1 to distinguish in stb_read */
 	if (enable_stb) {
@@ -643,13 +641,11 @@ static int __maybe_unused amd_pmc_resume(struct device *dev)
 
 	/* Notify on failed entry */
 	amd_pmc_validate_deepest(pdev);
-
-	return 0;
 }
 
-static const struct dev_pm_ops amd_pmc_pm_ops = {
-	.suspend_noirq = amd_pmc_suspend,
-	.resume_noirq = amd_pmc_resume,
+static struct acpi_s2idle_dev_ops amd_pmc_s2idle_dev_ops = {
+	.prepare = amd_pmc_s2idle_prepare,
+	.restore = amd_pmc_s2idle_restore,
 };
 
 static const struct pci_device_id pmc_pci_ids[] = {
@@ -765,6 +761,10 @@ static int amd_pmc_probe(struct platform_device *pdev)
 	mutex_init(&dev->lock);
 
 	platform_set_drvdata(pdev, dev);
+	err = acpi_register_lps0_dev(&amd_pmc_s2idle_dev_ops);
+	if (err)
+		dev_warn(dev->dev, "failed to register LPS0 sleep handler, expect increased power consumption\n");
+
 	amd_pmc_dbgfs_register(dev);
 	return 0;
 
@@ -777,6 +777,7 @@ static int amd_pmc_remove(struct platform_device *pdev)
 {
 	struct amd_pmc_dev *dev = platform_get_drvdata(pdev);
 
+	acpi_unregister_lps0_dev(&amd_pmc_s2idle_dev_ops);
 	amd_pmc_dbgfs_unregister(dev);
 	pci_dev_put(dev->rdev);
 	mutex_destroy(&dev->lock);
@@ -797,7 +798,6 @@ static struct platform_driver amd_pmc_driver = {
 	.driver = {
 		.name = "amd_pmc",
 		.acpi_match_table = amd_pmc_acpi_ids,
-		.pm = &amd_pmc_pm_ops,
 	},
 	.probe = amd_pmc_probe,
 	.remove = amd_pmc_remove,
