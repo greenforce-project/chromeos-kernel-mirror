@@ -88,6 +88,7 @@
 #include "gt/intel_workarounds.h"
 #include "gt/uc/intel_uc.h"
 
+#include "i915_drm_client.h"
 #include "intel_device_info.h"
 #include "intel_memory_region.h"
 #include "intel_pch.h"
@@ -813,6 +814,8 @@ struct drm_i915_private {
 	struct intel_audio_private audio;
 
 	struct i915_pmu pmu;
+
+	struct i915_drm_clients clients;
 
 	struct i915_hdcp_comp_master *hdcp_master;
 	bool hdcp_comp_added;
