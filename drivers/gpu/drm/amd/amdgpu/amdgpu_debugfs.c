@@ -1602,17 +1602,24 @@ static ssize_t amdgpu_reset_dump_register_list_write(struct file *f,
 		i++;
 	} while (len < size);
 
+	new = kmalloc_array(i, sizeof(uint32_t), GFP_KERNEL);
+	if (!new) {
+		ret = -ENOMEM;
+		goto error_free;
+	}
 	ret = down_write_killable(&adev->reset_sem);
 	if (ret)
 		goto error_free;
 
 	swap(adev->reset_dump_reg_list, tmp);
+	swap(adev->reset_dump_reg_value, new);
 	adev->num_regs = i;
 	up_write(&adev->reset_sem);
 	ret = size;
 
 error_free:
 	kfree(tmp);
+	kfree(new);
 	return ret;
 }
 
