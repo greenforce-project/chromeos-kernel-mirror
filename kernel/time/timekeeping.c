@@ -21,6 +21,7 @@
 #include <linux/clocksource.h>
 #include <linux/jiffies.h>
 #include <linux/time.h>
+#include <linux/timex.h>
 #include <linux/tick.h>
 #include <linux/stop_machine.h>
 #include <linux/pvclock_gtod.h>
@@ -490,6 +491,16 @@ static u64 dummy_clock_read(struct clocksource *cs)
 static struct clocksource dummy_clock = {
 	.read = dummy_clock_read,
 };
+
+/**
+ * ktime_get_offs_boot_ns - boottime offset to monotonic.
+ * Return: boottime offset in nanoseconds.
+ */
+u64 ktime_get_offs_boot_ns(void)
+{
+	return ktime_to_ns(tk_core.timekeeper.offs_boot);
+}
+EXPORT_SYMBOL_GPL(ktime_get_offs_boot_ns);
 
 /**
  * halt_fast_timekeeper - Prevent fast timekeeper from accessing clocksource.
@@ -1235,8 +1246,7 @@ int do_settimeofday64(const struct timespec64 *ts)
 	timekeeping_forward_now(tk);
 
 	xt = tk_xtime(tk);
-	ts_delta.tv_sec = ts->tv_sec - xt.tv_sec;
-	ts_delta.tv_nsec = ts->tv_nsec - xt.tv_nsec;
+	ts_delta = timespec64_sub(*ts, xt);
 
 	if (timespec64_compare(&tk->wall_to_monotonic, &ts_delta) > 0) {
 		ret = -EINVAL;
@@ -2247,6 +2257,21 @@ ktime_t ktime_get_update_offsets_now(unsigned int *cwsseq, ktime_t *offs_real,
 
 	return base;
 }
+
+/**
+ * random_get_entropy_fallback - Returns the raw clock source value,
+ * used by random.c for platforms with no valid random_get_entropy().
+ */
+unsigned long random_get_entropy_fallback(void)
+{
+	struct tk_read_base *tkr = &tk_core.timekeeper.tkr_mono;
+	struct clocksource *clock = READ_ONCE(tkr->clock);
+
+	if (unlikely(timekeeping_suspended || !clock))
+		return 0;
+	return clock->read(clock);
+}
+EXPORT_SYMBOL_GPL(random_get_entropy_fallback);
 
 /**
  * do_adjtimex() - Accessor function to NTP __do_adjtimex function
