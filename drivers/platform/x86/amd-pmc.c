@@ -41,6 +41,7 @@
 #define AMD_PMC_STB_PMI_0		0x03E30600
 #define AMD_PMC_STB_S2IDLE_PREPARE	0xC6000001
 #define AMD_PMC_STB_S2IDLE_RESTORE	0xC6000002
+#define AMD_PMC_STB_S2IDLE_CHECK	0xC6000003
 
 /* Base address of SMU for mapping physical address to virtual address */
 #define AMD_PMC_SMU_INDEX_ADDRESS	0xB8
@@ -614,6 +615,16 @@ static void amd_pmc_s2idle_prepare(void)
 		dev_err(pdev->dev, "error writing to STB: %d\n", rc);
 }
 
+static void amd_pmc_s2idle_check(void)
+{
+	struct amd_pmc_dev *pdev = &pmc;
+	int rc;
+
+	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_CHECK);
+	if (rc)
+		dev_err(pdev->dev, "error writing to STB: %d\n", rc);
+}
+
 static void amd_pmc_s2idle_restore(void)
 {
 	struct amd_pmc_dev *pdev = &pmc;
@@ -641,6 +652,7 @@ static void amd_pmc_s2idle_restore(void)
 
 static struct acpi_s2idle_dev_ops amd_pmc_s2idle_dev_ops = {
 	.prepare = amd_pmc_s2idle_prepare,
+	.check = amd_pmc_s2idle_check,
 	.restore = amd_pmc_s2idle_restore,
 };
 
