@@ -603,8 +603,6 @@ static void amd_pmc_s2idle_prepare(void)
 			dev_err(pdev->dev, "failed to apply RTC workaround: %d\n", rc);
 	}
 
-	/* Dump the IdleMask before we send hint to SMU */
-	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 	msg = amd_pmc_get_os_hint(pdev);
 	rc = amd_pmc_send_cmd(pdev, arg, NULL, msg, 0);
 	if (rc)
@@ -619,6 +617,9 @@ static void amd_pmc_s2idle_check(void)
 {
 	struct amd_pmc_dev *pdev = &pmc;
 	int rc;
+
+	/* Dump the IdleMask before we add to the STB */
+	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 
 	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_CHECK);
 	if (rc)
@@ -638,9 +639,6 @@ static void amd_pmc_s2idle_restore(void)
 
 	/* Let SMU know that we are looking for stats */
 	amd_pmc_send_cmd(pdev, 0, NULL, SMU_MSG_LOG_DUMP_DATA, 0);
-
-	/* Dump the IdleMask to see the blockers */
-	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
 
 	rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_S2IDLE_RESTORE);
 	if (rc)
