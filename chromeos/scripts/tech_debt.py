@@ -40,7 +40,8 @@ def check_tech_debt(commit):
     )
     if commit_message.startswith(
         ('UPSTREAM:', 'FROMGIT:', 'WIP:', 'TEST:', 'TEST-ONLY:', 'BACKPORT:',
-         'Revert')) and not commit_message.startswith('BACKPORT: FROMLIST'):
+         'Revert', 'Reland')) and not commit_message.startswith(
+        'BACKPORT: FROMLIST'):
         return True
 
     bug_id = r'b:[0-9]{7,}'
