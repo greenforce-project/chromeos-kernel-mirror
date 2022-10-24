@@ -2208,7 +2208,8 @@ static void connector_bad_edid(struct drm_connector *connector,
 	if (connector->bad_edid_counter++ && !drm_debug_enabled(DRM_UT_KMS))
 		return;
 
-	drm_dbg_kms(connector->dev, "%s: EDID is invalid:\n", connector->name);
+	drm_dbg_kms(connector->dev, "[CONNECTOR:%d:%s] EDID is invalid:\n",
+		    connector->base.id, connector->name);
 	for (i = 0; i < num_blocks; i++)
 		edid_block_dump(KERN_DEBUG, edid + i, i);
 }
@@ -6062,8 +6063,9 @@ static void drm_parse_microsoft_vsdb(struct drm_connector *connector,
 	if (version == 1 || version == 2 || (version == 3 && !desktop_usage))
 		info->non_desktop = true;
 
-	drm_dbg_kms(connector->dev, "HMD or specialized display VSDB version %u: 0x%02x\n",
-		    version, db[5]);
+	drm_dbg_kms(connector->dev,
+		    "[CONNECTOR:%d:%s] HMD or specialized display VSDB version %u: 0x%02x\n",
+		    connector->base.id, connector->name, version, db[5]);
 }
 
 static void drm_parse_cea_ext(struct drm_connector *connector,
@@ -6166,8 +6168,9 @@ static void drm_parse_vesa_mso_data(struct drm_connector *connector,
 	struct drm_display_info *info = &connector->display_info;
 
 	if (block->num_bytes < 3) {
-		drm_dbg_kms(connector->dev, "Unexpected vendor block size %u\n",
-			    block->num_bytes);
+		drm_dbg_kms(connector->dev,
+			    "[CONNECTOR:%d:%s] Unexpected vendor block size %u\n",
+			    connector->base.id, connector->name, block->num_bytes);
 		return;
 	}
 
@@ -6175,13 +6178,16 @@ static void drm_parse_vesa_mso_data(struct drm_connector *connector,
 		return;
 
 	if (sizeof(*vesa) != sizeof(*block) + block->num_bytes) {
-		drm_dbg_kms(connector->dev, "Unexpected VESA vendor block size\n");
+		drm_dbg_kms(connector->dev,
+			    "[CONNECTOR:%d:%s] Unexpected VESA vendor block size\n",
+			    connector->base.id, connector->name);
 		return;
 	}
 
 	switch (FIELD_GET(DISPLAYID_VESA_MSO_MODE, vesa->mso)) {
 	default:
-		drm_dbg_kms(connector->dev, "Reserved MSO mode value\n");
+		drm_dbg_kms(connector->dev, "[CONNECTOR:%d:%s] Reserved MSO mode value\n",
+			    connector->base.id, connector->name);
 		fallthrough;
 	case 0:
 		info->mso_stream_count = 0;
@@ -6201,12 +6207,16 @@ static void drm_parse_vesa_mso_data(struct drm_connector *connector,
 
 	info->mso_pixel_overlap = FIELD_GET(DISPLAYID_VESA_MSO_OVERLAP, vesa->mso);
 	if (info->mso_pixel_overlap > 8) {
-		drm_dbg_kms(connector->dev, "Reserved MSO pixel overlap value %u\n",
+		drm_dbg_kms(connector->dev,
+			    "[CONNECTOR:%d:%s] Reserved MSO pixel overlap value %u\n",
+			    connector->base.id, connector->name,
 			    info->mso_pixel_overlap);
 		info->mso_pixel_overlap = 8;
 	}
 
-	drm_dbg_kms(connector->dev, "MSO stream count %u, pixel overlap %u\n",
+	drm_dbg_kms(connector->dev,
+		    "[CONNECTOR:%d:%s] MSO stream count %u, pixel overlap %u\n",
+		    connector->base.id, connector->name,
 		    info->mso_stream_count, info->mso_pixel_overlap);
 }
 
@@ -6330,7 +6340,8 @@ static u32 update_display_info(struct drm_connector *connector,
 
 out:
 	if (quirks & EDID_QUIRK_NON_DESKTOP) {
-		drm_dbg_kms(connector->dev, "Non-desktop display%s\n",
+		drm_dbg_kms(connector->dev, "[CONNECTOR:%d:%s] Non-desktop display%s\n",
+			    connector->base.id, connector->name,
 			    info->non_desktop ? " (redundant quirk)" : "");
 		info->non_desktop = true;
 	}
@@ -6637,8 +6648,8 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 	struct drm_edid drm_edid;
 
 	if (edid && !drm_edid_is_valid(edid)) {
-		drm_warn(connector->dev, "%s: EDID invalid.\n",
-			 connector->name);
+		drm_warn(connector->dev, "[CONNECTOR:%d:%s] EDID invalid.\n",
+			 connector->base.id, connector->name);
 		edid = NULL;
 	}
 
