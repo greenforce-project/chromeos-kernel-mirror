@@ -494,9 +494,9 @@ static void pci_device_shutdown(struct device *dev)
 		pci_clear_master(pci_dev);
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 
-/* Auxiliary functions used for system resume and run-time resume. */
+/* Auxiliary functions used for system resume */
 
 /**
  * pci_restore_standard_config - restore standard config registers of PCI device
@@ -516,10 +516,17 @@ static int pci_restore_standard_config(struct pci_dev *pci_dev)
 	pci_pme_restore(pci_dev);
 	return 0;
 }
+#endif /* CONFIG_PM_SLEEP */
 
-#endif
+#ifdef CONFIG_PM
 
-#ifdef CONFIG_PM_SLEEP
+/* Auxiliary functions used for system resume and run-time resume */
+
+static void pci_pm_default_resume(struct pci_dev *pci_dev)
+{
+	pci_fixup_device(pci_fixup_resume, pci_dev);
+	pci_enable_wake(pci_dev, PCI_D0, false);
+}
 
 static void pci_pm_default_resume_early(struct pci_dev *pci_dev)
 {
@@ -528,6 +535,10 @@ static void pci_pm_default_resume_early(struct pci_dev *pci_dev)
 	pci_pme_restore(pci_dev);
 	pci_fixup_device(pci_fixup_resume_early, pci_dev);
 }
+
+#endif /* CONFIG_PM */
+
+#ifdef CONFIG_PM_SLEEP
 
 /*
  * Default "suspend" method for devices that have no driver provided suspend,
@@ -645,12 +656,6 @@ static int pci_legacy_resume(struct device *dev)
 }
 
 /* Auxiliary functions used by the new power management framework */
-
-static void pci_pm_default_resume(struct pci_dev *pci_dev)
-{
-	pci_fixup_device(pci_fixup_resume, pci_dev);
-	pci_enable_wake(pci_dev, PCI_D0, false);
-}
 
 static void pci_pm_default_suspend(struct pci_dev *pci_dev)
 {
@@ -882,7 +887,6 @@ static int pci_pm_resume(struct device *dev)
 #endif /* !CONFIG_SUSPEND */
 
 #ifdef CONFIG_HIBERNATE_CALLBACKS
-
 
 /*
  * pcibios_pm_ops - provide arch-specific hooks when a PCI device is doing
@@ -1230,7 +1234,7 @@ static int pci_pm_runtime_resume(struct device *dev)
 	 * to a driver because although we left it in D0, it may have gone to
 	 * D3cold when the bridge above it runtime suspended.
 	 */
-	pci_restore_standard_config(pci_dev);
+	pci_pm_default_resume_early(pci_dev);
 
 	if (!pci_dev->driver)
 		return 0;
@@ -1239,8 +1243,7 @@ static int pci_pm_runtime_resume(struct device *dev)
 		return -ENOSYS;
 
 	pci_fixup_device(pci_fixup_resume_early, pci_dev);
-	pci_enable_wake(pci_dev, PCI_D0, false);
-	pci_fixup_device(pci_fixup_resume, pci_dev);
+	pci_pm_default_resume(pci_dev);
 
 	rc = pm->runtime_resume(dev);
 

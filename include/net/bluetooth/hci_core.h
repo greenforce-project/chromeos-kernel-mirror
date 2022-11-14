@@ -31,9 +31,13 @@
 
 #include <net/bluetooth/hci.h>
 #include <net/bluetooth/hci_sock.h>
+#include <net/bluetooth/coredump.h>
 
 /* HCI priority */
 #define HCI_PRIO_MAX	7
+
+/* HCI maximum id value */
+#define HCI_MAX_ID 10000
 
 /* HCI Core structures */
 struct inquiry_data {
@@ -87,6 +91,7 @@ struct discovery_state {
 	u8			(*uuids)[16];
 	unsigned long		scan_start;
 	unsigned long		scan_duration;
+	unsigned long		name_resolve_timeout;
 };
 
 #define SUSPEND_NOTIFIER_TIMEOUT	msecs_to_jiffies(2000) /* 2 seconds */
@@ -233,6 +238,15 @@ struct adv_info {
 #define HCI_DEFAULT_ADV_DURATION	2000
 
 #define HCI_ADV_TX_POWER_NO_PREFERENCE 0x7F
+
+struct monitored_device {
+	struct list_head list;
+
+	bdaddr_t bdaddr;
+	__u8     addr_type;
+	__u16    handle;
+	bool     notified;
+};
 
 struct adv_pattern {
 	struct list_head list;
@@ -522,6 +536,10 @@ struct hci_dev {
 	const char		*fw_info;
 	struct dentry		*debugfs;
 
+#ifdef CONFIG_DEV_COREDUMP
+	struct hci_devcoredump	dump;
+#endif
+
 	struct device		dev;
 
 	struct rfkill		*rfkill;
@@ -556,6 +574,9 @@ struct hci_dev {
 
 	struct delayed_work	interleave_scan;
 
+	struct list_head	monitored_devices;
+	bool			advmon_pend_notify;
+
 #if IS_ENABLED(CONFIG_BT_LEDS)
 	struct led_trigger	*power_led;
 #endif
@@ -563,6 +584,11 @@ struct hci_dev {
 #if IS_ENABLED(CONFIG_BT_MSFTEXT)
 	__u16			msft_opcode;
 	void			*msft_data;
+#endif
+
+#if IS_ENABLED(CONFIG_BT_AOSPEXT)
+	bool			aosp_capable;
+	bool			aosp_quality_report;
 #endif
 
 	int (*open)(struct hci_dev *hdev);
@@ -578,9 +604,9 @@ struct hci_dev {
 	int (*set_bdaddr)(struct hci_dev *hdev, const bdaddr_t *bdaddr);
 	void (*cmd_timeout)(struct hci_dev *hdev);
 	bool (*prevent_wake)(struct hci_dev *hdev);
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 	int (*set_quality_report)(struct hci_dev *hdev, bool enable);
-#endif
+	bool (*is_quality_report_evt)(struct sk_buff *skb);
+	bool (*pull_quality_report_data)(struct sk_buff *skb);
 };
 
 #define HCI_PHY_HANDLE(handle)	(handle & 0xff)
@@ -717,19 +743,19 @@ extern struct mutex hci_cb_list_lock;
 #define hci_dev_test_and_clear_flag(hdev, nr)  test_and_clear_bit((nr), (hdev)->dev_flags)
 #define hci_dev_test_and_change_flag(hdev, nr) test_and_change_bit((nr), (hdev)->dev_flags)
 
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
-#define hci_dev_clear_flag_quality_report(x) { hci_dev_clear_flag(hdev, x); }
-#else
-#define hci_dev_clear_flag_quality_report(x) {}
-#endif
-
-#define hci_dev_clear_volatile_flags(hdev)				\
-	do {								\
-		hci_dev_clear_flag(hdev, HCI_LE_SCAN);			\
-		hci_dev_clear_flag(hdev, HCI_LE_ADV);			\
-		hci_dev_clear_flag(hdev, HCI_PERIODIC_INQ);		\
-		hci_dev_clear_flag_quality_report(HCI_QUALITY_REPORT)	\
+#define hci_dev_clear_volatile_flags(hdev)			\
+	do {							\
+		hci_dev_clear_flag(hdev, HCI_LE_SCAN);		\
+		hci_dev_clear_flag(hdev, HCI_LE_ADV);		\
+		hci_dev_clear_flag(hdev, HCI_PERIODIC_INQ);	\
 	} while (0)
+
+#define hci_dev_le_state_simultaneous(hdev) \
+	(test_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks) && \
+		(hdev->le_states[4] & 0x08) &&  /* Central */ \
+		(hdev->le_states[4] & 0x40) &&  /* Peripheral */ \
+		(hdev->le_states[3] & 0x10))    /* Simultaneous */
+
 
 /* ----- HCI interface to upper protocols ----- */
 int l2cap_connect_ind(struct hci_dev *hdev, bdaddr_t *bdaddr);
@@ -1240,6 +1266,9 @@ struct hci_dev *hci_alloc_dev(void);
 void hci_free_dev(struct hci_dev *hdev);
 int hci_register_dev(struct hci_dev *hdev);
 void hci_unregister_dev(struct hci_dev *hdev);
+void hci_cleanup_dev(struct hci_dev *hdev);
+int hci_register_suspend_notifier(struct hci_dev *hdev);
+int hci_unregister_suspend_notifier(struct hci_dev *hdev);
 int hci_suspend_dev(struct hci_dev *hdev);
 int hci_resume_dev(struct hci_dev *hdev);
 int hci_reset_dev(struct hci_dev *hdev);
@@ -1252,6 +1281,13 @@ static inline void hci_set_msft_opcode(struct hci_dev *hdev, __u16 opcode)
 {
 #if IS_ENABLED(CONFIG_BT_MSFTEXT)
 	hdev->msft_opcode = opcode;
+#endif
+}
+
+static inline void hci_set_aosp_capable(struct hci_dev *hdev)
+{
+#if IS_ENABLED(CONFIG_BT_AOSPEXT)
+	hdev->aosp_capable = true;
 #endif
 }
 
@@ -1717,6 +1753,7 @@ void hci_sock_dev_event(struct hci_dev *hdev, int event);
 #define HCI_MGMT_UNTRUSTED	BIT(2)
 #define HCI_MGMT_UNCONFIGURED	BIT(3)
 #define HCI_MGMT_HDEV_OPTIONAL	BIT(4)
+#define HCI_MGMT_USERCHANNEL	BIT(5)
 
 struct hci_mgmt_handler {
 	int (*func) (struct sock *sk, struct hci_dev *hdev, void *data,
@@ -1754,6 +1791,8 @@ void hci_mgmt_chan_unregister(struct hci_mgmt_chan *c);
 #define DISCOV_INTERLEAVED_INQUIRY_LEN	0x04
 #define DISCOV_BREDR_INQUIRY_LEN	0x08
 #define DISCOV_LE_RESTART_DELAY		msecs_to_jiffies(200)	/* msec */
+
+#define NAME_RESOLVE_DURATION		msecs_to_jiffies(10240)	/* 10.24 sec */
 
 void mgmt_fill_version_info(void *ver);
 int mgmt_new_settings(struct hci_dev *hdev);
@@ -1831,6 +1870,10 @@ void mgmt_advertising_removed(struct sock *sk, struct hci_dev *hdev,
 void mgmt_adv_monitor_removed(struct hci_dev *hdev, u16 handle);
 int mgmt_add_adv_patterns_monitor_complete(struct hci_dev *hdev, u8 status);
 int mgmt_remove_adv_monitor_complete(struct hci_dev *hdev, u8 status);
+void mgmt_adv_monitor_device_lost(struct hci_dev *hdev, u16 handle,
+				  bdaddr_t *bdaddr, u8 addr_type);
+int mgmt_quality_report(struct hci_dev *hdev, struct sk_buff *skb,
+			u8 quality_spec);
 
 u8 hci_le_conn_update(struct hci_conn *conn, u16 min, u16 max, u16 latency,
 		      u16 to_multiplier);

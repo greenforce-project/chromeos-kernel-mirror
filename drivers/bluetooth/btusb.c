@@ -474,7 +474,7 @@ static const struct dmi_system_id btusb_needs_reset_resume_table[] = {
 #define BTUSB_OOB_WAKE_ENABLED	11
 #define BTUSB_HW_RESET_ACTIVE	12
 #define BTUSB_WAKEUP_DISABLE	14
-#define BTUSB_USE_ALT1_FOR_WBS	15
+#define BTUSB_USE_ALT3_FOR_WBS	15
 
 /* Per core spec 5, vol 4, part B, table 2.1,
  * list the hci packet payload sizes for various ALT settings.
@@ -548,7 +548,6 @@ struct btusb_data {
 	int (*setup_on_usb)(struct hci_dev *hdev);
 
 	int oob_wake_irq;   /* irq for out-of-band wake-on-bt */
-	unsigned cmd_timeout_cnt;
 };
 
 
@@ -556,9 +555,6 @@ static void btusb_intel_cmd_timeout(struct hci_dev *hdev)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct gpio_desc *reset_gpio = data->reset_gpio;
-
-	if (++data->cmd_timeout_cnt < 5)
-		return;
 
 	if (!reset_gpio) {
 		bt_dev_err(hdev, "No way to reset. Ignoring and continuing");
@@ -588,9 +584,6 @@ static void btusb_rtl_cmd_timeout(struct hci_dev *hdev)
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	struct gpio_desc *reset_gpio = data->reset_gpio;
 
-	if (++data->cmd_timeout_cnt < 5)
-		return;
-
 	if (!reset_gpio) {
 		bt_dev_err(hdev, "No gpio to reset Realtek device, ignoring");
 		return;
@@ -618,10 +611,7 @@ static void btusb_qca_cmd_timeout(struct hci_dev *hdev)
 	struct btusb_data *data = hci_get_drvdata(hdev);
 	int err;
 
-	if (++data->cmd_timeout_cnt < 5)
-		return;
-
-	bt_dev_err(hdev, "Multiple cmd timeouts seen. Resetting usb device.");
+	bt_dev_err(hdev, "Cmd timeouts seen. Resetting usb device.");
 	/* This is not an unbalanced PM reference since the device will reset */
 	err = usb_autopm_get_interface(data->intf);
 	if (!err)
@@ -1307,6 +1297,15 @@ done:
 	kfree_skb(skb);
 }
 
+#ifdef CONFIG_DEV_COREDUMP
+static bool btusb_coredump_enabled(struct hci_dev *hdev)
+{
+	struct btusb_data *data = hci_get_drvdata(hdev);
+
+	return !data->intf->dev.coredump_disabled;
+}
+#endif
+
 static int btusb_open(struct hci_dev *hdev)
 {
 	struct btusb_data *data = hci_get_drvdata(hdev);
@@ -1746,15 +1745,23 @@ static void btusb_work(struct work_struct *work)
 				new_alts = data->sco_num;
 			}
 		} else if (data->air_mode == HCI_NOTIFY_ENABLE_SCO_TRANSP) {
-			/* Check if Alt 6 is supported for Transparent audio */
-			if (btusb_find_altsetting(data, 6)) {
-				data->usb_alt6_packet_flow = true;
+			/* Bluetooth USB spec recommends alt 6 (63 bytes), but
+			 * many adapters do not support it.  Alt 1 appears to
+			 * work for all adapters that do not have alt 6, and
+			 * which work with WBS at all.  Some devices prefer
+			 * alt 3 (HCI payload >= 60 Bytes let air packet
+			 * data satisfy 60 bytes), requiring
+			 * MTU >= 3 (packets) * 25 (size) - 3 (headers) = 72
+			 * see also Core spec 5, vol 4, B 2.1.1 & Table 2.1.
+			 */
+			if (btusb_find_altsetting(data, 6))
 				new_alts = 6;
-			} else if (test_bit(BTUSB_USE_ALT1_FOR_WBS, &data->flags)) {
+			else if (btusb_find_altsetting(data, 3) &&
+				 hdev->sco_mtu >= 72 &&
+				 test_bit(BTUSB_USE_ALT3_FOR_WBS, &data->flags))
+				new_alts = 3;
+			else
 				new_alts = 1;
-			} else {
-				bt_dev_err(hdev, "Device does not support ALT setting 6");
-			}
 		}
 
 		if (btusb_switch_alt_setting(hdev, new_alts) < 0)
@@ -2258,16 +2265,45 @@ static void btusb_intel_secure_send_result(struct btusb_data *data,
 	}
 }
 
+static int btusb_intel_diagnostics(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	struct intel_tlv *tlv = (void *)&skb->data[5];
+
+	/* The first event is always an event type TLV */
+	if (tlv->type != INTEL_TLV_TYPE_ID)
+		goto recv_frame;
+
+	switch (tlv->val[0]) {
+	case INTEL_TLV_SYSTEM_EXCEPTION:
+	case INTEL_TLV_FATAL_EXCEPTION:
+	case INTEL_TLV_DEBUG_EXCEPTION:
+		/* Generate devcoredump from exception */
+		if (!hci_devcoredump_init(hdev, skb->len)) {
+			hci_devcoredump_append(hdev, skb);
+			hci_devcoredump_complete(hdev);
+		} else {
+			bt_dev_err(hdev, "Failed to generate devcoredump");
+			kfree_skb(skb);
+		}
+		return 0;
+	}
+
+recv_frame:
+	return hci_recv_frame(hdev, skb);
+}
+
 static int btusb_recv_event_intel(struct btusb_data *data, struct sk_buff *skb)
 {
-	if (test_bit(BTUSB_BOOTLOADER, &data->flags)) {
-		struct hci_event_hdr *hdr = (void *)skb->data;
+	struct hci_dev *hdev = data->hdev;
+	struct hci_event_hdr *hdr = (void *)skb->data;
+	const char diagnostics_hdr[] = { 0x87, 0x80, 0x03 };
 
-		if (skb->len > HCI_EVENT_HDR_SIZE && hdr->evt == 0xff &&
-		    hdr->plen > 0) {
-			const void *ptr = skb->data + HCI_EVENT_HDR_SIZE + 1;
-			unsigned int len = skb->len - HCI_EVENT_HDR_SIZE - 1;
+	if (skb->len > HCI_EVENT_HDR_SIZE && hdr->evt == 0xff &&
+	    hdr->plen > 0) {
+		const void *ptr = skb->data + HCI_EVENT_HDR_SIZE + 1;
+		unsigned int len = skb->len - HCI_EVENT_HDR_SIZE - 1;
 
+		if (test_bit(BTUSB_BOOTLOADER, &data->flags)) {
 			switch (skb->data[2]) {
 			case 0x02:
 				/* When switching to the operational firmware
@@ -2285,6 +2321,15 @@ static int btusb_recv_event_intel(struct btusb_data *data, struct sk_buff *skb)
 				btusb_intel_secure_send_result(data, ptr, len);
 				break;
 			}
+		}
+
+		/* Handle all diagnostics events separately. May still call
+		 * hci_recv_frame.
+		 */
+		if (len >= sizeof(diagnostics_hdr) &&
+		    memcmp(&skb->data[2], diagnostics_hdr,
+			   sizeof(diagnostics_hdr)) == 0) {
+			return btusb_intel_diagnostics(hdev, skb);
 		}
 	}
 
@@ -2652,10 +2697,7 @@ done:
 	 */
 	btintel_load_ddc_config(hdev, fwname);
 
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
 	hci_dev_clear_flag(hdev, HCI_QUALITY_REPORT);
-	bt_dev_dbg(hdev, "HCI_QUALITY_REPORT cleared");
-#endif
 
 	/* Read the Intel version information after loading the FW  */
 	err = btintel_read_version(hdev, &ver);
@@ -2676,6 +2718,8 @@ finish:
 		hci_set_msft_opcode(hdev, 0xFC1E);
 		break;
 	}
+
+	btintel_register_devcoredump_support(hdev, btusb_driver.name);
 
 	/* Set the event mask for Intel specific vendor events. This enables
 	 * a few extra events that are useful during general operation. It
@@ -2919,6 +2963,11 @@ static int btusb_setup_qca_download_fw(struct hci_dev *hdev,
 
 	sent += size;
 	count -= size;
+
+	/* ep2 need time to switch from function acl to function dfu,
+	 * so we add 20ms delay here.
+	 */
+	msleep(20);
 
 	while (count) {
 		size = min_t(size_t, count, QCA_DFU_PACKET_LEN);
@@ -3412,6 +3461,9 @@ static int btusb_probe(struct usb_interface *intf,
 	hdev->send   = btusb_send_frame;
 	hdev->notify = btusb_notify;
 	hdev->prevent_wake = btusb_prevent_wake;
+#ifdef CONFIG_DEV_COREDUMP
+	hdev->dump.enabled = btusb_coredump_enabled;
+#endif
 
 	if (id->driver_info & BTUSB_AMP) {
 		/* AMP controllers do not support SCO packets */
@@ -3497,9 +3549,6 @@ static int btusb_probe(struct usb_interface *intf,
 		hdev->set_diag = btintel_set_diag;
 		hdev->set_bdaddr = btintel_set_bdaddr;
 		hdev->cmd_timeout = btusb_intel_cmd_timeout;
-#ifdef CONFIG_BT_FEATURE_QUALITY_REPORT
-		hdev->set_quality_report = btintel_set_quality_report;
-#endif
 
 		if (btusb_find_altsetting(data, 6))
 			hdev->wbs_pkt_len = hci_packet_size_usb_alt[6];
@@ -3513,6 +3562,12 @@ static int btusb_probe(struct usb_interface *intf,
 #endif
 		set_bit(HCI_QUIRK_SIMULTANEOUS_DISCOVERY, &hdev->quirks);
 		set_bit(HCI_QUIRK_NON_PERSISTENT_DIAG, &hdev->quirks);
+
+		/* Set up the quality report callbacks for Intel devices */
+		hdev->set_quality_report = btintel_set_quality_report;
+		hdev->is_quality_report_evt = btintel_is_quality_report_evt;
+		hdev->pull_quality_report_data =
+					btintel_pull_quality_report_data;
 	}
 
 	if (id->driver_info & BTUSB_MARVELL)
@@ -3554,11 +3609,12 @@ static int btusb_probe(struct usb_interface *intf,
 		 * (DEVICE_REMOTE_WAKEUP)
 		 */
 		set_bit(BTUSB_WAKEUP_DISABLE, &data->flags);
-		if (btusb_find_altsetting(data, 1)) {
-			set_bit(BTUSB_USE_ALT1_FOR_WBS, &data->flags);
-			hdev->wbs_pkt_len = hci_packet_size_usb_alt[1];
-		} else
-			bt_dev_err(hdev, "Device does not support ALT setting 1");
+		set_bit(BTUSB_USE_ALT3_FOR_WBS, &data->flags);
+
+		if (btusb_find_altsetting(data, 3))
+			hdev->wbs_pkt_len = hci_packet_size_usb_alt[3];
+		else
+			bt_dev_err(hdev, "Device does not support ALT setting 3");
 	}
 
 	if (!reset)
@@ -3840,6 +3896,17 @@ done:
 }
 #endif
 
+#ifdef CONFIG_DEV_COREDUMP
+static void btusb_coredump(struct device *dev)
+{
+	struct btusb_data *data = dev_get_drvdata(dev);
+	struct hci_dev *hdev = data->hdev;
+
+	if (!dev->coredump_disabled && hdev->dump.coredump)
+		hdev->dump.coredump(hdev);
+}
+#endif
+
 static struct usb_driver btusb_driver = {
 	.name		= "btusb",
 	.probe		= btusb_probe,
@@ -3851,6 +3918,14 @@ static struct usb_driver btusb_driver = {
 	.id_table	= btusb_table,
 	.supports_autosuspend = 1,
 	.disable_hub_initiated_lpm = 1,
+
+#ifdef CONFIG_DEV_COREDUMP
+	.drvwrap = {
+		.driver = {
+			.coredump = btusb_coredump,
+		},
+	},
+#endif
 };
 
 module_usb_driver(btusb_driver);

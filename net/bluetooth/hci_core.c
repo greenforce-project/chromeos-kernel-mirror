@@ -44,6 +44,7 @@
 #include "smp.h"
 #include "leds.h"
 #include "msft.h"
+#include "aosp.h"
 
 static void hci_rx_work(struct work_struct *work);
 static void hci_cmd_work(struct work_struct *work);
@@ -1284,6 +1285,12 @@ int hci_inquiry(void __user *arg)
 		goto done;
 	}
 
+	/* Restrict maximum inquiry length to 60 seconds */
+	if (ir.length > 60) {
+		err = -EINVAL;
+		goto done;
+	}
+
 	hci_dev_lock(hdev);
 	if (inquiry_cache_age(hdev) > INQUIRY_CACHE_AGE_MAX ||
 	    inquiry_cache_empty(hdev) || ir.flags & IREQ_CACHE_FLUSH) {
@@ -1345,6 +1352,26 @@ done:
 	return err;
 }
 
+static void set_quality_report(struct hci_dev *hdev, bool enable)
+{
+	int err;
+
+	if (hci_dev_test_flag(hdev, HCI_USER_CHANNEL) ||
+	    !hci_dev_test_flag(hdev, HCI_QUALITY_REPORT))
+		return;
+
+	if (hdev->set_quality_report)
+		err = hdev->set_quality_report(hdev, enable);
+	else
+		err = aosp_set_quality_report(hdev, enable);
+
+	if (err)
+		bt_dev_err(hdev, "set quality report error %d (enable %d)",
+			   err, enable);
+	else
+		bt_dev_info(hdev, "set quality report (enable %d)", enable);
+}
+
 static int hci_dev_do_open(struct hci_dev *hdev)
 {
 	int ret = 0;
@@ -1398,6 +1425,8 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 		ret = -EIO;
 		goto done;
 	}
+
+	hci_devcoredump_reset(hdev);
 
 	set_bit(HCI_RUNNING, &hdev->flags);
 	hci_sock_dev_event(hdev, HCI_DEV_OPEN);
@@ -1465,8 +1494,12 @@ static int hci_dev_do_open(struct hci_dev *hdev)
 	    hci_dev_test_flag(hdev, HCI_VENDOR_DIAG) && hdev->set_diag)
 		ret = hdev->set_diag(hdev, true);
 
-	msft_do_open(hdev);
-	msft_power_on(hdev);
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		msft_do_open(hdev);
+		aosp_do_open(hdev);
+
+		set_quality_report(hdev, true);
+	}
 
 	clear_bit(HCI_INIT, &hdev->flags);
 
@@ -1602,24 +1635,54 @@ static void hci_pend_le_actions_clear(struct hci_dev *hdev)
 	BT_DBG("All LE pending actions cleared");
 }
 
+static int hci_dev_shutdown(struct hci_dev *hdev)
+{
+	int err = 0;
+	/* Similar to how we first do setup and then set the exclusive access
+	 * bit for userspace, we must first unset userchannel and then clean up.
+	 * Otherwise, the kernel can't properly use the hci channel to clean up
+	 * the controller (some shutdown routines require sending additional
+	 * commands to the controller for example).
+	 */
+	bool was_userchannel =
+		hci_dev_test_and_clear_flag(hdev, HCI_USER_CHANNEL);
+
+	if (!hci_dev_test_flag(hdev, HCI_UNREGISTER) &&
+	    test_bit(HCI_UP, &hdev->flags)) {
+		/* Execute vendor specific shutdown routine */
+		if (hdev->shutdown)
+			err = hdev->shutdown(hdev);
+	}
+
+	if (was_userchannel)
+		hci_dev_set_flag(hdev, HCI_USER_CHANNEL);
+
+	return err;
+}
+
 int hci_dev_do_close(struct hci_dev *hdev)
 {
 	bool auto_off;
 
 	BT_DBG("%s %p", hdev->name, hdev);
 
-	if (!hci_dev_test_flag(hdev, HCI_UNREGISTER) &&
-	    !hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
-	    test_bit(HCI_UP, &hdev->flags)) {
-		/* Execute vendor specific shutdown routine */
-		if (hdev->shutdown)
-			hdev->shutdown(hdev);
+	/* Disable quality report and close aosp before shutdown()
+	 * is called. Otherwise, some chips may panic.
+	 */
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		set_quality_report(hdev, false);
+
+		aosp_do_close(hdev);
 	}
+
+	hci_dev_shutdown(hdev);
 
 	cancel_delayed_work(&hdev->power_off);
 
 	hci_request_cancel_all(hdev);
 	hci_req_sync_lock(hdev);
+
+	hci_dev_shutdown(hdev);
 
 	if (!test_and_clear_bit(HCI_UP, &hdev->flags)) {
 		cancel_delayed_work_sync(&hdev->cmd_timer);
@@ -1670,7 +1733,12 @@ int hci_dev_do_close(struct hci_dev *hdev)
 
 	hci_sock_dev_event(hdev, HCI_DEV_DOWN);
 
-	msft_power_off(hdev);
+	/* TODO: May be better to close msft early in the beginning of
+	 * hci_dev_do_close before shutdown() is called.
+	 */
+	if (!hci_dev_test_flag(hdev, HCI_USER_CHANNEL)) {
+		msft_do_close(hdev);
+	}
 
 	if (hdev->flush)
 		hdev->flush(hdev);
@@ -2639,17 +2707,25 @@ static void hci_cmd_timeout(struct work_struct *work)
 	struct hci_dev *hdev = container_of(work, struct hci_dev,
 					    cmd_timer.work);
 
-	if (hdev->sent_cmd) {
-		struct hci_command_hdr *sent = (void *) hdev->sent_cmd->data;
-		u16 opcode = __le16_to_cpu(sent->opcode);
+	/* Don't trigger the timeout behavior if it happens while we're in
+	 * userchannel mode. Userspace is responsible for handling any command
+	 * timeouts.
+	 */
+	if (!(hci_dev_test_flag(hdev, HCI_USER_CHANNEL) &&
+	      test_bit(HCI_UP, &hdev->flags))) {
+		if (hdev->sent_cmd) {
+			struct hci_command_hdr *sent =
+				(void *)hdev->sent_cmd->data;
+			u16 opcode = __le16_to_cpu(sent->opcode);
 
-		bt_dev_err(hdev, "command 0x%4.4x tx timeout", opcode);
-	} else {
-		bt_dev_err(hdev, "command tx timeout");
+			bt_dev_err(hdev, "command 0x%4.4x tx timeout", opcode);
+		} else {
+			bt_dev_err(hdev, "command tx timeout");
+		}
+
+		if (hdev->cmd_timeout)
+			hdev->cmd_timeout(hdev);
 	}
-
-	if (hdev->cmd_timeout)
-		hdev->cmd_timeout(hdev);
 
 	atomic_set(&hdev->cmd_cnt, 1);
 	queue_work(hdev->workqueue, &hdev->cmd_work);
@@ -3461,6 +3537,10 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 	int ret = 0;
 	u8 state = BT_RUNNING;
 
+	/* Userspace has full control of this device. Do nothing. */
+	if (hci_dev_test_flag(hdev, HCI_USER_CHANNEL))
+		return NOTIFY_DONE;
+
 	/* If powering down, wait for completion. */
 	if (mgmt_powering_down(hdev)) {
 		set_bit(SUSPEND_POWERING_DOWN, hdev->suspend_tasks);
@@ -3474,6 +3554,9 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 		goto done;
 
 	if (action == PM_SUSPEND_PREPARE) {
+		/* Stop quality reporting activities */
+		set_quality_report(hdev, false);
+
 		/* Suspend consists of two actions:
 		 *  - First, disconnect everything and make the controller not
 		 *    connectable (disabling scanning)
@@ -3501,6 +3584,9 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 
 		mgmt_resuming(hdev, hdev->wake_reason, &hdev->wake_addr,
 			      hdev->wake_addr_type);
+
+		/* Resume quality reporting activities */
+		set_quality_report(hdev, true);
 	}
 
 done:
@@ -3597,6 +3683,7 @@ struct hci_dev *hci_alloc_dev(void)
 	INIT_LIST_HEAD(&hdev->conn_hash.list);
 	INIT_LIST_HEAD(&hdev->adv_instances);
 	INIT_LIST_HEAD(&hdev->blocked_keys);
+	INIT_LIST_HEAD(&hdev->monitored_devices);
 
 	INIT_WORK(&hdev->rx_work, hci_rx_work);
 	INIT_WORK(&hdev->cmd_work, hci_cmd_work);
@@ -3604,12 +3691,21 @@ struct hci_dev *hci_alloc_dev(void)
 	INIT_WORK(&hdev->power_on, hci_power_on);
 	INIT_WORK(&hdev->error_reset, hci_error_reset);
 	INIT_WORK(&hdev->suspend_prepare, hci_prepare_suspend);
+#ifdef CONFIG_DEV_COREDUMP
+	INIT_WORK(&hdev->dump.dump_rx, hci_devcoredump_rx);
+#endif
 
 	INIT_DELAYED_WORK(&hdev->power_off, hci_power_off);
+#ifdef CONFIG_DEV_COREDUMP
+	INIT_DELAYED_WORK(&hdev->dump.dump_timeout, hci_devcoredump_timeout);
+#endif
 
 	skb_queue_head_init(&hdev->rx_q);
 	skb_queue_head_init(&hdev->cmd_q);
 	skb_queue_head_init(&hdev->raw_q);
+#ifdef CONFIG_DEV_COREDUMP
+	skb_queue_head_init(&hdev->dump.dump_q);
+#endif
 
 	init_waitqueue_head(&hdev->req_wait_q);
 	init_waitqueue_head(&hdev->suspend_wait_q);
@@ -3646,10 +3742,10 @@ int hci_register_dev(struct hci_dev *hdev)
 	 */
 	switch (hdev->dev_type) {
 	case HCI_PRIMARY:
-		id = ida_simple_get(&hci_index_ida, 0, 0, GFP_KERNEL);
+		id = ida_simple_get(&hci_index_ida, 0, HCI_MAX_ID, GFP_KERNEL);
 		break;
 	case HCI_AMP:
-		id = ida_simple_get(&hci_index_ida, 1, 0, GFP_KERNEL);
+		id = ida_simple_get(&hci_index_ida, 1, HCI_MAX_ID, GFP_KERNEL);
 		break;
 	default:
 		return -EINVAL;
@@ -3658,7 +3754,7 @@ int hci_register_dev(struct hci_dev *hdev)
 	if (id < 0)
 		return id;
 
-	sprintf(hdev->name, "hci%d", id);
+	snprintf(hdev->name, sizeof(hdev->name), "hci%d", id);
 	hdev->id = id;
 
 	BT_DBG("%p name %s bus %d", hdev, hdev->name, hdev->bus);
@@ -3724,18 +3820,19 @@ int hci_register_dev(struct hci_dev *hdev)
 	hci_sock_dev_event(hdev, HCI_DEV_REG);
 	hci_dev_hold(hdev);
 
-	hdev->suspend_notifier.notifier_call = hci_suspend_notifier;
-	error = register_pm_notifier(&hdev->suspend_notifier);
+	error = hci_register_suspend_notifier(hdev);
 	if (error)
 		goto err_wqueue;
 
 	queue_work(hdev->req_workqueue, &hdev->power_on);
 
 	idr_init(&hdev->adv_monitors_idr);
+	msft_register(hdev);
 
 	return id;
 
 err_wqueue:
+	debugfs_remove_recursive(hdev->debugfs);
 	destroy_workqueue(hdev->workqueue);
 	destroy_workqueue(hdev->req_workqueue);
 err:
@@ -3748,13 +3845,9 @@ EXPORT_SYMBOL(hci_register_dev);
 /* Unregister HCI device */
 void hci_unregister_dev(struct hci_dev *hdev)
 {
-	int id;
-
 	BT_DBG("%p name %s bus %d", hdev, hdev->name, hdev->bus);
 
 	hci_dev_set_flag(hdev, HCI_UNREGISTER);
-
-	id = hdev->id;
 
 	write_lock(&hci_dev_list_lock);
 	list_del(&hdev->list);
@@ -3762,11 +3855,9 @@ void hci_unregister_dev(struct hci_dev *hdev)
 
 	cancel_work_sync(&hdev->power_on);
 
-	unregister_pm_notifier(&hdev->suspend_notifier);
-	hci_suspend_clear_tasks(hdev);
-	cancel_work_sync(&hdev->suspend_prepare);
+	hci_unregister_suspend_notifier(hdev);
 
-	msft_do_close(hdev);
+	msft_unregister(hdev);
 
 	hci_dev_do_close(hdev);
 
@@ -3790,7 +3881,14 @@ void hci_unregister_dev(struct hci_dev *hdev)
 	}
 
 	device_del(&hdev->dev);
+	/* Actual cleanup is deferred until hci_cleanup_dev(). */
+	hci_dev_put(hdev);
+}
+EXPORT_SYMBOL(hci_unregister_dev);
 
+/* Cleanup HCI device */
+void hci_cleanup_dev(struct hci_dev *hdev)
+{
 	debugfs_remove_recursive(hdev->debugfs);
 	kfree_const(hdev->hw_info);
 	kfree_const(hdev->fw_info);
@@ -3814,11 +3912,29 @@ void hci_unregister_dev(struct hci_dev *hdev)
 	hci_blocked_keys_clear(hdev);
 	hci_dev_unlock(hdev);
 
-	hci_dev_put(hdev);
-
-	ida_simple_remove(&hci_index_ida, id);
+	ida_simple_remove(&hci_index_ida, hdev->id);
 }
-EXPORT_SYMBOL(hci_unregister_dev);
+
+int hci_register_suspend_notifier(struct hci_dev *hdev)
+{
+	int ret = 0;
+
+	hdev->suspend_notifier.notifier_call = hci_suspend_notifier;
+	ret = register_pm_notifier(&hdev->suspend_notifier);
+
+	return ret;
+}
+
+int hci_unregister_suspend_notifier(struct hci_dev *hdev)
+{
+	int ret = 0;
+
+	ret = unregister_pm_notifier(&hdev->suspend_notifier);
+	hci_suspend_clear_tasks(hdev);
+	cancel_work_sync(&hdev->suspend_prepare);
+
+	return ret;
+}
 
 /* Suspend HCI device */
 int hci_suspend_dev(struct hci_dev *hdev)
