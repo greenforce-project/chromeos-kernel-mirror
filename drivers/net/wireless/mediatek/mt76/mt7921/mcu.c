@@ -49,30 +49,6 @@ struct mt7921_patch_sec {
 	};
 } __packed;
 
-struct mt7921_fw_trailer {
-	u8 chip_id;
-	u8 eco_code;
-	u8 n_region;
-	u8 format_ver;
-	u8 format_flag;
-	u8 reserved[2];
-	char fw_ver[10];
-	char build_date[15];
-	u32 crc;
-} __packed;
-
-struct mt7921_fw_region {
-	__le32 decomp_crc;
-	__le32 decomp_len;
-	__le32 decomp_blk_sz;
-	u8 reserved[4];
-	__le32 addr;
-	__le32 len;
-	u8 feature_set;
-	u8 type;
-	u8 reserved1[14];
-} __packed;
-
 #define MT_STA_BFER			BIT(0)
 #define MT_STA_BFEE			BIT(1)
 
@@ -349,6 +325,29 @@ static int mt7921_mcu_read_eeprom(struct mt7921_dev *dev, u32 offset, u8 *val)
 }
 
 static void
+mt7921_mcu_uni_roc_event(struct mt7921_dev *dev, struct sk_buff *skb)
+{
+	struct mt7921_roc_grant_tlv *grant;
+	struct mt7921_mcu_rxd *rxd;
+	int duration;
+
+	rxd = (struct mt7921_mcu_rxd *)skb->data;
+	grant = (struct mt7921_roc_grant_tlv *)(rxd->tlv + 4);
+
+	/* should never happen */
+	WARN_ON_ONCE((le16_to_cpu(grant->tag) != UNI_EVENT_ROC_GRANT));
+
+	if (grant->reqtype == MT7921_ROC_REQ_ROC)
+		ieee80211_ready_on_channel(dev->mt76.phy.hw);
+
+	dev->phy.roc_grant = true;
+	wake_up(&dev->phy.roc_wait);
+	duration = le32_to_cpu(grant->max_interval);
+	mod_timer(&dev->phy.roc_timer,
+		  round_jiffies_up(jiffies + msecs_to_jiffies(duration)));
+}
+
+static void
 mt7921_mcu_scan_event(struct mt7921_dev *dev, struct sk_buff *skb)
 {
 	struct mt76_phy *mphy = &dev->mt76.phy;
@@ -504,6 +503,7 @@ mt7921_mcu_uni_rx_unsolicited_event(struct mt7921_dev *dev,
 
 	switch (rxd->eid) {
 	case MCU_UNI_EVENT_ROC:
+		mt7921_mcu_uni_roc_event(dev, skb);
 		break;
 	default:
 		break;
