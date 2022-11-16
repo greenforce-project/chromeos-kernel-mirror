@@ -616,7 +616,13 @@ static void amd_pmc_s2idle_prepare(void)
 static void amd_pmc_s2idle_check(void)
 {
 	struct amd_pmc_dev *pdev = &pmc;
+	struct smu_metrics table;
 	int rc;
+
+	/* ensure that a second s0i3 entry has at least 10us pass */
+	if (pdev->cpu_id == AMD_CPU_ID_CZN && !get_metrics_table(pdev, &table) &&
+	    table.s0i3_last_entry_status)
+		usleep_range(10000, 20000);
 
 	/* Dump the IdleMask before we add to the STB */
 	amd_pmc_idlemask_read(pdev, pdev->dev, NULL);
