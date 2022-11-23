@@ -1745,7 +1745,7 @@ signed long __sched schedule_timeout(signed long timeout)
 	setup_timer_on_stack(&timer, process_timeout, (unsigned long)current);
 	__mod_timer(&timer, expire, false);
 	schedule();
-	del_singleshot_timer_sync(&timer);
+	del_timer_sync(&timer);
 
 	/* Remove the timer from the object tracker */
 	destroy_timer_on_stack(&timer);
