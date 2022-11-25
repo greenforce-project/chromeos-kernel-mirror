@@ -175,6 +175,7 @@ static inline void rcu_init_nohz(void) { }
 void call_rcu_tasks(struct rcu_head *head, rcu_callback_t func);
 void synchronize_rcu_tasks(void);
 void exit_tasks_rcu_start(void);
+void exit_tasks_rcu_stop(void);
 void exit_tasks_rcu_finish(void);
 #else /* #ifdef CONFIG_TASKS_RCU */
 #define rcu_note_voluntary_context_switch_lite(t)	do { } while (0)
@@ -182,6 +183,7 @@ void exit_tasks_rcu_finish(void);
 #define call_rcu_tasks call_rcu_sched
 #define synchronize_rcu_tasks synchronize_sched
 static inline void exit_tasks_rcu_start(void) { }
+static inline void exit_tasks_rcu_stop(void) { }
 static inline void exit_tasks_rcu_finish(void) { }
 #endif /* #else #ifdef CONFIG_TASKS_RCU */
 
