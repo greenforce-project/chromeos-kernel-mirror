@@ -608,11 +608,10 @@ static int __maybe_unused amd_pmc_suspend(struct device *dev)
 	if (rc)
 		dev_err(pdev->dev, "suspend failed\n");
 
-	if (enable_stb)
+	if (enable_stb) {
 		rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_PREDEF);
-	if (rc)	{
-		dev_err(pdev->dev, "error writing to STB\n");
-		return rc;
+		if (rc)
+			dev_err(pdev->dev, "error writing to STB\n");
 	}
 
 	return rc;
@@ -636,11 +635,10 @@ static int __maybe_unused amd_pmc_resume(struct device *dev)
 	amd_pmc_idlemask_read(pdev, dev, NULL);
 
 	/* Write data incremented by 1 to distinguish in stb_read */
-	if (enable_stb)
+	if (enable_stb) {
 		rc = amd_pmc_write_stb(pdev, AMD_PMC_STB_PREDEF + 1);
-	if (rc)	{
-		dev_err(pdev->dev, "error writing to STB\n");
-		return rc;
+		if (rc)
+			dev_err(pdev->dev, "error writing to STB\n");
 	}
 
 	/* Notify on failed entry */
