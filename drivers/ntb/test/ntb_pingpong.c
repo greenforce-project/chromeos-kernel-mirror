@@ -282,7 +282,7 @@ static void pp_remove(struct ntb_client *client,
 	debugfs_remove_recursive(pp->debugfs_node_dir);
 
 	ntb_clear_ctx(ntb);
-	del_timer_sync(&pp->db_timer);
+	timer_shutdown_sync(&pp->db_timer);
 	ntb_link_disable(ntb);
 
 	kfree(pp);
