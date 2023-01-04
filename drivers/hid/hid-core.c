@@ -1365,6 +1365,9 @@ static s32 snto32(__u32 value, unsigned n)
 	if (!value || !n)
 		return 0;
 
+	if (n > 32)
+		n = 32;
+
 	return sign_extend32(value, n - 1);
 }
 

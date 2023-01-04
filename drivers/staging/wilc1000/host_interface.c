@@ -3419,10 +3419,10 @@ int wilc_deinit(struct wilc_vif *vif)
 
 	terminated_handle = hif_drv;
 
-	del_timer_sync(&hif_drv->scan_timer);
-	del_timer_sync(&hif_drv->connect_timer);
+	timer_shutdown_sync(&hif_drv->scan_timer);
+	timer_shutdown_sync(&hif_drv->connect_timer);
 	del_timer_sync(&periodic_rssi);
-	del_timer_sync(&hif_drv->remain_on_ch_timer);
+	timer_shutdown_sync(&hif_drv->remain_on_ch_timer);
 
 	wilc_set_wfi_drv_handler(vif, 0, 0, 0);
 	wait_for_completion(&hif_driver_comp);

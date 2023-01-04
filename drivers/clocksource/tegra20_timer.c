@@ -72,14 +72,14 @@ static int tegra_timer_set_next_event(unsigned long cycles,
 	return 0;
 }
 
-static inline void timer_shutdown(struct clock_event_device *evt)
+static inline void _tegra_timer_shutdown(struct clock_event_device *evt)
 {
 	timer_writel(0, TIMER3_BASE + TIMER_PTV);
 }
 
 static int tegra_timer_shutdown(struct clock_event_device *evt)
 {
-	timer_shutdown(evt);
+	_tegra_timer_shutdown(evt);
 	return 0;
 }
 
@@ -87,7 +87,7 @@ static int tegra_timer_set_periodic(struct clock_event_device *evt)
 {
 	u32 reg = 0xC0000000 | ((1000000 / HZ) - 1);
 
-	timer_shutdown(evt);
+	_tegra_timer_shutdown(evt);
 	timer_writel(reg, TIMER3_BASE + TIMER_PTV);
 	return 0;
 }

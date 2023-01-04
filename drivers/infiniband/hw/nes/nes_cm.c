@@ -2722,7 +2722,7 @@ static int mini_cm_dealloc_core(struct nes_cm_core *cm_core)
 	barrier();
 
 	if (timer_pending(&cm_core->tcp_timer))
-		del_timer(&cm_core->tcp_timer);
+		timer_shutdown(&cm_core->tcp_timer);
 
 	destroy_workqueue(cm_core->event_wq);
 	destroy_workqueue(cm_core->disconn_wq);

@@ -307,7 +307,7 @@ static int w90x900ts_remove(struct platform_device *pdev)
 	struct resource *res;
 
 	free_irq(w90p910_ts->irq_num, w90p910_ts);
-	del_timer_sync(&w90p910_ts->timer);
+	timer_shutdown_sync(&w90p910_ts->timer);
 	iounmap(w90p910_ts->ts_reg);
 
 	clk_put(w90p910_ts->clk);
