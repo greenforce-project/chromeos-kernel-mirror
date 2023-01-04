@@ -487,6 +487,7 @@ void drm_connector_cleanup(struct drm_connector *connector)
 			  connector->index);
 
 	kfree(connector->display_info.bus_formats);
+	kfree(connector->display_info.vics);
 	drm_mode_object_unregister(dev, &connector->base);
 	kfree(connector->name);
 	connector->name = NULL;
