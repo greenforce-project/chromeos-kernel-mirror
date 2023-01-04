@@ -5354,8 +5354,6 @@ static void drm_edid_to_eld(struct drm_connector *connector,
 	int total_sad_count = 0;
 	int mnl;
 
-	clear_eld(connector);
-
 	if (!drm_edid)
 		return;
 
@@ -6331,9 +6329,15 @@ static void update_display_info(struct drm_connector *connector,
 				const struct drm_edid *drm_edid)
 {
 	struct drm_display_info *info = &connector->display_info;
-	const struct edid *edid = drm_edid->edid;
+	const struct edid *edid;
 
 	drm_reset_display_info(connector);
+	clear_eld(connector);
+
+	if (!drm_edid)
+		return;
+
+	edid = drm_edid->edid;
 
 	info->quirks = edid_get_quirks(drm_edid);
 
@@ -6413,6 +6417,9 @@ out:
 			    info->non_desktop ? " (redundant quirk)" : "");
 		info->non_desktop = true;
 	}
+
+	/* Depends on info->cea_rev set by drm_parse_cea_ext() above */
+	drm_edid_to_eld(connector, drm_edid);
 }
 
 static struct drm_display_mode *drm_mode_displayid_detailed(struct drm_device *dev,
@@ -6509,12 +6516,6 @@ static int _drm_edid_connector_update(struct drm_connector *connector,
 	struct drm_display_info *info = &connector->display_info;
 	int num_modes = 0;
 
-	if (!drm_edid) {
-		drm_reset_display_info(connector);
-		clear_eld(connector);
-		return 0;
-	}
-
 	/*
 	 * CEA-861-F adds ycbcr capability map block, for HDMI 2.0 sinks.
 	 * To avoid multiple parsing of same block, lets parse that map
@@ -6522,8 +6523,8 @@ static int _drm_edid_connector_update(struct drm_connector *connector,
 	 */
 	update_display_info(connector, drm_edid);
 
-	/* Depends on info->cea_rev set by update_display_info() above */
-	drm_edid_to_eld(connector, drm_edid);
+	if (!drm_edid)
+		return 0;
 
 	/*
 	 * EDID spec says modes should be preferred in this order:
@@ -6660,10 +6661,7 @@ static int _drm_connector_update_edid_property(struct drm_connector *connector,
 	 * that it seems better to duplicate it rather than attempt to ensure
 	 * some arbitrary ordering of calls.
 	 */
-	if (drm_edid)
-		update_display_info(connector, drm_edid);
-	else
-		drm_reset_display_info(connector);
+	update_display_info(connector, drm_edid);
 
 	_drm_update_tile_info(connector, drm_edid);
 
