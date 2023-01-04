@@ -6327,17 +6327,19 @@ static void drm_reset_display_info(struct drm_connector *connector)
 	kfree(info->vics);
 	info->vics = NULL;
 	info->vics_len = 0;
+
+	info->quirks = 0;
 }
 
-static u32 update_display_info(struct drm_connector *connector,
-			       const struct drm_edid *drm_edid)
+static void update_display_info(struct drm_connector *connector,
+				const struct drm_edid *drm_edid)
 {
 	struct drm_display_info *info = &connector->display_info;
 	const struct edid *edid = drm_edid->edid;
 
-	u32 quirks = edid_get_quirks(drm_edid);
-
 	drm_reset_display_info(connector);
+
+	info->quirks = edid_get_quirks(drm_edid);
 
 	info->width_mm = edid->width_cm * 10;
 	info->height_mm = edid->height_cm * 10;
@@ -6409,14 +6411,12 @@ static u32 update_display_info(struct drm_connector *connector,
 	drm_update_mso(connector, drm_edid);
 
 out:
-	if (quirks & EDID_QUIRK_NON_DESKTOP) {
+	if (info->quirks & EDID_QUIRK_NON_DESKTOP) {
 		drm_dbg_kms(connector->dev, "[CONNECTOR:%d:%s] Non-desktop display%s\n",
 			    connector->base.id, connector->name,
 			    info->non_desktop ? " (redundant quirk)" : "");
 		info->non_desktop = true;
 	}
-
-	return quirks;
 }
 
 static struct drm_display_mode *drm_mode_displayid_detailed(struct drm_device *dev,
@@ -6510,8 +6510,8 @@ static int add_displayid_detailed_modes(struct drm_connector *connector,
 static int _drm_edid_connector_update(struct drm_connector *connector,
 				      const struct drm_edid *drm_edid)
 {
+	struct drm_display_info *info = &connector->display_info;
 	int num_modes = 0;
-	u32 quirks;
 
 	if (!drm_edid) {
 		drm_reset_display_info(connector);
@@ -6524,7 +6524,7 @@ static int _drm_edid_connector_update(struct drm_connector *connector,
 	 * To avoid multiple parsing of same block, lets parse that map
 	 * from sink info, before parsing CEA modes.
 	 */
-	quirks = update_display_info(connector, drm_edid);
+	update_display_info(connector, drm_edid);
 
 	/* Depends on info->cea_rev set by update_display_info() above */
 	drm_edid_to_eld(connector, drm_edid);
@@ -6543,7 +6543,7 @@ static int _drm_edid_connector_update(struct drm_connector *connector,
 	 *
 	 * XXX order for additional mode types in extension blocks?
 	 */
-	num_modes += add_detailed_modes(connector, drm_edid, quirks);
+	num_modes += add_detailed_modes(connector, drm_edid, info->quirks);
 	num_modes += add_cvt_modes(connector, drm_edid);
 	num_modes += add_standard_modes(connector, drm_edid);
 	num_modes += add_established_modes(connector, drm_edid);
@@ -6553,20 +6553,20 @@ static int _drm_edid_connector_update(struct drm_connector *connector,
 	if (drm_edid->edid->features & DRM_EDID_FEATURE_DEFAULT_GTF)
 		num_modes += add_inferred_modes(connector, drm_edid);
 
-	if (quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))
-		edid_fixup_preferred(connector, quirks);
+	if (info->quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))
+		edid_fixup_preferred(connector, info->quirks);
 
-	if (quirks & EDID_QUIRK_FORCE_6BPC)
-		connector->display_info.bpc = 6;
+	if (info->quirks & EDID_QUIRK_FORCE_6BPC)
+		info->bpc = 6;
 
-	if (quirks & EDID_QUIRK_FORCE_8BPC)
-		connector->display_info.bpc = 8;
+	if (info->quirks & EDID_QUIRK_FORCE_8BPC)
+		info->bpc = 8;
 
-	if (quirks & EDID_QUIRK_FORCE_10BPC)
-		connector->display_info.bpc = 10;
+	if (info->quirks & EDID_QUIRK_FORCE_10BPC)
+		info->bpc = 10;
 
-	if (quirks & EDID_QUIRK_FORCE_12BPC)
-		connector->display_info.bpc = 12;
+	if (info->quirks & EDID_QUIRK_FORCE_12BPC)
+		info->bpc = 12;
 
 	return num_modes;
 }
