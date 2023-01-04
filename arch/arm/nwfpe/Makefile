@@ -14,6 +14,6 @@ nwfpe-$(CONFIG_FPE_NWFPE_XP)	+= extended_cpdo.o
 
 # Try really hard to avoid generating calls to __aeabi_uldivmod() from
 # float64_rem() due to loop elision.
-ifdef CONFIG_CC_IS_CLANG
+ifeq ($(cc-name),clang)
 CFLAGS_softfloat.o	+= -mllvm -replexitval=never
 endif
