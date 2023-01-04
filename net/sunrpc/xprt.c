@@ -1061,7 +1061,7 @@ void xprt_transmit(struct rpc_task *task)
 			spin_unlock(&xprt->recv_lock);
 			xprt_reset_majortimeo(req);
 			/* Turn off autodisconnect */
-			del_singleshot_timer_sync(&xprt->timer);
+			del_timer_sync(&xprt->timer);
 		}
 	} else if (!req->rq_bytes_sent)
 		return;

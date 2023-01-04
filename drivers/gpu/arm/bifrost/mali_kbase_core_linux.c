@@ -5149,6 +5149,13 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void kbase_platform_device_shutdown(struct platform_device *pdev) {
+	struct kbase_device *kbdev = to_kbase_device(&pdev->dev);
+
+	if (kbdev)
+		kbase_device_term(kbdev);
+}
+
 void kbase_backend_devfreq_term(struct kbase_device *kbdev)
 {
 #ifdef CONFIG_MALI_BIFROST_DEVFREQ
@@ -5415,6 +5422,8 @@ MODULE_DEVICE_TABLE(of, kbase_dt_ids);
 static struct platform_driver kbase_platform_driver = {
 	.probe = kbase_platform_device_probe,
 	.remove = kbase_platform_device_remove,
+	 /* Stop the GPU so the device can survive a kexec. */
+	.shutdown = kbase_platform_device_shutdown,
 	.driver = {
 		   .name = kbase_drv_name,
 		   .pm = &kbase_pm_ops,
