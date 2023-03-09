@@ -161,7 +161,7 @@ int irda_device_is_receiving(struct net_device *dev)
 
 static void __irda_task_delete(struct irda_task *task)
 {
-	del_timer(&task->timer);
+	timer_shutdown(&task->timer);
 
 	kfree(task);
 }

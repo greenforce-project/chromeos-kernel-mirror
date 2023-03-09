@@ -305,7 +305,7 @@ int tipc_disc_create(struct net *net, struct tipc_bearer *b,
  */
 void tipc_disc_delete(struct tipc_link_req *req)
 {
-	del_timer_sync(&req->timer);
+	timer_shutdown_sync(&req->timer);
 	kfree_skb(req->buf);
 	kfree(req);
 }

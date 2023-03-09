@@ -333,7 +333,7 @@ static int bfin_kpad_remove(struct platform_device *pdev)
 	struct bfin_kpad_platform_data *pdata = dev_get_platdata(&pdev->dev);
 	struct bf54x_kpad *bf54x_kpad = platform_get_drvdata(pdev);
 
-	del_timer_sync(&bf54x_kpad->timer);
+	timer_shutdown_sync(&bf54x_kpad->timer);
 	free_irq(bf54x_kpad->irq, pdev);
 
 	input_unregister_device(bf54x_kpad->input);

@@ -267,7 +267,7 @@ void rockchip_drm_psr_unregister(struct drm_encoder *encoder)
 	spin_lock_irqsave(&drm_drv->psr_list_lock, flags);
 	list_for_each_entry_safe(psr, n, &drm_drv->psr_list, list) {
 		if (psr->encoder == encoder) {
-			del_timer(&psr->flush_timer);
+			timer_shutdown(&psr->flush_timer);
 			list_del(&psr->list);
 			kfree(psr);
 		}

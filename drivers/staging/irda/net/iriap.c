@@ -224,7 +224,7 @@ static void __iriap_close(struct iriap_cb *self)
 	IRDA_ASSERT(self != NULL, return;);
 	IRDA_ASSERT(self->magic == IAS_MAGIC, return;);
 
-	del_timer(&self->watchdog_timer);
+	timer_shutdown(&self->watchdog_timer);
 
 	if (self->request_skb)
 		dev_kfree_skb(self->request_skb);

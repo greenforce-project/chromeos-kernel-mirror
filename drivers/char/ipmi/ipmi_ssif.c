@@ -1245,7 +1245,7 @@ static int ssif_remove(struct i2c_client *client)
 		schedule_timeout(1);
 
 	ssif_info->stopping = true;
-	del_timer_sync(&ssif_info->retry_timer);
+	timer_shutdown_sync(&ssif_info->retry_timer);
 	if (ssif_info->thread) {
 		complete(&ssif_info->wake_thread);
 		kthread_stop(ssif_info->thread);

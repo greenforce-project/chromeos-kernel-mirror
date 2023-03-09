@@ -2317,7 +2317,7 @@ static void isdn_ppp_ccp_reset_free_state(struct ippp_struct *is,
 		rs = is->reset->rs[id];
 		/* Make sure the kernel will not call back later */
 		if (rs->ta)
-			del_timer(&rs->timer);
+			timer_shutdown(&rs->timer);
 		is->reset->rs[id] = NULL;
 		kfree(rs);
 	} else {
