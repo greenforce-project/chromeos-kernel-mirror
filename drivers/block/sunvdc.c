@@ -1046,7 +1046,7 @@ static int vdc_port_remove(struct vio_dev *vdev)
 		spin_unlock_irqrestore(&port->vio.lock, flags);
 
 		flush_work(&port->ldc_reset_work);
-		del_timer_sync(&port->ldc_reset_timer);
+		timer_shutdown_sync(&port->ldc_reset_timer);
 		del_timer_sync(&port->vio.timer);
 
 		del_gendisk(port->disk);
