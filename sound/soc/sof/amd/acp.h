@@ -64,8 +64,11 @@
 #define MBOX_READY_MASK				0x80000000
 #define MBOX_STATUS_MASK			0xFFFF
 
-#define BOX_SIZE_512                            0x200
-#define BOX_SIZE_1024                           0x400
+#define BOX_SIZE_512				0x200
+#define BOX_SIZE_1024				0x400
+
+#define EXCEPT_MAX_HDR_SIZE			0x400
+#define AMD_STACK_DUMP_SIZE			32
 
 struct  acp_atu_grp_pte {
 	u32 low;
@@ -225,12 +228,16 @@ extern const struct snd_sof_dsp_ops sof_renoir_ops;
 int snd_amd_acp_find_config(struct pci_dev *pci);
 
 /* Trace */
-int acp_sof_trace_init(struct snd_sof_dev *sdev, u32 *stream_tag);
+int acp_sof_trace_init(struct snd_sof_dev *sdev,
+		       struct sof_ipc_dma_trace_params_ext *dtrace_params);
 int acp_sof_trace_release(struct snd_sof_dev *sdev);
 
 struct sof_amd_acp_desc {
 	unsigned int host_bridge_id;
 };
+
+void amd_sof_ipc_dump(struct snd_sof_dev *sdev);
+void amd_sof_dump(struct snd_sof_dev *sdev, u32 flags);
 
 static inline const struct sof_amd_acp_desc *get_chip_info(struct snd_sof_pdata *pdata)
 {
