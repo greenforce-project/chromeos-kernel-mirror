@@ -2366,7 +2366,7 @@ static int capidrv_delcontr(u16 contr)
 	 */
 	spin_unlock_irqrestore(&global_lock, flags);
 
-	del_timer(&card->listentimer);
+	timer_shutdown(&card->listentimer);
 
 	if (debugmode)
 		printk(KERN_DEBUG "capidrv-%d: id=%d unloading\n",

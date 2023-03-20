@@ -42,6 +42,7 @@ CFLAGS_REMOVE_rk3288_resume.o = -pg
 CFLAGS_REMOVE_rk3288_ddr_resume.o = -pg
 CFLAGS_REMOVE_rk3288-dmc-sram.o = -pg -ftrivial-auto-var-init=pattern
 
+CFLAGS_rk3288-dmc-sram.o = $(call cc-option, -ftrivial-auto-var-init=uninitialized)
 CFLAGS_rk3288_resume.o = $(call cc-disable-warning, inline-asm)
 
 KBUILD_CFLAGS += -fno-stack-protector -fPIC

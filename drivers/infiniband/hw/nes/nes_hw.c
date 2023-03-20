@@ -951,9 +951,9 @@ void nes_destroy_adapter(struct nes_adapter *nesadapter)
 	nesadapter->ref_count--;
 	if (!nesadapter->ref_count) {
 		if (nesadapter->hw_rev == NE020_REV) {
-			del_timer(&nesadapter->mh_timer);
+			timer_shutdown(&nesadapter->mh_timer);
 		}
-		del_timer(&nesadapter->lc_timer);
+		timer_shutdown(&nesadapter->lc_timer);
 
 		list_del(&nesadapter->list);
 		kfree(nesadapter);

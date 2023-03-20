@@ -60,7 +60,7 @@ ssize_t tpm_common_read(struct file *file, char __user *buf,
 	ssize_t ret_size = 0;
 	int rc;
 
-	del_singleshot_timer_sync(&priv->user_read_timer);
+	del_timer_sync(&priv->user_read_timer);
 	flush_work(&priv->work);
 	mutex_lock(&priv->buffer_mutex);
 
@@ -142,7 +142,7 @@ ssize_t tpm_common_write(struct file *file, const char __user *buf,
  */
 void tpm_common_release(struct file *file, struct file_priv *priv)
 {
-	del_singleshot_timer_sync(&priv->user_read_timer);
+	del_timer_sync(&priv->user_read_timer);
 	flush_work(&priv->work);
 	file->private_data = NULL;
 	priv->data_pending = 0;
