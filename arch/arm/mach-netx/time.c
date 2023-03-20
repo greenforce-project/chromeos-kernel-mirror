@@ -34,7 +34,7 @@
 #define TIMER_CLOCKEVENT 0
 #define TIMER_CLOCKSOURCE 1
 
-static inline void timer_shutdown(struct clock_event_device *evt)
+static inline void netx_timer_shutdown(struct clock_event_device *evt)
 {
 	/* disable timer */
 	writel(0, NETX_GPIO_COUNTER_CTRL(TIMER_CLOCKEVENT));
@@ -42,7 +42,7 @@ static inline void timer_shutdown(struct clock_event_device *evt)
 
 static int netx_shutdown(struct clock_event_device *evt)
 {
-	timer_shutdown(evt);
+	netx_timer_shutdown(evt);
 
 	return 0;
 }
@@ -51,7 +51,7 @@ static int netx_set_oneshot(struct clock_event_device *evt)
 {
 	u32 tmode = NETX_GPIO_COUNTER_CTRL_IRQ_EN | NETX_GPIO_COUNTER_CTRL_RUN;
 
-	timer_shutdown(evt);
+	netx_timer_shutdown(evt);
 	writel(0, NETX_GPIO_COUNTER_MAX(TIMER_CLOCKEVENT));
 	writel(tmode, NETX_GPIO_COUNTER_CTRL(TIMER_CLOCKEVENT));
 
@@ -63,7 +63,7 @@ static int netx_set_periodic(struct clock_event_device *evt)
 	u32 tmode = NETX_GPIO_COUNTER_CTRL_RST_EN |
 		    NETX_GPIO_COUNTER_CTRL_IRQ_EN | NETX_GPIO_COUNTER_CTRL_RUN;
 
-	timer_shutdown(evt);
+	netx_timer_shutdown(evt);
 	writel(NETX_LATCH, NETX_GPIO_COUNTER_MAX(TIMER_CLOCKEVENT));
 	writel(tmode, NETX_GPIO_COUNTER_CTRL(TIMER_CLOCKEVENT));
 

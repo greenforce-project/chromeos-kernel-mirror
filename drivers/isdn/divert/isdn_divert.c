@@ -750,7 +750,7 @@ static int prot_stat_callback(isdn_ctrl *ic)
 
 	if (cs1->ics.driver == -1) {
 		spin_lock_irqsave(&divert_lock, flags);
-		del_timer(&cs1->timer);
+		timer_shutdown(&cs1->timer);
 		if (cs1->prev)
 			cs1->prev->next = cs1->next; /* forward link */
 		else

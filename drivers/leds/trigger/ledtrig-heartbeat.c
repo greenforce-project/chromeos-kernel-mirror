@@ -148,7 +148,7 @@ static void heartbeat_trig_deactivate(struct led_classdev *led_cdev)
 	struct heartbeat_trig_data *heartbeat_data = led_cdev->trigger_data;
 
 	if (led_cdev->activated) {
-		del_timer_sync(&heartbeat_data->timer);
+		timer_shutdown_sync(&heartbeat_data->timer);
 		device_remove_file(led_cdev->dev, &dev_attr_invert);
 		kfree(heartbeat_data);
 		clear_bit(LED_BLINK_SW, &led_cdev->work_flags);

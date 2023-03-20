@@ -13,6 +13,7 @@
 
 #include <linux/types.h>
 #include <linux/mfd/cros_ec.h>
+#include <linux/mfd/cros_ec_commands.h>
 
 #include <linux/tracepoint.h>
 
@@ -36,7 +37,6 @@ DEFINE_EVENT(cros_ec_cmd_class, cros_ec_cmd,
 	TP_PROTO(struct cros_ec_command *cmd),
 	TP_ARGS(cmd)
 );
-
 
 #endif /* _CROS_EC_TRACE_H_ */
 

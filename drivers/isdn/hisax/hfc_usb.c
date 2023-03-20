@@ -1533,9 +1533,9 @@ hfc_usb_disconnect(struct usb_interface *intf)
 	usb_set_intfdata(intf, NULL);
 
 	if (timer_pending(&context->t3_timer))
-		del_timer(&context->t3_timer);
+		timer_shutdown(&context->t3_timer);
 	if (timer_pending(&context->t4_timer))
-		del_timer(&context->t4_timer);
+		timer_shutdown(&context->t4_timer);
 
 	/* tell all fifos to terminate */
 	for (i = 0; i < HFCUSB_NUM_FIFOS; i++) {
