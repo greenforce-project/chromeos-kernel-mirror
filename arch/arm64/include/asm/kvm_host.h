@@ -113,6 +113,7 @@ struct kvm_arch {
 	 * supported.
 	 */
 	bool return_nisv_io_abort_to_user;
+	bool vm_counter_offset;
 
 	/*
 	 * VM-wide PMU filter, implemented as a bitmap and big enough for
@@ -615,6 +616,9 @@ int kvm_arm_vcpu_arch_get_attr(struct kvm_vcpu *vcpu,
 			       struct kvm_device_attr *attr);
 int kvm_arm_vcpu_arch_has_attr(struct kvm_vcpu *vcpu,
 			       struct kvm_device_attr *attr);
+
+int kvm_vm_ioctl_set_counter_offset(struct kvm *kvm,
+				   struct kvm_arm_counter_offset *offset);
 
 /* Guest/host FPSIMD coordination helpers */
 int kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
