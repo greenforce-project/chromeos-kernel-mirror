@@ -86,6 +86,8 @@ struct kvm_arch {
 
 	/* Mandated version of PSCI */
 	u32 psci_version;
+
+	bool vm_counter_offset;
 };
 
 #define KVM_NR_MEM_OBJS     40
@@ -604,6 +606,9 @@ int kvm_arm_vcpu_arch_has_attr(struct kvm_vcpu *vcpu,
 			       struct kvm_device_attr *attr);
 
 static inline void __cpu_init_stage2(void) {}
+
+int kvm_vm_ioctl_set_counter_offset(struct kvm *kvm,
+				   struct kvm_arm_counter_offset *offset);
 
 /* Guest/host FPSIMD coordination helpers */
 int kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
