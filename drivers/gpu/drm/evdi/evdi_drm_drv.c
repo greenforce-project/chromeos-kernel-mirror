@@ -24,7 +24,7 @@
 #include "evdi_platform_drv.h"
 #include "evdi_cursor.h"
 #include "evdi_debug.h"
-#include "evdi_drm.h"
+#include <uapi/drm/evdi_drm.h>
 
 static struct drm_driver driver;
 
