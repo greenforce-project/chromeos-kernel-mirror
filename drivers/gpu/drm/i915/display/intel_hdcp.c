@@ -27,7 +27,8 @@
 #define KEY_LOAD_TRIES	5
 #define HDCP2_LC_RETRY_CNT			3
 
-static int intel_conn_to_vcpi(struct intel_connector *connector)
+static int intel_conn_to_vcpi(struct drm_atomic_state *state,
+			      struct intel_connector *connector)
 {
 	/* For HDMI this is forced to be 0x0. For DP SST also this is 0x0. */
 	return connector->port	? connector->port->vcpi.vcpi : 0;
@@ -43,48 +44,18 @@ static int intel_conn_to_vcpi(struct intel_connector *connector)
  * DP MST topology. Though it is not compulsory, security fw should change its
  * policy to mark different content_types for different streams.
  */
-static int
+static void
 intel_hdcp_required_content_stream(struct intel_digital_port *dig_port)
 {
-	struct drm_connector_list_iter conn_iter;
-	struct intel_digital_port *conn_dig_port;
-	struct intel_connector *connector;
-	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	bool enforce_type0 = false;
 	int k;
 
-	data->k = 0;
-
 	if (dig_port->hdcp_auth_status)
-		return 0;
+		return;
 
 	if (!dig_port->hdcp_mst_type1_capable)
 		enforce_type0 = true;
-
-	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
-	for_each_intel_connector_iter(connector, &conn_iter) {
-		if (connector->base.status == connector_status_disconnected)
-			continue;
-
-		if (!intel_encoder_is_mst(intel_attached_encoder(connector)))
-			continue;
-
-		conn_dig_port = intel_attached_dig_port(connector);
-		if (conn_dig_port != dig_port)
-			continue;
-
-		data->streams[data->k].stream_id = intel_conn_to_vcpi(connector);
-		data->k++;
-
-		/* if there is only one active stream */
-		if (dig_port->dp.active_mst_links <= 1)
-			break;
-	}
-	drm_connector_list_iter_end(&conn_iter);
-
-	if (drm_WARN_ON(&i915->drm, data->k > INTEL_NUM_PIPES(i915) || data->k == 0))
-		return -EINVAL;
 
 	/*
 	 * Apply common protection level across all streams in DP MST Topology.
@@ -93,27 +64,20 @@ intel_hdcp_required_content_stream(struct intel_digital_port *dig_port)
 	for (k = 0; k < data->k; k++)
 		data->streams[k].stream_type =
 			enforce_type0 ? DRM_MODE_HDCP_CONTENT_TYPE0 : DRM_MODE_HDCP_CONTENT_TYPE1;
-
-	return 0;
 }
 
-static int intel_hdcp_prepare_streams(struct intel_connector *connector)
+static void intel_hdcp_prepare_streams(struct intel_connector *connector)
 {
 	struct intel_digital_port *dig_port = intel_attached_dig_port(connector);
 	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
 	struct intel_hdcp *hdcp = &connector->hdcp;
-	int ret;
 
 	if (!intel_encoder_is_mst(intel_attached_encoder(connector))) {
 		data->k = 1;
 		data->streams[0].stream_type = hdcp->content_type;
 	} else {
-		ret = intel_hdcp_required_content_stream(dig_port);
-		if (ret)
-			return ret;
+		intel_hdcp_required_content_stream(dig_port);
 	}
-
-	return 0;
 }
 
 static
@@ -1887,13 +1851,7 @@ static int hdcp2_authenticate_and_encrypt(struct intel_connector *connector)
 	for (i = 0; i < tries && !dig_port->hdcp_auth_status; i++) {
 		ret = hdcp2_authenticate_sink(connector);
 		if (!ret) {
-			ret = intel_hdcp_prepare_streams(connector);
-			if (ret) {
-				drm_dbg_kms(&i915->drm,
-					    "Prepare streams failed.(%d)\n",
-					    ret);
-				break;
-			}
+			intel_hdcp_prepare_streams(connector);
 
 			ret = hdcp2_propagate_stream_management_info(connector);
 			if (ret) {
@@ -2293,6 +2251,49 @@ int intel_hdcp_init(struct intel_connector *connector,
 	return 0;
 }
 
+static int
+intel_hdcp_set_streams(struct intel_digital_port *dig_port,
+		       struct intel_atomic_state *state)
+{
+	struct drm_connector_list_iter conn_iter;
+	struct intel_digital_port *conn_dig_port;
+	struct intel_connector *connector;
+	struct drm_i915_private *i915 = to_i915(dig_port->base.base.dev);
+	struct hdcp_port_data *data = &dig_port->hdcp_port_data;
+
+	if (!intel_encoder_is_mst(&dig_port->base))
+		return 0;
+
+	data->k = 0;
+
+	drm_connector_list_iter_begin(&i915->drm, &conn_iter);
+	for_each_intel_connector_iter(connector, &conn_iter) {
+		if (connector->base.status == connector_status_disconnected)
+			continue;
+
+		if (!intel_encoder_is_mst(intel_attached_encoder(connector)))
+			continue;
+
+		conn_dig_port = intel_attached_dig_port(connector);
+		if (conn_dig_port != dig_port)
+			continue;
+
+		data->streams[data->k].stream_id =
+			intel_conn_to_vcpi(&state->base, connector);
+		data->k++;
+
+		/* if there is only one active stream */
+		if (dig_port->dp.active_mst_links <= 1)
+			break;
+	}
+	drm_connector_list_iter_end(&conn_iter);
+
+	if (drm_WARN_ON(&i915->drm, data->k > INTEL_NUM_PIPES(i915) || data->k == 0))
+		return -EINVAL;
+
+	return 0;
+}
+
 int intel_hdcp_enable(struct intel_atomic_state *state,
 		      struct intel_encoder *encoder,
 		      const struct intel_crtc_state *pipe_config,
@@ -2337,9 +2338,17 @@ int intel_hdcp_enable(struct intel_atomic_state *state,
 	 * is capable of HDCP2.2, it is preferred to use HDCP2.2.
 	 */
 	if (intel_hdcp2_capable(connector)) {
-		ret = _intel_hdcp2_enable(connector);
-		if (!ret)
-			check_link_interval = DRM_HDCP2_CHECK_PERIOD_MS;
+		ret = intel_hdcp_set_streams(dig_port, state);
+		if (!ret) {
+			ret = _intel_hdcp2_enable(connector);
+			if (!ret)
+				check_link_interval =
+					DRM_HDCP2_CHECK_PERIOD_MS;
+		} else {
+			drm_dbg_kms(&dev_priv->drm,
+				    "Set content streams failed: (%d)\n",
+				    ret);
+		}
 	}
 
 	/*
