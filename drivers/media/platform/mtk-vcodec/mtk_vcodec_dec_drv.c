@@ -405,6 +405,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	ret = component_master_add_with_match(&pdev->dev, &mtk_vdec_ops, match);
 	if (ret < 0)
 		goto err_component_match;
+	mtk_vcodec_dbgfs_init(dev);
 
 	return 0;
 err_component_match:
@@ -469,6 +470,7 @@ static int mtk_vcodec_dec_remove(struct platform_device *pdev)
 	if (dev->vfd_dec)
 		video_unregister_device(dev->vfd_dec);
 
+	mtk_vcodec_dbgfs_deinit(dev);
 	v4l2_device_unregister(&dev->v4l2_dev);
 	mtk_vcodec_release_dec_pm(dev);
 	mtk_vcodec_fw_release(dev->fw_handler);
