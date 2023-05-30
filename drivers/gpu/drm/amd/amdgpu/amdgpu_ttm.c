@@ -56,6 +56,7 @@
 #include "amdgpu_sdma.h"
 #include "amdgpu_ras.h"
 #include "amdgpu_atomfirmware.h"
+#include "amdgpu_dma_buf.h"
 #include "amdgpu_res_cursor.h"
 #include "bif/bif_4_1_d.h"
 
@@ -680,22 +681,22 @@ int amdgpu_ttm_tt_get_user_pages(struct amdgpu_bo *bo, struct page **pages)
 
 	mmap_read_lock(mm);
 	vma = find_vma(mm, start);
+	mmap_read_unlock(mm);
 	if (unlikely(!vma || start < vma->vm_start)) {
 		r = -EFAULT;
-		goto out_unlock;
+		goto out_putmm;
 	}
 	if (unlikely((gtt->userflags & AMDGPU_GEM_USERPTR_ANONONLY) &&
 		vma->vm_file)) {
 		r = -EPERM;
-		goto out_unlock;
+		goto out_putmm;
 	}
 
 	readonly = amdgpu_ttm_tt_is_readonly(ttm);
 	r = amdgpu_hmm_range_get_pages(&bo->notifier, mm, pages, start,
 				       ttm->num_pages, &gtt->range, readonly,
-				       true, NULL);
-out_unlock:
-	mmap_read_unlock(mm);
+				       false, NULL);
+out_putmm:
 	mmput(mm);
 
 	return r;
@@ -1883,6 +1884,14 @@ void amdgpu_ttm_set_buffer_funcs_status(struct amdgpu_device *adev, bool enable)
 		size = adev->gmc.visible_vram_size;
 	man->size = size >> PAGE_SHIFT;
 	adev->mman.buffer_funcs_enabled = enable;
+}
+
+int amdgpu_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	if (amdgpu_try_dma_buf_mmap(filp, vma) == 0)
+		return 0;
+
+	return drm_gem_mmap(filp, vma);
 }
 
 int amdgpu_copy_buffer(struct amdgpu_ring *ring, uint64_t src_offset,
