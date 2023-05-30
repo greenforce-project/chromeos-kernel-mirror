@@ -407,7 +407,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	ret = component_master_add_with_match(&pdev->dev, &mtk_vdec_ops, match);
 	if (ret < 0)
 		goto err_component_match;
-	mtk_vcodec_dbgfs_init(dev);
+	mtk_vcodec_dbgfs_init(dev, false);
 
 	return 0;
 err_component_match:
