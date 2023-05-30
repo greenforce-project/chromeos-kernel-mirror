@@ -24,7 +24,7 @@
 #include "mtk_vcodec_fw.h"
 
 module_param(mtk_v4l2_dbg_level, int, 0644);
-module_param(mtk_vcodec_dbg, bool, 0644);
+module_param(mtk_vcodec_dbg, int, 0644);
 
 static struct of_device_id mtk_vdec_drv_ids[] = {
 	{
