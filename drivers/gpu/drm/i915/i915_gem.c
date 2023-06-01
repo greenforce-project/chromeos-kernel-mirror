@@ -1179,40 +1179,25 @@ void i915_gem_cleanup_early(struct drm_i915_private *dev_priv)
 int i915_gem_open(struct drm_i915_private *i915, struct drm_file *file)
 {
 	struct drm_i915_file_private *file_priv;
-	struct i915_drm_client *client;
-	int ret = -ENOMEM;
+	int ret;
 
 	DRM_DEBUG("\n");
 
 	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
 	if (!file_priv)
-		goto err_alloc;
-
-	client = i915_drm_client_add(&i915->clients, current);
-	if (IS_ERR(client)) {
-		ret = PTR_ERR(client);
-		goto err_client;
-	}
+		return -ENOMEM;
 
 	file->driver_priv = file_priv;
 	file_priv->dev_priv = i915;
 	file_priv->file = file;
-	file_priv->client = client;
 
 	file_priv->bsd_engine = -1;
 	file_priv->hang_timestamp = jiffies;
 
 	ret = i915_gem_context_open(i915, file);
 	if (ret)
-		goto err_context;
+		kfree(file_priv);
 
-	return 0;
-
-err_context:
-	i915_drm_client_close(client);
-err_client:
-	kfree(file_priv);
-err_alloc:
 	return ret;
 }
 
