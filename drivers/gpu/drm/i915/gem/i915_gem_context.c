@@ -1215,14 +1215,13 @@ void i915_gem_context_release(struct kref *ref)
 	trace_i915_context_free(ctx);
 	GEM_BUG_ON(!i915_gem_context_is_closed(ctx));
 
-	if (ctx->client)
-		i915_drm_client_put(ctx->client);
-
 	if (ctx->syncobj)
 		drm_syncobj_put(ctx->syncobj);
 
 	mutex_destroy(&ctx->engines_mutex);
 	mutex_destroy(&ctx->lut_mutex);
+
+	put_pid(ctx->pid);
 	mutex_destroy(&ctx->mutex);
 
 	kfree_rcu(ctx, rcu);
@@ -1664,20 +1663,13 @@ static void gem_context_register(struct i915_gem_context *ctx,
 				 u32 id)
 {
 	struct drm_i915_private *i915 = ctx->i915;
-	struct i915_drm_client *client;
 	void *old;
 
 	ctx->file_priv = fpriv;
 
-	client = i915_drm_client_get(fpriv->client);
-
-	rcu_read_lock();
+	ctx->pid = get_task_pid(current, PIDTYPE_PID);
 	snprintf(ctx->name, sizeof(ctx->name), "%s[%d]",
-		 i915_drm_client_name(client),
-		 pid_nr(i915_drm_client_pid(client)));
-	rcu_read_unlock();
-
-	ctx->client = client;
+		 current->comm, pid_nr(ctx->pid));
 
 	spin_lock(&i915->gem.contexts.lock);
 	list_add_tail(&ctx->link, &i915->gem.contexts.list);
