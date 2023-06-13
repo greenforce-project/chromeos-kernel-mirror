@@ -4109,14 +4109,14 @@ struct kobj_attribute shmem_enabled_attr =
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE && CONFIG_SYSFS */
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
-bool shmem_huge_enabled(struct vm_area_struct *vma)
+bool shmem_huge_enabled(struct vm_area_struct *vma, unsigned long vm_flags)
 {
 	struct inode *inode = file_inode(vma->vm_file);
 	struct shmem_sb_info *sbinfo = SHMEM_SB(inode->i_sb);
 	loff_t i_size;
 	pgoff_t off;
 
-	if (!transhuge_vma_enabled(vma, vma->vm_flags))
+	if (!transhuge_vma_enabled(vma, vm_flags))
 		return false;
 	if (shmem_huge == SHMEM_HUGE_FORCE)
 		return true;
@@ -4136,7 +4136,7 @@ bool shmem_huge_enabled(struct vm_area_struct *vma)
 			fallthrough;
 		case SHMEM_HUGE_ADVISE:
 			/* TODO: implement fadvise() hints */
-			return (vma->vm_flags & VM_HUGEPAGE);
+			return (vm_flags & VM_HUGEPAGE);
 		default:
 			VM_BUG_ON(1);
 			return false;
