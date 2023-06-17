@@ -1532,6 +1532,12 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	const struct qcom_pcie_cfg *pcie_cfg;
 	int ret;
 
+	pcie_cfg = of_device_get_match_data(dev);
+	if (!pcie_cfg || !pcie_cfg->ops) {
+		dev_err(dev, "Invalid platform data\n");
+		return -EINVAL;
+	}
+
 	pcie = devm_kzalloc(dev, sizeof(*pcie), GFP_KERNEL);
 	if (!pcie)
 		return -ENOMEM;
@@ -1550,12 +1556,6 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	pp = &pci->pp;
 
 	pcie->pci = pci;
-
-	pcie_cfg = of_device_get_match_data(dev);
-	if (!pcie_cfg || !pcie_cfg->ops) {
-		dev_err(dev, "Invalid platform data\n");
-		return -EINVAL;
-	}
 
 	pcie->ops = pcie_cfg->ops;
 	pcie->pipe_clk_need_muxing = pcie_cfg->pipe_clk_need_muxing;
