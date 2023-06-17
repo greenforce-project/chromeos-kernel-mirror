@@ -4192,7 +4192,7 @@ static int xhci_setup_device(struct usb_hcd *hcd, struct usb_device *udev,
 			xhci_alloc_dev(hcd, udev);
 		kfree(command->completion);
 		kfree(command);
-		return xhci_report_error(xhci, -EPROTO);
+		return -EPROTO;
 	case COMP_INCOMPATIBLE_DEVICE_ERROR:
 		dev_warn(&udev->dev,
 			 "ERROR: Incompatible device for setup %s command\n", act);
