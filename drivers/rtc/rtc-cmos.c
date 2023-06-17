@@ -180,7 +180,7 @@ static inline int hpet_unregister_irq_handler(irq_handler_t handler)
 #endif
 
 /* Don't use HPET for RTC Alarm event if ACPI Fixed event is used */
-static int use_hpet_alarm(void)
+static inline int use_hpet_alarm(void)
 {
 	return is_hpet_enabled() && !cmos_use_acpi_alarm();
 }
