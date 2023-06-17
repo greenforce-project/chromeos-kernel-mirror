@@ -1772,6 +1772,9 @@ static void clk_change_rate(struct clk_core *core)
 		best_parent_rate = core->parent->rate;
 	}
 
+	if (clk_pm_runtime_get(core))
+		return;
+
 	if (core->flags & CLK_SET_RATE_UNGATE) {
 		unsigned long flags;
 
@@ -1842,6 +1845,8 @@ static void clk_change_rate(struct clk_core *core)
 	/* handle the new child who might not be in core->children yet */
 	if (core->new_child)
 		clk_change_rate(core->new_child);
+
+	clk_pm_runtime_put(core);
 }
 
 static unsigned long clk_core_req_round_rate_nolock(struct clk_core *core,
