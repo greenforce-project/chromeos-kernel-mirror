@@ -1011,7 +1011,7 @@ gen9_wa_init_mcr(struct drm_i915_private *dev_priv)
 	 * on s/ss combo, the read should be done with read_subslice_reg.
 	 */
 	slice = ffs(sseu->slice_mask) - 1;
-	subslice = ffs(sseu->subslice_mask);
+	subslice = ffs(sseu->subslice_mask[slice]);
 	GEM_BUG_ON(!subslice);
 	subslice--;
 
