@@ -2169,7 +2169,6 @@ int hrtimers_dead_cpu(unsigned int scpu)
 
 #ifdef CONFIG_HIGH_RES_TIMERS
 
-void tick_nohz_switch_to_nohz(void);
 static void hrtimer_smp_call(void *info)
 {
 	struct hrtimer_cpu_base *base = this_cpu_ptr(&hrtimer_bases);
