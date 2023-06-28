@@ -365,6 +365,16 @@ struct util_est {
 } __attribute__((__aligned__(sizeof(u64))));
 
 /*
+ * For sched_setattr_nocheck() (kernel) only
+ *
+ * Allow vCPU threads to use UTIL_GUEST as a way to hint the scheduler with more
+ * accurate utilization info. This is useful when guest kernels have some way of
+ * tracking its own runqueue's utilization.
+ *
+ */
+#define SCHED_FLAG_UTIL_GUEST   0x20000000
+
+/*
  * The load/runnable/util_avg accumulates an infinite geometric series
  * (see __update_load_avg_cfs_rq() in kernel/sched/pelt.c).
  *
@@ -417,7 +427,8 @@ struct sched_avg {
 	u32				period_contrib;
 	unsigned long			load_avg;
 	unsigned long			runnable_avg;
-	unsigned long			util_avg;
+	u32				util_avg;
+	u32				util_guest;
 	struct util_est			util_est;
 } ____cacheline_aligned;
 
@@ -1983,6 +1994,11 @@ extern long sched_getaffinity(pid_t pid, struct cpumask *mask);
 #ifndef TASK_SIZE_OF
 #define TASK_SIZE_OF(tsk)	TASK_SIZE
 #endif
+
+#ifdef CONFIG_SMP
+/* Returns effective CPU energy utilization, as seen by the scheduler */
+unsigned long sched_cpu_util(int cpu, unsigned long max);
+#endif /* CONFIG_SMP */
 
 #ifdef CONFIG_RSEQ
 
