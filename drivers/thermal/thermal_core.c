@@ -1641,6 +1641,10 @@ void thermal_zone_device_unregister(struct thermal_zone_device *tz)
 
 	mutex_lock(&tz->lock);
 	device_del(&tz->device);
+	WARN_ONCE(device_is_registered(&tz->device),
+		  "%s: device still registered after call to device_del()\n",
+		  dev_name(&tz->device));
+	tz->ops = NULL;
 	mutex_unlock(&tz->lock);
 
 	put_device(&tz->device);

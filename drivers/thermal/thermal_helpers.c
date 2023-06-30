@@ -92,6 +92,13 @@ int thermal_zone_get_temp(struct thermal_zone_device *tz, int *temp)
 		goto exit_unlock;
 	}
 
+	if (WARN_ONCE(!tz->ops,
+		      "%s: Thermal zone device ops cleared on registered device\n",
+		      dev_name(&tz->device))) {
+		ret = -ENODEV;
+		goto exit_unlock;
+	}
+
 	if (!tz->ops->get_temp)
 		goto exit_unlock;
 
