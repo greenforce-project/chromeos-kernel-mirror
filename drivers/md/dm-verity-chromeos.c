@@ -506,6 +506,7 @@ failed_bio_alloc:
 	return ret;
 }
 
+static bool retries_disabled;
 static int error_handler(struct notifier_block *nb, unsigned long transient,
 			 void *opaque_err)
 {
@@ -522,7 +523,7 @@ static int error_handler(struct notifier_block *nb, unsigned long transient,
 		return 0;
 
 	// Do not invalidate kernel if successfully updated try count.
-	if (!chromeos_update_tries(err->dev))
+	if (!retries_disabled && !chromeos_update_tries(err->dev))
 		return 0;
 
 	/* Mark the kernel partition as invalid. */
@@ -564,3 +565,4 @@ MODULE_LICENSE("GPL");
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX	""
 module_param_string(kern_guid, kern_guid, sizeof(kern_guid), 0);
+module_param(retries_disabled, bool, 0);
