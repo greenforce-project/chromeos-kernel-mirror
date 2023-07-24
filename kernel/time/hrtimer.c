@@ -1683,11 +1683,6 @@ void hrtimer_interrupt(struct clock_event_device *dev)
 	unsigned long flags;
 	int retries = 0;
 
-	/*
-	 * TODO: This is a BUG_ON() in upstream, but is required
-	 * to prevent a crash when transitioning from high to low res.
-	 * We need to find a way to keep the BUG_ON in highres mode.
-	 */
 	if (!cpu_base->hres_active)
 		return;
 	cpu_base->nr_events++;
@@ -2177,6 +2172,8 @@ void hrtimer_smp_call(void *info)
 		return;
 
 	if (!hres) {
+		trace_printk("smp call: called stn\n");
+
 		/*
 		 * The tick_sched device is no longer going to be an 'hrtimer',
 		 * In 'nohz' mode, the the tick_sched timer's callback function
