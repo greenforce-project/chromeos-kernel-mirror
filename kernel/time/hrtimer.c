@@ -2167,10 +2167,8 @@ int hrtimers_dead_cpu(unsigned int scpu)
 
 #endif /* CONFIG_HOTPLUG_CPU */
 
-#ifdef CONFIG_HIGH_RES_TIMERS
-
 void tick_nohz_switch_to_nohz(void);
-static void hrtimer_smp_call(void *info)
+void hrtimer_smp_call(void *info)
 {
 	struct hrtimer_cpu_base *base = this_cpu_ptr(&hrtimer_bases);
 	bool hres = *((bool *)info);
@@ -2234,15 +2232,11 @@ static struct ctl_table timer_hres_sysctl[] = {
 	{}
 };
 
-#endif /* CONFIG_HIGH_RES_TIMERS */
-
 void __init hrtimers_init(void)
 {
 	hrtimers_prepare_cpu(smp_processor_id());
 	open_softirq(HRTIMER_SOFTIRQ, hrtimer_run_softirq);
-#ifdef CONFIG_HIGH_RES_TIMERS
 	register_sysctl("kernel", timer_hres_sysctl);
-#endif /* CONFIG_HIGH_RES_TIMERS */
 }
 
 /**
