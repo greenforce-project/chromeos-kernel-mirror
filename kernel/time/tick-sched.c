@@ -1282,6 +1282,7 @@ static inline void tick_nohz_activate(struct tick_sched *ts, int mode)
 /**
  * tick_nohz_switch_to_nohz - switch to nohz mode
  */
+void tick_nohz_switch_to_nohz(void);
 void tick_nohz_switch_to_nohz(void)
 {
 	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
@@ -1323,6 +1324,7 @@ static inline void tick_nohz_irq_enter(void)
 
 #else
 
+static inline void tick_nohz_switch_to_nohz(void) { }
 static inline void tick_nohz_irq_enter(void) { }
 static inline void tick_nohz_activate(struct tick_sched *ts, int mode) { }
 

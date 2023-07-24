@@ -152,12 +152,10 @@ static inline void tick_nohz_init(void) { }
 #ifdef CONFIG_NO_HZ_COMMON
 extern unsigned long tick_nohz_active;
 extern void timers_update_nohz(void);
-extern void tick_nohz_switch_to_nohz(void);
 # ifdef CONFIG_SMP
 extern struct static_key_false timers_migration_enabled;
 # endif
 #else /* CONFIG_NO_HZ_COMMON */
-static inline void tick_nohz_switch_to_nohz(void) { }
 static inline void timers_update_nohz(void) { }
 #define tick_nohz_active (0)
 #endif
