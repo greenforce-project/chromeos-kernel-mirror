@@ -695,6 +695,7 @@ static void retrigger_next_event(void *arg)
 	raw_spin_unlock(&base->lock);
 }
 
+#if defined CONFIG_HIGH_RES_TIMERS && CONFIG_HZ >= 1000
 /*
  * Switch to low resolution mode
  */
@@ -709,6 +710,7 @@ void hrtimer_switch_to_lres(void)
 	base->hres_active = 0;
 	hrtimer_resolution = LOW_RES_NSEC;
 }
+#endif
 
 /*
  * Switch to high resolution mode
@@ -1741,7 +1743,7 @@ int hrtimers_dead_cpu(unsigned int scpu)
 
 #endif /* CONFIG_HOTPLUG_CPU */
 
-#ifdef CONFIG_HIGH_RES_TIMERS
+#if defined CONFIG_HIGH_RES_TIMERS && CONFIG_HZ >= 1000
 
 static void hrtimer_smp_call(void *info)
 {
@@ -1797,9 +1799,9 @@ static struct ctl_table timer_hres_sysctl[] = {
 void __init hrtimers_init(void)
 {
 	hrtimers_prepare_cpu(smp_processor_id());
-#ifdef CONFIG_HIGH_RES_TIMERS
+#if defined CONFIG_HIGH_RES_TIMERS && CONFIG_HZ >= 1000
 	register_sysctl("kernel", timer_hres_sysctl);
-#endif /* CONFIG_HIGH_RES_TIMERS */
+#endif
 }
 
 /**
