@@ -10,7 +10,6 @@
 #include <media/videobuf2-dma-contig.h>
 #include <linux/pm_runtime.h>
 
-#include "mtk_vcodec_drv.h"
 #include "mtk_vcodec_enc.h"
 #include "mtk_vcodec_intr.h"
 #include "mtk_vcodec_util.h"
@@ -1445,7 +1444,7 @@ int mtk_vcodec_enc_queue_init(void *priv, struct vb2_queue *src_vq,
 
 int mtk_venc_unlock(struct mtk_vcodec_enc_ctx *ctx)
 {
-	struct mtk_vcodec_dev *dev = ctx->dev;
+	struct mtk_vcodec_enc_dev *dev = ctx->dev;
 
 	mutex_unlock(&dev->enc_mutex);
 	return 0;
@@ -1453,7 +1452,7 @@ int mtk_venc_unlock(struct mtk_vcodec_enc_ctx *ctx)
 
 int mtk_venc_lock(struct mtk_vcodec_enc_ctx *ctx)
 {
-	struct mtk_vcodec_dev *dev = ctx->dev;
+	struct mtk_vcodec_enc_dev *dev = ctx->dev;
 
 	mutex_lock(&dev->enc_mutex);
 	return 0;
