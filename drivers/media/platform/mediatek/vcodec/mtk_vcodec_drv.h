@@ -281,6 +281,7 @@ struct vdec_pic_info {
  * @hw_id: hardware index used to identify different hardware.
  *
  * @msg_queue: msg queue used to store lat buffer information.
+ * @vpu_inst: vpu instance pointer.
  */
 struct mtk_vcodec_ctx {
 	enum mtk_instance_type type;
@@ -327,6 +328,7 @@ struct mtk_vcodec_ctx {
 	int hw_id;
 
 	struct vdec_msg_queue msg_queue;
+	void *vpu_inst;
 };
 
 /*
