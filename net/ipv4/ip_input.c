@@ -142,6 +142,8 @@
 #include <linux/netlink.h>
 #include <net/dst_metadata.h>
 
+#include <trace/events/cros_net.h>
+
 /*
  *	Process Router Attention IP option (RFC 2113)
  */
@@ -188,6 +190,7 @@ void ip_protocol_deliver_rcu(struct net *net, struct sk_buff *skb, int protocol)
 {
 	const struct net_protocol *ipprot;
 	int raw, ret;
+	trace_cros_ip_protocol_deliver_rcu_enter(net, skb, protocol);
 
 resubmit:
 	raw = raw_local_deliver(skb, protocol);

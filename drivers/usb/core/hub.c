@@ -5478,7 +5478,6 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	if (status == 0)
 		return;
 
-	hub_report_error(&hub->hdev->dev, status);
 	usb_unlock_port(port_dev);
 	hub_port_connect(hub, port1, portstatus, portchange);
 	usb_lock_port(port_dev);
