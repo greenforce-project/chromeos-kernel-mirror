@@ -325,7 +325,8 @@ static void ftrace_syscall_enter(void *data, struct pt_regs *regs, long id)
 
 	buffer = tr->array_buffer.buffer;
 	event = trace_buffer_lock_reserve(buffer,
-			sys_data->enter_event->event.type, size, trace_ctx);
+			sys_data->enter_event->event.type, size,
+			tr->trace_flags, trace_ctx);
 	if (!event)
 		return;
 
@@ -369,7 +370,7 @@ static void ftrace_syscall_exit(void *data, struct pt_regs *regs, long ret)
 
 	buffer = tr->array_buffer.buffer;
 	event = trace_buffer_lock_reserve(buffer,
-			sys_data->exit_event->event.type, sizeof(*entry),
+			sys_data->exit_event->event.type, sizeof(*entry), tr->trace_flags,
 			trace_ctx);
 	if (!event)
 		return;
