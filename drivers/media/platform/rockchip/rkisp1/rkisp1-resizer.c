@@ -126,9 +126,9 @@ rkisp1_rsz_get_pad_fmt(struct rkisp1_resizer *rsz,
 		.pads = rsz->pad_cfg,
 	};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_format(&rsz->sd, sd_state, pad);
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	else
-		return v4l2_subdev_get_try_format(&rsz->sd, &state, pad);
+		return v4l2_subdev_state_get_format(&state, pad);
 }
 
 static struct v4l2_rect *
@@ -140,9 +140,9 @@ rkisp1_rsz_get_pad_crop(struct rkisp1_resizer *rsz,
 		.pads = rsz->pad_cfg,
 	};
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_crop(&rsz->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	else
-		return v4l2_subdev_get_try_crop(&rsz->sd, &state, pad);
+		return v4l2_subdev_state_get_crop(&state, pad);
 }
 
 /* ----------------------------------------------------------------------------
@@ -415,8 +415,7 @@ static int rkisp1_rsz_init_config(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *sink_fmt, *src_fmt;
 	struct v4l2_rect *sink_crop;
 
-	sink_fmt = v4l2_subdev_get_try_format(sd, sd_state,
-					      RKISP1_RSZ_PAD_SRC);
+	sink_fmt = v4l2_subdev_state_get_format(sd_state, RKISP1_RSZ_PAD_SRC);
 	sink_fmt->width = RKISP1_DEFAULT_WIDTH;
 	sink_fmt->height = RKISP1_DEFAULT_HEIGHT;
 	sink_fmt->field = V4L2_FIELD_NONE;
@@ -426,15 +425,13 @@ static int rkisp1_rsz_init_config(struct v4l2_subdev *sd,
 	sink_fmt->ycbcr_enc = V4L2_YCBCR_ENC_601;
 	sink_fmt->quantization = V4L2_QUANTIZATION_LIM_RANGE;
 
-	sink_crop = v4l2_subdev_get_try_crop(sd, sd_state,
-					     RKISP1_RSZ_PAD_SINK);
+	sink_crop = v4l2_subdev_state_get_crop(sd_state, RKISP1_RSZ_PAD_SINK);
 	sink_crop->width = RKISP1_DEFAULT_WIDTH;
 	sink_crop->height = RKISP1_DEFAULT_HEIGHT;
 	sink_crop->left = 0;
 	sink_crop->top = 0;
 
-	src_fmt = v4l2_subdev_get_try_format(sd, sd_state,
-					     RKISP1_RSZ_PAD_SINK);
+	src_fmt = v4l2_subdev_state_get_format(sd_state, RKISP1_RSZ_PAD_SINK);
 	*src_fmt = *sink_fmt;
 
 	/* NOTE: there is no crop in the source pad, only in the sink */

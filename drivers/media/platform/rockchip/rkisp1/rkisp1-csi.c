@@ -42,9 +42,9 @@ rkisp1_csi_get_pad_fmt(struct rkisp1_csi *csi,
 	lockdep_assert_held(&csi->lock);
 
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_format(&csi->sd, sd_state, pad);
+		return v4l2_subdev_state_get_format(sd_state, pad);
 	else
-		return v4l2_subdev_get_try_format(&csi->sd, &state, pad);
+		return v4l2_subdev_state_get_format(&state, pad);
 }
 
 int rkisp1_csi_link_sensor(struct rkisp1_device *rkisp1, struct v4l2_subdev *sd,
@@ -311,10 +311,8 @@ static int rkisp1_csi_init_config(struct v4l2_subdev *sd,
 {
 	struct v4l2_mbus_framefmt *sink_fmt, *src_fmt;
 
-	sink_fmt = v4l2_subdev_get_try_format(sd, sd_state,
-					      RKISP1_CSI_PAD_SINK);
-	src_fmt = v4l2_subdev_get_try_format(sd, sd_state,
-					     RKISP1_CSI_PAD_SRC);
+	sink_fmt = v4l2_subdev_state_get_format(sd_state, RKISP1_CSI_PAD_SINK);
+	src_fmt = v4l2_subdev_state_get_format(sd_state, RKISP1_CSI_PAD_SRC);
 
 	sink_fmt->width = RKISP1_DEFAULT_WIDTH;
 	sink_fmt->height = RKISP1_DEFAULT_HEIGHT;
