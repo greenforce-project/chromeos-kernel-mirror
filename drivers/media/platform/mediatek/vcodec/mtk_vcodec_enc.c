@@ -834,16 +834,9 @@ static int vb2ops_venc_buf_prepare(struct vb2_buffer *vb)
 	int i;
 
 	for (i = 0; i < q_data->fmt->num_planes; i++) {
-		if (vb->planes[i].data_offset > vb2_plane_size(vb, i)) {
-			mtk_v4l2_err("data offset larger than plane size");
-			return -EINVAL;
-		}
-
-		if (vb2_plane_size(vb, i) - vb->planes[i].data_offset
-		    < q_data->sizeimage[i]) {
-			mtk_v4l2_err("data will not fit into plane %d (%lu - %u < %u)",
+		if (vb2_plane_size(vb, i) < q_data->sizeimage[i]) {
+			mtk_v4l2_err("data will not fit into plane %d (%lu < %d)",
 				i, vb2_plane_size(vb, i),
-				vb->planes[i].data_offset,
 				q_data->sizeimage[i]);
 			return -EINVAL;
 		}
