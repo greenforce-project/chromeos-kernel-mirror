@@ -60,6 +60,7 @@ struct fwnode_handle;
 struct kref;
 struct seq_file;
 struct work_struct;
+struct fwnode_handle;
 
 /* drm_crtc.c */
 int drm_mode_crtc_set_obj_prop(struct drm_mode_object *obj,
