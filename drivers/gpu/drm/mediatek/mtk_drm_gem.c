@@ -259,7 +259,7 @@ int mtk_drm_gem_prime_vmap(struct drm_gem_object *obj, struct dma_buf_map *map)
 	if (!mtk_gem->kvaddr) {
 		kfree(sgt);
 		kfree(mtk_gem->pages);
-		return NULL;
+		return -ENOMEM;
 	}
 out:
 	kfree(sgt);
