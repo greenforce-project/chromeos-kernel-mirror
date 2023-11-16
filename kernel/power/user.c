@@ -367,7 +367,7 @@ static int snapshot_transfer_block_device(struct snapshot_data *data)
 	return res;
 }
 
-static void __maybe_unused release_block_dev_on_restore(struct snapshot_data *data)
+static void release_block_dev_on_restore(struct snapshot_data *data)
 {
 	if (!data->dev || !data->snapshot_bdev.bdev)
 		return;
@@ -445,6 +445,8 @@ static long snapshot_ioctl(struct file *filp, unsigned int cmd,
 		pm_restore_gfp_mask();
 		error = hibernation_snapshot(data->platform_support);
 		if (!error) {
+			if (!in_suspend)
+				release_block_dev_on_restore(data);
 			error = put_user(in_suspend, (int __user *)arg);
 			data->ready = !freezer_test_done && !error;
 			freezer_test_done = false;
