@@ -65,9 +65,8 @@ void mtk_vcodec_mem_free(struct mtk_vcodec_ctx *data,
 	struct device *dev = &ctx->dev->plat_dev->dev;
 
 	if (!mem->va) {
-		if (mem->size)
-			mtk_v4l2_err("%s VA is NULL but size = 0x%zx",
-				     dev_name(dev), mem->size);
+		mtk_v4l2_err("%s dma_free size=%ld failed!", dev_name(dev),
+			     size);
 		return;
 	}
 
