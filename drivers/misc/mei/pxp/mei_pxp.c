@@ -85,9 +85,10 @@ static int mei_pxp_send_message(struct device *dev, const void *message, size_t 
 				byte = ret;
 			break;
 		}
+		return byte;
 	}
 
-	return byte;
+	return 0;
 }
 
 /**
