@@ -409,8 +409,8 @@ static int rkisp1_rsz_enum_mbus_code(struct v4l2_subdev *sd,
 	return -EINVAL;
 }
 
-static int rkisp1_rsz_init_config(struct v4l2_subdev *sd,
-				  struct v4l2_subdev_state *sd_state)
+static int rkisp1_rsz_init_state(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_state *sd_state)
 {
 	struct v4l2_mbus_framefmt *sink_fmt, *src_fmt;
 	struct v4l2_rect *sink_crop;
@@ -683,7 +683,6 @@ static const struct v4l2_subdev_pad_ops rkisp1_rsz_pad_ops = {
 	.enum_mbus_code = rkisp1_rsz_enum_mbus_code,
 	.get_selection = rkisp1_rsz_get_selection,
 	.set_selection = rkisp1_rsz_set_selection,
-	.init_cfg = rkisp1_rsz_init_config,
 	.get_fmt = rkisp1_rsz_get_fmt,
 	.set_fmt = rkisp1_rsz_set_fmt,
 	.link_validate = v4l2_subdev_link_validate_default,
@@ -727,6 +726,10 @@ static const struct v4l2_subdev_ops rkisp1_rsz_ops = {
 	.pad = &rkisp1_rsz_pad_ops,
 };
 
+static const struct v4l2_subdev_internal_ops rkisp1_rsz_internal_ops = {
+	.init_state = rkisp1_rsz_init_state,
+};
+
 static void rkisp1_rsz_unregister(struct rkisp1_resizer *rsz)
 {
 	if (!rsz->rkisp1)
@@ -759,6 +762,7 @@ static int rkisp1_rsz_register(struct rkisp1_resizer *rsz)
 	}
 
 	v4l2_subdev_init(sd, &rkisp1_rsz_ops);
+	sd->internal_ops = &rkisp1_rsz_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	sd->entity.ops = &rkisp1_rsz_media_ops;
 	sd->entity.function = MEDIA_ENT_F_PROC_VIDEO_SCALER;
@@ -783,7 +787,7 @@ static int rkisp1_rsz_register(struct rkisp1_resizer *rsz)
 		goto error;
 	}
 
-	rkisp1_rsz_init_config(sd, &state);
+	rkisp1_rsz_init_state(sd, &state);
 	return 0;
 
 error:
