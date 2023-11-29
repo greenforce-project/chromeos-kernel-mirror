@@ -206,6 +206,8 @@ bool __must_check kfence_handle_page_fault(unsigned long addr, bool is_write, st
 
 #else /* CONFIG_KFENCE */
 
+#define kfence_sample_interval	(0)
+
 static inline bool is_kfence_address(const void *addr) { return false; }
 static inline void kfence_alloc_pool(void) { }
 static inline void kfence_init(void) { }
