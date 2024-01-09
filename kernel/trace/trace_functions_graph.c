@@ -96,7 +96,7 @@ print_graph_duration(struct trace_array *tr, unsigned long long duration,
 
 int __trace_graph_entry(struct trace_array *tr,
 				struct ftrace_graph_ent *trace,
-				unsigned long irq_flags,
+				unsigned long flags,
 				int pc)
 {
 	struct trace_event_call *call = &event_funcgraph_entry;
@@ -105,7 +105,7 @@ int __trace_graph_entry(struct trace_array *tr,
 	struct ftrace_graph_ent_entry *entry;
 
 	event = trace_buffer_lock_reserve(buffer, TRACE_GRAPH_ENT,
-					  sizeof(*entry), irq_flags, tr->trace_flags, pc);
+					  sizeof(*entry), flags, pc);
 	if (!event)
 		return 0;
 	entry	= ring_buffer_event_data(event);
@@ -216,7 +216,7 @@ trace_graph_function(struct trace_array *tr,
 
 void __trace_graph_return(struct trace_array *tr,
 				struct ftrace_graph_ret *trace,
-				unsigned long irq_flags,
+				unsigned long flags,
 				int pc)
 {
 	struct trace_event_call *call = &event_funcgraph_exit;
@@ -225,7 +225,7 @@ void __trace_graph_return(struct trace_array *tr,
 	struct ftrace_graph_ret_entry *entry;
 
 	event = trace_buffer_lock_reserve(buffer, TRACE_GRAPH_RET,
-					  sizeof(*entry), irq_flags, tr->trace_flags, pc);
+					  sizeof(*entry), flags, pc);
 	if (!event)
 		return;
 	entry	= ring_buffer_event_data(event);
