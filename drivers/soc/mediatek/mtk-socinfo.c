@@ -165,16 +165,17 @@ static int mtk_socinfo_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static void mtk_socinfo_remove(struct platform_device *pdev)
+static int mtk_socinfo_remove(struct platform_device *pdev)
 {
 	struct mtk_socinfo *mtk_socinfop = platform_get_drvdata(pdev);
 
 	soc_device_unregister(mtk_socinfop->soc_dev);
+	return 0;
 }
 
 static struct platform_driver mtk_socinfo = {
 	.probe = mtk_socinfo_probe,
-	.remove_new = mtk_socinfo_remove,
+	.remove = mtk_socinfo_remove,
 	.driver = {
 		.name = "mtk-socinfo",
 	},
