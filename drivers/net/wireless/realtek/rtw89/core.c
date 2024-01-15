@@ -3404,7 +3404,7 @@ int rtw89_core_sta_disconnect(struct rtw89_dev *rtwdev,
 		rtw89_fw_release_general_pkt_list_vif(rtwdev, rtwvif, true);
 	}
 
-	ret = rtw89_fw_h2c_assoc_cmac_tbl(rtwdev, vif, sta);
+	ret = rtw89_chip_h2c_assoc_cmac_tbl(rtwdev, vif, sta);
 	if (ret) {
 		rtw89_warn(rtwdev, "failed to send h2c cmac table\n");
 		return ret;
@@ -3453,7 +3453,7 @@ int rtw89_core_sta_assoc(struct rtw89_dev *rtwdev,
 		}
 	}
 
-	ret = rtw89_fw_h2c_assoc_cmac_tbl(rtwdev, vif, sta);
+	ret = rtw89_chip_h2c_assoc_cmac_tbl(rtwdev, vif, sta);
 	if (ret) {
 		rtw89_warn(rtwdev, "failed to send h2c cmac table\n");
 		return ret;
