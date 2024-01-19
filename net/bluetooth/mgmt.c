@@ -7845,12 +7845,7 @@ static int floss_get_sco_codec_capabilities(struct sock *sk,
 					    void *data, u16 data_len)
 {
 	struct mgmt_cp_get_codec_capabilities *cp = data;
-	struct mgmt_rp_get_codec_capabilities *rp;
-	int i, num_rp_codecs;
-	int err;
-	size_t total_size = sizeof(struct mgmt_rp_get_codec_capabilities);
-	bool wbs_supported = false;
-	u8 *ptr;
+	struct mgmt_rp_get_codec_capabilities rp;
 	struct hci_dev *found_hdev;
 
 	found_hdev = floss_get_hdev(cp->hci_id);
@@ -7861,68 +7856,15 @@ static int floss_get_sco_codec_capabilities(struct sock *sk,
 	if (!hdev)
 		return -EINVAL;
 
-	wbs_supported =
+	rp.hci_id = hdev->id;
+	rp.transparent_wbs_supported =
 		test_bit(HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED, &hdev->quirks);
+	rp.hci_data_path_id = 0;  // Not supported on v4.14
+	rp.wbs_pkt_len = hdev->wbs_pkt_len;
 
-	if (MGMT_GET_SCO_CODEC_CAPABILITIES_SIZE + cp->num_codecs != data_len)
-		return -EINVAL;
-
-	// Determine total alloc size for supported codecs.
-	for (i = 0; i < cp->num_codecs; ++i) {
-		switch (cp->codecs[i]) {
-		case MGMT_SCO_CODEC_CVSD:
-			total_size += sizeof(struct mgmt_bt_codec);
-			break;
-		case MGMT_SCO_CODEC_MSBC_TRANSPARENT:
-			if (wbs_supported)
-				total_size += sizeof(struct mgmt_bt_codec);
-			break;
-		default:
-			bt_dev_dbg(hdev, "Unknown codec %d", cp->codecs[i]);
-			break;
-		}
-	}
-
-	rp = kzalloc(total_size, GFP_KERNEL);
-	if (!rp)
-		return -ENOMEM;
-
-	rp->hci_id = hdev->id;
-	rp->offload_capable = false;
-
-	// Copy codec information to return.
-	ptr = (u8 *)rp->codecs;
-	for (i = 0, num_rp_codecs = 0; i < cp->num_codecs; ++i) {
-		struct mgmt_bt_codec *rc = (struct mgmt_bt_codec *)ptr;
-
-		switch (cp->codecs[i]) {
-		case MGMT_SCO_CODEC_CVSD:
-			rc->codec = cp->codecs[i];
-			ptr += sizeof(*rc);
-			num_rp_codecs++;
-			break;
-		case MGMT_SCO_CODEC_MSBC_TRANSPARENT:
-			if (wbs_supported) {
-				rc->codec = cp->codecs[i];
-				rc->packet_size = hdev->wbs_pkt_len;
-				ptr += sizeof(*rc);
-				num_rp_codecs++;
-			}
-			break;
-		default:
-			break;
-		}
-	}
-
-	// Only return the number of codecs actually written
-	rp->num_codecs = num_rp_codecs;
-
-	err = mgmt_cmd_complete(sk, MGMT_INDEX_NONE,
-				MGMT_OP_GET_SCO_CODEC_CAPABILITIES,
-				MGMT_STATUS_SUCCESS, rp, total_size);
-	kfree(rp);
-
-	return err;
+	return mgmt_cmd_complete(sk, MGMT_INDEX_NONE,
+				 MGMT_OP_GET_SCO_CODEC_CAPABILITIES,
+				 MGMT_STATUS_SUCCESS, &rp, sizeof(rp));
 }
 
 static int floss_notify_sco_connection_change(struct sock *sk,
@@ -8149,8 +8091,7 @@ static const struct hci_mgmt_handler mgmt_handlers[] = {
 	floss_get_sco_codec_capabilities,
 				   MGMT_GET_SCO_CODEC_CAPABILITIES_SIZE,
 						HCI_MGMT_NO_HDEV |
-						HCI_MGMT_UNTRUSTED |
-						HCI_MGMT_VAR_LEN },
+						HCI_MGMT_UNTRUSTED },
 	{ floss_notify_sco_connection_change,
 				   MGMT_NOTIFY_SCO_CONNECTION_CHANGE_SIZE,
 						HCI_MGMT_NO_HDEV |
