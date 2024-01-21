@@ -366,11 +366,15 @@ static irqreturn_t da7219_aad_irq_thread(int irq, void *data)
 	struct da7219_priv *da7219 = snd_soc_component_get_drvdata(component);
 	u8 events[DA7219_AAD_IRQ_REG_MAX];
 	u8 statusa;
-	int i, report = 0, mask = 0;
+	int i, ret, report = 0, mask = 0;
 
 	/* Read current IRQ events */
-	regmap_bulk_read(da7219->regmap, DA7219_ACCDET_IRQ_EVENT_A,
-			 events, DA7219_AAD_IRQ_REG_MAX);
+	ret = regmap_bulk_read(da7219->regmap, DA7219_ACCDET_IRQ_EVENT_A,
+			       events, DA7219_AAD_IRQ_REG_MAX);
+	if (ret) {
+		dev_warn_ratelimited(component->dev, "Failed to read IRQ events: %d\n", ret);
+		return IRQ_NONE;
+	}
 
 	if (!events[DA7219_AAD_IRQ_REG_A] && !events[DA7219_AAD_IRQ_REG_B])
 		return IRQ_NONE;
@@ -896,10 +900,15 @@ void da7219_aad_suspend(struct snd_soc_component *component)
 	struct snd_soc_dapm_context *dapm = snd_soc_component_get_dapm(component);
 	u8 micbias_ctrl;
 
+	disable_irq(da7219_aad->irq);
+
 	if (da7219_aad->jack) {
 		/* Disable jack detection during suspend */
 		snd_soc_component_update_bits(component, DA7219_ACCDET_CONFIG_1,
 				    DA7219_ACCDET_EN_MASK, 0);
+		cancel_delayed_work_sync(&da7219_aad->jack_det_work);
+		/* Disable ground switch */
+		snd_soc_component_update_bits(component, 0xFB, 0x01, 0x00);
 
 		/*
 		 * If we have a 4-pole jack inserted, then micbias will be
@@ -938,6 +947,8 @@ void da7219_aad_resume(struct snd_soc_component *component)
 				    DA7219_ACCDET_EN_MASK,
 				    DA7219_ACCDET_EN_MASK);
 	}
+
+	enable_irq(da7219_aad->irq);
 }
 
 
