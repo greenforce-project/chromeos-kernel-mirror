@@ -618,10 +618,25 @@ struct sk_buff *ath11k_wmi_alloc_skb(struct ath11k_wmi_base *wmi_sc, u32 len)
 	return skb;
 }
 
+static u32 ath11k_wmi_mgmt_get_freq(struct ath11k *ar,
+				    struct ieee80211_tx_info *info)
+{
+	struct ath11k_base *ab = ar->ab;
+	u32 freq = 0;
+
+	if (ab->hw_params.support_off_channel_tx &&
+	    ar->scan.is_roc &&
+	    (info->flags & IEEE80211_TX_CTL_TX_OFFCHAN))
+		freq = ar->scan.roc_freq;
+
+	return freq;
+}
+
 int ath11k_wmi_mgmt_send(struct ath11k *ar, u32 vdev_id, u32 buf_id,
 			 struct sk_buff *frame)
 {
 	struct ath11k_pdev_wmi *wmi = ar->wmi;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(frame);
 	struct wmi_mgmt_send_cmd *cmd;
 	struct wmi_tlv *frame_tlv;
 	struct sk_buff *skb;
@@ -642,7 +657,7 @@ int ath11k_wmi_mgmt_send(struct ath11k *ar, u32 vdev_id, u32 buf_id,
 			  FIELD_PREP(WMI_TLV_LEN, sizeof(*cmd) - TLV_HDR_SIZE);
 	cmd->vdev_id = vdev_id;
 	cmd->desc_id = buf_id;
-	cmd->chanfreq = 0;
+	cmd->chanfreq = ath11k_wmi_mgmt_get_freq(ar, info);
 	cmd->paddr_lo = lower_32_bits(ATH11K_SKB_CB(frame)->paddr);
 	cmd->paddr_hi = upper_32_bits(ATH11K_SKB_CB(frame)->paddr);
 	cmd->frame_len = frame->len;
@@ -5636,6 +5651,8 @@ static void ath11k_wmi_event_scan_started(struct ath11k *ar)
 		break;
 	case ATH11K_SCAN_STARTING:
 		ar->scan.state = ATH11K_SCAN_RUNNING;
+		if (ar->scan.is_roc)
+			ieee80211_ready_on_channel(ar->hw);
 		complete(&ar->scan.started);
 		break;
 	}
@@ -5718,6 +5735,8 @@ static void ath11k_wmi_event_scan_foreign_chan(struct ath11k *ar, u32 freq)
 	case ATH11K_SCAN_RUNNING:
 	case ATH11K_SCAN_ABORTING:
 		ar->scan_channel = ieee80211_get_channel(ar->hw->wiphy, freq);
+		if (ar->scan.is_roc && ar->scan.roc_freq == freq)
+			complete(&ar->scan.on_channel);
 		break;
 	}
 }
@@ -7934,6 +7953,8 @@ ath11k_wmi_pdev_dfs_radar_detected_event(struct ath11k_base *ab, struct sk_buff 
 		   ev->detector_id, ev->segment_id, ev->timestamp, ev->is_chirp,
 		   ev->freq_offset, ev->sidx);
 
+	rcu_read_lock();
+
 	ar = ath11k_mac_get_ar_by_pdev_id(ab, ev->pdev_id);
 
 	if (!ar) {
@@ -7951,6 +7972,8 @@ ath11k_wmi_pdev_dfs_radar_detected_event(struct ath11k_base *ab, struct sk_buff 
 		ieee80211_radar_detected(ar->hw);
 
 exit:
+	rcu_read_unlock();
+
 	kfree(tb);
 }
 
@@ -8014,14 +8037,18 @@ ath11k_wmi_pdev_temperature_event(struct ath11k_base *ab,
 	ath11k_dbg(ab, ATH11K_DBG_WMI,
 		   "pdev temperature ev temp %d pdev_id %d\n", ev->temp, ev->pdev_id);
 
+	rcu_read_lock();
+
 	ar = ath11k_mac_get_ar_by_pdev_id(ab, ev->pdev_id);
 	if (!ar) {
 		ath11k_warn(ab, "invalid pdev id in pdev temperature ev %d", ev->pdev_id);
-		kfree(tb);
-		return;
+		goto exit;
 	}
 
 	ath11k_thermal_event_temperature(ar, ev->temp);
+
+exit:
+	rcu_read_unlock();
 
 	kfree(tb);
 }

@@ -1369,12 +1369,13 @@ static unsigned int count_data_pages(void)
 
 /*
  * This is needed, because copy_page and memcpy are not usable for copying
- * task structs. Returns 1 if the page was filled with only zeros, otherwise 0.
+ * task structs. Returns true if the page was filled with only zeros,
+ * otherwise false.
  */
-static inline int do_copy_page(long *dst, long *src)
+static inline bool do_copy_page(long *dst, long *src)
 {
-	int n;
 	long z = 0;
+	int n;
 
 	for (n = PAGE_SIZE / sizeof(long); n; n--) {
 		z |= *src;
@@ -1389,19 +1390,21 @@ static inline int do_copy_page(long *dst, long *src)
  * Check if the page we are going to copy is marked as present in the kernel
  * page tables. This always is the case if CONFIG_DEBUG_PAGEALLOC or
  * CONFIG_ARCH_HAS_SET_DIRECT_MAP is not set. In that case kernel_page_present()
- * always returns 'true'.
+ * always returns 'true'. Returns true if the page was entirely composed of
+ * zeros, otherwise it will return false.
  */
-static int safe_copy_page(void *dst, struct page *s_page)
+static bool safe_copy_page(void *dst, struct page *s_page)
 {
-	int ret;
+	bool zeros_only;
+
 	if (kernel_page_present(s_page)) {
-		ret = do_copy_page(dst, page_address(s_page));
+		zeros_only = do_copy_page(dst, page_address(s_page));
 	} else {
 		hibernate_map_page(s_page);
-		ret = do_copy_page(dst, page_address(s_page));
+		zeros_only = do_copy_page(dst, page_address(s_page));
 		hibernate_unmap_page(s_page);
 	}
-	return ret;
+	return zeros_only;
 }
 
 #ifdef CONFIG_HIGHMEM
@@ -1411,18 +1414,18 @@ static inline struct page *page_is_saveable(struct zone *zone, unsigned long pfn
 		saveable_highmem_page(zone, pfn) : saveable_page(zone, pfn);
 }
 
-static int copy_data_page(unsigned long dst_pfn, unsigned long src_pfn)
+static bool copy_data_page(unsigned long dst_pfn, unsigned long src_pfn)
 {
 	struct page *s_page, *d_page;
 	void *src, *dst;
-	int ret;
+	bool zeros_only;
 
 	s_page = pfn_to_page(src_pfn);
 	d_page = pfn_to_page(dst_pfn);
 	if (PageHighMem(s_page)) {
 		src = kmap_atomic(s_page);
 		dst = kmap_atomic(d_page);
-		ret = do_copy_page(dst, src);
+		zeros_only = do_copy_page(dst, src);
 		kunmap_atomic(dst);
 		kunmap_atomic(src);
 	} else {
@@ -1431,15 +1434,15 @@ static int copy_data_page(unsigned long dst_pfn, unsigned long src_pfn)
 			 * The page pointed to by src may contain some kernel
 			 * data modified by kmap_atomic()
 			 */
-			ret = safe_copy_page(buffer, s_page);
+			zeros_only = safe_copy_page(buffer, s_page);
 			dst = kmap_atomic(d_page);
 			copy_page(dst, buffer);
 			kunmap_atomic(dst);
 		} else {
-			ret = safe_copy_page(page_address(d_page), s_page);
+			zeros_only = safe_copy_page(page_address(d_page), s_page);
 		}
 	}
-	return ret;
+	return zeros_only;
 }
 #else
 #define page_is_saveable(zone, pfn)	saveable_page(zone, pfn)
@@ -1461,8 +1464,9 @@ static unsigned long copy_data_pages(struct memory_bitmap *copy_bm,
 			    struct memory_bitmap *orig_bm,
 			    struct memory_bitmap *zero_bm)
 {
+	unsigned long copied_pages = 0;
 	struct zone *zone;
-	unsigned long pfn, copy_pfn, copied_pages = 0;
+	unsigned long pfn, copy_pfn;
 
 	for_each_populated_zone(zone) {
 		unsigned long max_zone_pfn;
@@ -1482,8 +1486,7 @@ static unsigned long copy_data_pages(struct memory_bitmap *copy_bm,
 			break;
 		if (copy_data_page(copy_pfn, pfn)) {
 			memory_bm_set_bit(zero_bm, pfn);
-
-			/* We will reuse this copy_pfn for a real 'nonzero' page. */
+			/* Use this copy_pfn for a page that is not full of zeros */
 			continue;
 		}
 		copied_pages++;
@@ -2050,6 +2053,7 @@ static int swsusp_alloc(struct memory_bitmap *copy_bm,
 asmlinkage __visible int swsusp_save(void)
 {
 	unsigned int nr_pages, nr_highmem;
+
 	pr_info("Creating image:\n");
 
 	drain_local_pages(NULL);
@@ -2216,6 +2220,7 @@ int snapshot_read_next(struct snapshot_handle *handle)
 			handle->buffer = page_address(page);
 		}
 	}
+	handle->sync_read = (handle->buffer == buffer);
 	handle->cur++;
 	return PAGE_SIZE;
 }
@@ -2300,8 +2305,9 @@ static int load_header(struct swsusp_info *info)
 static int unpack_orig_pfns(unsigned long *buf, struct memory_bitmap *bm,
 		struct memory_bitmap *zero_bm)
 {
-	int j, zero;
 	unsigned long decoded_pfn;
+        bool zero;
+	int j;
 
 	for (j = 0; j < PAGE_SIZE / sizeof(long); j++) {
 		if (unlikely(buf[j] == BM_END_OF_MAP))
@@ -2476,8 +2482,9 @@ static void *get_highmem_page_buffer(struct page *page,
 		pbe->copy_page = tmp;
 	} else {
 		/* Copy of the page will be stored in normal memory */
-		kaddr = safe_pages_list;
-		safe_pages_list = safe_pages_list->next;
+		kaddr = __get_safe_page(ca->gfp_mask);
+		if (!kaddr)
+			return ERR_PTR(-ENOMEM);
 		pbe->copy_page = virt_to_page(kaddr);
 	}
 	pbe->next = highmem_pblist;
@@ -2535,6 +2542,7 @@ static inline void free_highmem_data(void) {}
 #endif /* CONFIG_HIGHMEM */
 
 #define PBES_PER_LINKED_PAGE	(LINKED_PAGE_DATA_SIZE / sizeof(struct pbe))
+#define GFP_RESUME (GFP_NOIO | __GFP_HIGH)
 
 /**
  * prepare_image - Make room for loading hibernation image.
@@ -2552,14 +2560,13 @@ static inline void free_highmem_data(void) {}
  * create a lists of "safe" pages to be used later.  On systems with high
  * memory a list of "safe" highmem pages is created too.
  *
- * Because we didn't know which pages were unsafe when we created the zero bm we
+ * Because it was not known which pages were unsafe when @zero_bm was created,
  * make a copy of it and recreate it within safe pages.
  */
 static int prepare_image(struct memory_bitmap *new_bm, struct memory_bitmap *bm,
 		struct memory_bitmap *zero_bm)
 {
-	unsigned int nr_pages, nr_highmem;
-	struct linked_page *lp;
+	unsigned int nr_highmem;
 	struct memory_bitmap tmp;
 	int error;
 
@@ -2570,71 +2577,34 @@ static int prepare_image(struct memory_bitmap *new_bm, struct memory_bitmap *bm,
 	nr_highmem = count_highmem_image_pages(bm);
 	mark_unsafe_pages(bm);
 
-	error = memory_bm_create(new_bm, GFP_ATOMIC, PG_SAFE);
+	error = memory_bm_create(new_bm, GFP_RESUME, PG_SAFE);
 	if (error)
 		goto Free;
 
 	duplicate_memory_bitmap(new_bm, bm);
 	memory_bm_free(bm, PG_UNSAFE_KEEP);
 
-	/* Make a copy of the zero bm so it can be created in safe pages */
-	error = memory_bm_create(&tmp, GFP_ATOMIC, PG_ANY);
+	/* Make a copy of zero_bm so it can be created in safe pages */
+	error = memory_bm_create(&tmp, GFP_RESUME, PG_SAFE);
 	if (error)
 		goto Free;
+
 	duplicate_memory_bitmap(&tmp, zero_bm);
 	memory_bm_free(zero_bm, PG_UNSAFE_KEEP);
 
 	/* Recreate zero_bm in safe pages */
-	error = memory_bm_create(zero_bm, GFP_ATOMIC, PG_SAFE);
+	error = memory_bm_create(zero_bm, GFP_RESUME, PG_SAFE);
 	if (error)
 		goto Free;
+
 	duplicate_memory_bitmap(zero_bm, &tmp);
-	memory_bm_free(&tmp, PG_UNSAFE_KEEP);
-	/* at this point zero_bm is in safe pages and we can use it while restoring */
+	memory_bm_free(&tmp, PG_UNSAFE_CLEAR);
+	/* At this point zero_bm is in safe pages and it can be used for restoring. */
 
 	if (nr_highmem > 0) {
 		error = prepare_highmem_image(bm, &nr_highmem);
 		if (error)
 			goto Free;
-	}
-	/*
-	 * Reserve some safe pages for potential later use.
-	 *
-	 * NOTE: This way we make sure there will be enough safe pages for the
-	 * chain_alloc() in get_buffer().  It is a bit wasteful, but
-	 * nr_copy_pages cannot be greater than 50% of the memory anyway.
-	 *
-	 * nr_copy_pages cannot be less than allocated_unsafe_pages too.
-	 */
-	nr_pages = (nr_zero_pages + nr_copy_pages) - nr_highmem - allocated_unsafe_pages;
-	nr_pages = DIV_ROUND_UP(nr_pages, PBES_PER_LINKED_PAGE);
-	while (nr_pages > 0) {
-		lp = get_image_page(GFP_ATOMIC, PG_SAFE);
-		if (!lp) {
-			error = -ENOMEM;
-			goto Free;
-		}
-		lp->next = safe_pages_list;
-		safe_pages_list = lp;
-		nr_pages--;
-	}
-	/* Preallocate memory for the image */
-	nr_pages = (nr_zero_pages + nr_copy_pages) - nr_highmem - allocated_unsafe_pages;
-	while (nr_pages > 0) {
-		lp = (struct linked_page *)get_zeroed_page(GFP_ATOMIC);
-		if (!lp) {
-			error = -ENOMEM;
-			goto Free;
-		}
-		if (!swsusp_page_is_free(virt_to_page(lp))) {
-			/* The page is "safe", add it to the list */
-			lp->next = safe_pages_list;
-			safe_pages_list = lp;
-		}
-		/* Mark the page as allocated */
-		swsusp_set_page_forbidden(virt_to_page(lp));
-		swsusp_set_page_free(virt_to_page(lp));
-		nr_pages--;
 	}
 	return 0;
 
@@ -2679,8 +2649,9 @@ static void *get_buffer(struct memory_bitmap *bm, struct chain_allocator *ca)
 		return ERR_PTR(-ENOMEM);
 	}
 	pbe->orig_address = page_address(page);
-	pbe->address = safe_pages_list;
-	safe_pages_list = safe_pages_list->next;
+	pbe->address = __get_safe_page(ca->gfp_mask);
+	if (!pbe->address)
+		return ERR_PTR(-ENOMEM);
 	pbe->next = restore_pblist;
 	restore_pblist = pbe;
 	return pbe->address;
@@ -2712,12 +2683,10 @@ next:
 	if (handle->cur > 1 && handle->cur > nr_meta_pages + nr_copy_pages + nr_zero_pages)
 		return 0;
 
-	handle->sync_read = 1;
-
 	if (!handle->cur) {
 		if (!buffer)
 			/* This makes the buffer be freed by swsusp_free() */
-			buffer = get_image_page(GFP_ATOMIC, PG_ANY);
+			buffer = get_image_page(GFP_RESUME, PG_ANY);
 
 		if (!buffer)
 			return -ENOMEM;
@@ -2730,11 +2699,11 @@ next:
 
 		safe_pages_list = NULL;
 
-		error = memory_bm_create(&copy_bm, GFP_ATOMIC, PG_ANY);
+		error = memory_bm_create(&copy_bm, GFP_RESUME, PG_ANY);
 		if (error)
 			return error;
 
-		error = memory_bm_create(&zero_bm, GFP_ATOMIC, PG_ANY);
+		error = memory_bm_create(&zero_bm, GFP_RESUME, PG_ANY);
 		if (error)
 			return error;
 
@@ -2751,12 +2720,11 @@ next:
 			if (error)
 				return error;
 
-			chain_init(&ca, GFP_ATOMIC, PG_SAFE);
+			chain_init(&ca, GFP_RESUME, PG_SAFE);
 			memory_bm_position_reset(&orig_bm);
 			memory_bm_position_reset(&zero_bm);
 			restore_pblist = NULL;
 			handle->buffer = get_buffer(&orig_bm, &ca);
-			handle->sync_read = 0;
 			if (IS_ERR(handle->buffer))
 				return PTR_ERR(handle->buffer);
 		}
@@ -2766,14 +2734,13 @@ next:
 		handle->buffer = get_buffer(&orig_bm, &ca);
 		if (IS_ERR(handle->buffer))
 			return PTR_ERR(handle->buffer);
-		if (handle->buffer != buffer)
-			handle->sync_read = 0;
 	}
+	handle->sync_read = (handle->buffer == buffer);
 	handle->cur++;
 
 	/* Zero pages were not included in the image, memset it and move on. */
-	if ((handle->cur > (nr_meta_pages + 1)) &&
-			memory_bm_test_bit(&zero_bm, memory_bm_get_current(&orig_bm))) {
+	if (handle->cur > nr_meta_pages + 1 &&
+	    memory_bm_test_bit(&zero_bm, memory_bm_get_current(&orig_bm))) {
 		memset(handle->buffer, 0, PAGE_SIZE);
 		goto next;
 	}
@@ -2803,7 +2770,7 @@ void snapshot_write_finalize(struct snapshot_handle *handle)
 int snapshot_image_loaded(struct snapshot_handle *handle)
 {
 	return !(!nr_copy_pages || !last_highmem_page_copied() ||
-			handle->cur <= nr_meta_pages + nr_copy_pages);
+			handle->cur <= nr_meta_pages + nr_copy_pages + nr_zero_pages);
 }
 
 #ifdef CONFIG_HIGHMEM

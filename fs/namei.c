@@ -2730,7 +2730,7 @@ int path_pts(struct path *path)
 	dput(path->dentry);
 	path->dentry = parent;
 	child = d_hash_and_lookup(parent, &this);
-	if (!child)
+	if (IS_ERR_OR_NULL(child))
 		return -ENOENT;
 
 	path->dentry = child;
@@ -3061,7 +3061,7 @@ static int handle_truncate(struct file *filp)
 	 */
 	error = locks_verify_locked(filp);
 	if (!error)
-		error = security_path_truncate(path);
+		error = security_file_truncate(filp);
 	if (!error) {
 		error = do_truncate(path->dentry, 0,
 				    ATTR_MTIME|ATTR_CTIME|ATTR_OPEN,

@@ -205,7 +205,7 @@ static int parse_entry(char *str, struct trace_event_call *call, void **pentry)
 
 	local_save_flags(irq_flags);
 	tracing_generic_entry_update(entry, call->event.type, irq_flags,
-				     preempt_count());
+				     0, preempt_count());
 
 	while ((len = parse_field(str, call, &field, &val)) > 0) {
 		if (is_function_field(field))
@@ -323,7 +323,8 @@ event_inject_read(struct file *file, char __user *buf, size_t size,
 }
 
 const struct file_operations event_inject_fops = {
-	.open = tracing_open_generic,
+	.open = tracing_open_file_tr,
 	.read = event_inject_read,
 	.write = event_inject_write,
+	.release = tracing_release_file_tr,
 };
