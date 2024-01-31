@@ -38,8 +38,6 @@ static struct inode *tracefs_alloc_inode(struct super_block *sb)
 	if (!ti)
 		return NULL;
 
-	ti->flags = 0;
-
 	return &ti->vfs_inode;
 }
 
@@ -774,8 +772,16 @@ bool tracefs_initialized(void)
 static void init_once(void *foo)
 {
 	struct tracefs_inode *ti = (struct tracefs_inode *) foo;
+	void *ptr = ti;
+	int offset = offsetof(typeof(*ti), vfs_inode);
 
+	/* inode_init_once() calls memset() on the vfs_inode portion */
 	inode_init_once(&ti->vfs_inode);
+
+	offset += sizeof(ti->vfs_inode);
+
+	/* Zero out the rest */
+	memset(ptr + offset, 0, sizeof(*ti) - offset);
 }
 
 static int __init tracefs_init(void)
