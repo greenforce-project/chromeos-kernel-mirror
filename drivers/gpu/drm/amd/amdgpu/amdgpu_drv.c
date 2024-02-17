@@ -1176,6 +1176,9 @@ amdgpu_pci_shutdown(struct pci_dev *pdev)
 static int amdgpu_pmops_suspend(struct device *dev)
 {
 	struct drm_device *drm_dev = dev_get_drvdata(dev);
+	struct amdgpu_device *adev = (struct amdgpu_device *) drm_dev->dev_private;
+
+	adev->suspend_complete = false;
 
 	return amdgpu_device_suspend(drm_dev, true, true);
 }
@@ -1185,10 +1188,11 @@ static int amdgpu_pmops_suspend_noirq(struct device *dev)
         struct drm_device *drm_dev = dev_get_drvdata(dev);
         struct amdgpu_device *adev = (struct amdgpu_device *) drm_dev->dev_private;
 
-	if (adev->in_suspend)
+	adev->suspend_complete = true;
+	if (adev->flags & AMD_IS_APU)
+		return 0;
+	else
                 return amdgpu_asic_reset(adev);
-
-        return 0;
 }
 
 static int amdgpu_pmops_resume(struct device *dev)
