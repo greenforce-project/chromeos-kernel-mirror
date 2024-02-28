@@ -2993,7 +2993,7 @@ static int claim_swapfile(struct swap_info_struct *p, struct inode *inode)
 		}
 		bdevname(p->bdev, name);
 		if (strncmp(name, "zram", strlen("zram"))) {
-			bdput(p->bdev);
+			blkdev_put(p->bdev, FMODE_READ | FMODE_WRITE | FMODE_EXCL);
 			p->bdev = NULL;
 			return -EINVAL;
 		}
