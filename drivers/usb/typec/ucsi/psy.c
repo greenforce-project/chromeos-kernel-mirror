@@ -56,11 +56,20 @@ static int ucsi_psy_get_scope(struct ucsi_connector *con,
 static int ucsi_psy_get_status(struct ucsi_connector *con,
 			       union power_supply_propval *val)
 {
+	bool is_sink = (con->status.flags & UCSI_CONSTAT_PWR_DIR) == TYPEC_SINK;
+	bool sink_path_enabled = true;
+
 	val->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+
+	if (con->ucsi->version >= UCSI_VERSION_2_0)
+		sink_path_enabled =
+			UCSI_CONSTAT_SINK_PATH_STATUS(con->status.pwr_status) ==
+			UCSI_CONSTAT_SINK_PATH_ENABLED;
+
 	if (con->status.flags & UCSI_CONSTAT_CONNECTED) {
-		if ((con->status.flags & UCSI_CONSTAT_PWR_DIR) == TYPEC_SINK)
+		if (is_sink && sink_path_enabled)
 			val->intval = POWER_SUPPLY_STATUS_CHARGING;
-		else
+		else if (!is_sink)
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
 	}
 
@@ -206,15 +215,10 @@ static int ucsi_psy_get_usb_type(struct ucsi_connector *con,
 	val->intval = POWER_SUPPLY_USB_TYPE_C;
 	if (flags & UCSI_CONSTAT_CONNECTED &&
 	    UCSI_CONSTAT_PWR_OPMODE(flags) == UCSI_CONSTAT_PWR_OPMODE_PD) {
-		for (int i = 0; i < con->num_pdos; i++) {
-			if (pdo_type(con->src_pdos[i]) == PDO_TYPE_FIXED &&
-			    con->src_pdos[i] & PDO_FIXED_DUAL_ROLE) {
-				val->intval = POWER_SUPPLY_USB_TYPE_PD_DRP;
-				return 0;
-			}
-		}
-
-		val->intval = POWER_SUPPLY_USB_TYPE_PD;
+		if (con->drp_partner)
+			val->intval = POWER_SUPPLY_USB_TYPE_PD_DRP;
+		else
+			val->intval = POWER_SUPPLY_USB_TYPE_PD;
 	}
 
 	return 0;
@@ -291,21 +295,23 @@ static int ucsi_psy_set_charge_control_limit_max(struct ucsi_connector *con,
 	 * Writing a negative value to the charge control limit max implies the
 	 * port should not accept charge. Disable the sink path for a negative
 	 * charge control limit, and enable the sink path for a positive charge
-	 * control limit.
+	 * control limit. If the requested charge port is a source, update the
+	 * power role.
 	 */
 	int ret;
-	bool sink_path;
+	bool sink_path = false;
+
 
 	if (!con->typec_cap.ops || !con->typec_cap.ops->pr_set)
 		return -EINVAL;
 
 	if (val->intval >= 0) {
 		sink_path = true;
+
 		ret = con->typec_cap.ops->pr_set(con->port, TYPEC_SINK);
 		if (ret < 0)
 			return ret;
-	} else {
-		sink_path = false;
+	} else if (con->typec_cap.type == TYPEC_PORT_DRP) {
 		ret = con->typec_cap.ops->pr_set(con->port, TYPEC_SOURCE);
 		if (ret < 0)
 			return ret;

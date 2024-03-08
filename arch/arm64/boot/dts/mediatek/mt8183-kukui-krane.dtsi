@@ -54,8 +54,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&open_touch>;
 
-		interrupt-parent = <&pio>;
-		interrupts = <155 IRQ_TYPE_EDGE_FALLING>;
+		interrupts-extended = <&pio 155 IRQ_TYPE_EDGE_FALLING>;
 
 		post-power-on-delay-ms = <10>;
 		hid-descr-addr = <0x0001>;
@@ -79,6 +78,7 @@
 		reg = <0x58>;
 		pagesize = <32>;
 		vcc-supply = <&mt6358_vcama2_reg>;
+		device-id = <0>;
 	};
 
 	sensor_main: sensor_main@10 {
@@ -138,6 +138,7 @@
 		reg = <0x50>;
 		pagesize = <32>;
 		vcc-supply = <&mt6358_vcn18_reg>;
+		device-id = <0>;
 	};
 
 	sensor_sub: sensor_sub@3d {
@@ -441,6 +442,8 @@
 };
 
 &seninf {
+	status = "okay";
+
 	ports {
 		port@0 {
 			reg = <0>;

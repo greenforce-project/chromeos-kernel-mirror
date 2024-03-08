@@ -73,6 +73,8 @@ static const struct mtk_mmsys_driver_data mt8183_mmsys_driver_data = {
 	.num_routes = ARRAY_SIZE(mmsys_mt8183_routing_table),
 	.sw0_rst_offset = MT8183_MMSYS_SW0_RST_B,
 	.num_resets = 32,
+	.mdp_isp_ctrl[ISP_CTRL_CAM1] = mmsys_mt8183_mdp_isp_ctrl_table1,
+	.mdp_isp_ctrl[ISP_CTRL_CAM2] = mmsys_mt8183_mdp_isp_ctrl_table2,
 };
 
 static const struct mtk_mmsys_driver_data mt8186_mmsys_driver_data = {
@@ -87,6 +89,19 @@ static const struct mtk_mmsys_driver_data mt8188_vdosys0_driver_data = {
 	.clk_driver = "clk-mt8188-vdo0",
 	.routes = mmsys_mt8188_routing_table,
 	.num_routes = ARRAY_SIZE(mmsys_mt8188_routing_table),
+	.sw0_rst_offset = MT8188_VDO0_SW0_RST_B,
+	.rst_tb = mmsys_mt8188_vdo0_rst_tb,
+	.num_resets = ARRAY_SIZE(mmsys_mt8188_vdo0_rst_tb),
+};
+
+static const struct mtk_mmsys_driver_data mt8188_vdosys1_driver_data = {
+	.clk_driver = "clk-mt8188-vdo1",
+	.routes = mmsys_mt8188_vdo1_routing_table,
+	.num_routes = ARRAY_SIZE(mmsys_mt8188_vdo1_routing_table),
+	.sw0_rst_offset = MT8188_VDO1_SW0_RST_B,
+	.rst_tb = mmsys_mt8188_vdo1_rst_tb,
+	.num_resets = ARRAY_SIZE(mmsys_mt8188_vdo1_rst_tb),
+	.vsync_len = 1,
 };
 
 static const struct mtk_mmsys_driver_data mt8192_mmsys_driver_data = {
@@ -169,6 +184,10 @@ void mtk_mmsys_ddp_connect(struct device *dev,
 		if (cur == routes[i].from_comp && next == routes[i].to_comp)
 			mtk_mmsys_update_bits(mmsys, routes[i].addr, routes[i].mask,
 					      routes[i].val, NULL);
+
+	if (mmsys->data->vsync_len)
+		mtk_mmsys_update_bits(mmsys, MT8188_VDO1_MIXER_VSYNC_LEN, GENMASK(31, 0),
+				      mmsys->data->vsync_len, NULL);
 }
 EXPORT_SYMBOL_GPL(mtk_mmsys_ddp_connect);
 
@@ -209,6 +228,7 @@ void mtk_mmsys_mixer_in_config(struct device *dev, int idx, bool alpha_sel, u16 
 
 	mtk_mmsys_update_bits(mmsys, MT8195_VDO1_MIXER_IN1_ALPHA + (idx - 1) * 4, ~0,
 			      alpha << 16 | alpha, cmdq_pkt);
+	mtk_mmsys_update_bits(mmsys, MT8195_VDO1_HDR_TOP_CFG, BIT(15 + idx), 0, cmdq_pkt);
 	mtk_mmsys_update_bits(mmsys, MT8195_VDO1_HDR_TOP_CFG, BIT(19 + idx),
 			      alpha_sel << (19 + idx), cmdq_pkt);
 	mtk_mmsys_update_bits(mmsys, MT8195_VDO1_MIXER_IN1_PAD + (idx - 1) * 4,
@@ -294,6 +314,67 @@ void mtk_mmsys_vpp_rsz_dcm_config(struct device *dev, bool enable,
 }
 EXPORT_SYMBOL_GPL(mtk_mmsys_vpp_rsz_dcm_config);
 
+void mtk_mmsys_mdp_isp_ctrl(struct device *dev, struct cmdq_pkt *cmdq_pkt,
+			    enum mtk_isp_ctrl idx)
+{
+	struct mtk_mmsys *mmsys = dev_get_drvdata(dev);
+	const unsigned int *isp_ctrl;
+	u32 ofst;
+
+	if (idx >= ISP_CTRL_MAX) {
+		dev_err(dev, "Invalid idx %d\n", idx);
+		return;
+	}
+
+	isp_ctrl = mmsys->data->mdp_isp_ctrl[idx];
+
+	/* Reset MDP_DL_ASYNC_TX */
+	ofst = isp_ctrl[ISP_REG_MMSYS_SW0_RST_B];
+	mtk_mmsys_update_bits(mmsys, ofst, isp_ctrl[ISP_BIT_MDP_DL_ASYNC_TX],
+			      0x0, cmdq_pkt);
+	mtk_mmsys_update_bits(mmsys, ofst, isp_ctrl[ISP_BIT_MDP_DL_ASYNC_TX],
+			      isp_ctrl[ISP_BIT_MDP_DL_ASYNC_TX], cmdq_pkt);
+
+	/* Reset MDP_DL_ASYNC_RX */
+	ofst = isp_ctrl[ISP_REG_MMSYS_SW1_RST_B];
+	mtk_mmsys_update_bits(mmsys, ofst, isp_ctrl[ISP_BIT_MDP_DL_ASYNC_RX],
+			      0x0, cmdq_pkt);
+	mtk_mmsys_update_bits(mmsys, ofst, isp_ctrl[ISP_BIT_MDP_DL_ASYNC_RX],
+			      isp_ctrl[ISP_BIT_MDP_DL_ASYNC_RX], cmdq_pkt);
+
+	/* Enable sof mode */
+	ofst = isp_ctrl[ISP_REG_ISP_RELAY_CFG_WD];
+	mtk_mmsys_update_bits(mmsys, ofst, isp_ctrl[ISP_BIT_NO_SOF_MODE],
+			      0x0, cmdq_pkt);
+}
+EXPORT_SYMBOL_GPL(mtk_mmsys_mdp_isp_ctrl);
+
+void mtk_mmsys_mdp_camin_ctrl(struct device *dev, struct cmdq_pkt *cmdq_pkt,
+			      enum mtk_isp_ctrl idx, u32 camin_w, u32 camin_h)
+{
+	struct mtk_mmsys *mmsys = dev_get_drvdata(dev);
+	const unsigned int *isp_ctrl;
+	u32 ofst;
+
+	if (idx >= ISP_CTRL_MAX) {
+		dev_err(dev, "Invalid idx %d\n", idx);
+		return;
+	}
+
+	isp_ctrl = mmsys->data->mdp_isp_ctrl[idx];
+
+	/* Config for direct link */
+
+	ofst = isp_ctrl[ISP_REG_MDP_ASYNC_CFG_WD];
+	mtk_mmsys_update_bits(mmsys, ofst, 0x3FFF3FFF,
+			      (camin_h << 16) + camin_w, cmdq_pkt);
+
+	ofst = isp_ctrl[ISP_REG_ISP_RELAY_CFG_WD];
+	mtk_mmsys_update_bits(mmsys, ofst, 0x3FFF3FFF,
+			      (camin_h << 16) + camin_w, cmdq_pkt);
+}
+EXPORT_SYMBOL_GPL(mtk_mmsys_mdp_camin_ctrl);
+
 static int mtk_mmsys_reset_update(struct reset_controller_dev *rcdev, unsigned long id,
 				  bool assert)
 {
@@ -301,6 +382,15 @@ static int mtk_mmsys_reset_update(struct reset_controller_dev *rcdev, unsigned l
 	unsigned long flags;
 	u32 offset;
 	u32 reg;
+
+	if (mmsys->data->rst_tb) {
+		if (id >= mmsys->data->num_resets) {
+			dev_err(rcdev->dev, "Invalid reset ID: %lu (>=%u)\n",
+				id, mmsys->data->num_resets);
+			return -EINVAL;
+		}
+		id = mmsys->data->rst_tb[id];
+	}
 
 	offset = (id / MMSYS_SW_RESET_PER_REG) * sizeof(u32);
 	id = id % MMSYS_SW_RESET_PER_REG;
@@ -431,6 +521,7 @@ static const struct of_device_id of_match_mtk_mmsys[] = {
 	{ .compatible = "mediatek,mt8183-mmsys", .data = &mt8183_mmsys_driver_data },
 	{ .compatible = "mediatek,mt8186-mmsys", .data = &mt8186_mmsys_driver_data },
 	{ .compatible = "mediatek,mt8188-vdosys0", .data = &mt8188_vdosys0_driver_data },
+	{ .compatible = "mediatek,mt8188-vdosys1", .data = &mt8188_vdosys1_driver_data },
 	{ .compatible = "mediatek,mt8192-mmsys", .data = &mt8192_mmsys_driver_data },
 	/* "mediatek,mt8195-mmsys" compatible is deprecated */
 	{ .compatible = "mediatek,mt8195-mmsys", .data = &mt8195_vdosys0_driver_data },

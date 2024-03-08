@@ -886,10 +886,10 @@ unsigned int iwl_mvm_max_amsdu_size(struct iwl_mvm *mvm,
 			if (WARN_ON(!link_conf))
 				band = NL80211_BAND_2GHZ;
 			else
-				band = link_conf->chandef.chan->band;
+				band = link_conf->chanreq.oper.chan->band;
 			rcu_read_unlock();
 		} else {
-			band = mvmsta->vif->bss_conf.chandef.chan->band;
+			band = mvmsta->vif->bss_conf.chanreq.oper.chan->band;
 		}
 
 		lmac = iwl_mvm_get_lmac_id(mvm, band);
@@ -1170,14 +1170,14 @@ static int iwl_mvm_tx_mpdu(struct iwl_mvm *mvm, struct sk_buff *skb,
 	bool is_ampdu = false;
 	int hdrlen;
 
+	if (WARN_ON_ONCE(!sta))
+		return -1;
+
 	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	fc = hdr->frame_control;
 	hdrlen = ieee80211_hdrlen(fc);
 
 	if (IWL_MVM_NON_TRANSMITTING_AP && ieee80211_is_probe_resp(fc))
-		return -1;
-
-	if (WARN_ON_ONCE(!mvmsta))
 		return -1;
 
 	if (WARN_ON_ONCE(mvmsta->deflink.sta_id == IWL_MVM_INVALID_STA))
@@ -1310,7 +1310,7 @@ drop:
 int iwl_mvm_tx_skb_sta(struct iwl_mvm *mvm, struct sk_buff *skb,
 		       struct ieee80211_sta *sta)
 {
-	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
+	struct iwl_mvm_sta *mvmsta;
 	struct ieee80211_tx_info info;
 	struct sk_buff_head mpdus_skbs;
 	struct ieee80211_vif *vif;
@@ -1319,8 +1319,10 @@ int iwl_mvm_tx_skb_sta(struct iwl_mvm *mvm, struct sk_buff *skb,
 	struct sk_buff *orig_skb = skb;
 	const u8 *addr3;
 
-	if (WARN_ON_ONCE(!mvmsta))
+	if (WARN_ON_ONCE(!sta))
 		return -1;
+
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	if (WARN_ON_ONCE(mvmsta->deflink.sta_id == IWL_MVM_INVALID_STA))
 		return -1;
