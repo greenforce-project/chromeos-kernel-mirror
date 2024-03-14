@@ -447,6 +447,7 @@ struct mtk_vcodec_enc_pdata {
  * @int_cond: used to identify interrupt condition happen
  * @int_type: used to identify what kind of interrupt condition happen
  * @dev_mutex: video_device lock
+ * @dev_ctx_lock: the lock of context list
  * @queue: waitqueue for waiting for completion of device commands
  *
  * @dec_irq: decoder irq resource
@@ -496,6 +497,7 @@ struct mtk_vcodec_dev {
 	int int_cond;
 	int int_type;
 	struct mutex dev_mutex;
+	struct mutex dev_ctx_lock;
 	wait_queue_head_t queue;
 
 	int dec_irq;
