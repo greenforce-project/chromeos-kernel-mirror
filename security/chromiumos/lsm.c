@@ -283,11 +283,26 @@ static int chromiumos_locked_down_dm_device(dev_t dev)
  */
 static int chromiumos_security_dm_mknod(struct dentry *dentry, umode_t mode, dev_t dev)
 {
-	/* if it's a dm block device that's locked down, return -EPERM */
-	if (S_ISBLK(mode) && chromiumos_locked_down_dm_device(dev))
-		return -EPERM;
+	int ret = 0;
+	struct mapped_device *md = NULL;
+	char dm_name[DM_NAME_LEN];
 
-	return 0;
+	if (!S_ISBLK(mode))
+		return 0;
+
+	md = dm_get_md(dev);
+	if (!md)
+		return 0;
+
+	if (!dm_copy_name_and_uuid(md, dm_name, NULL)) {
+		if (strcmp(dm_name, "hiberimage") == 0 ||
+			strcmp(dm_name, "hiberintegrity") == 0 ||
+			strcmp(dm_name, "hiberimage_integrity") == 0)
+			ret = -EPERM;
+	}
+
+	dm_put(md);
+	return ret;
 }
 
 static int chromiumos_security_path_mknod(const struct path *const dir,
