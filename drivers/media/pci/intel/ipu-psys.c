@@ -448,11 +448,11 @@ static inline void ipu_psys_kbuf_unmap(struct ipu_psys_kbuffer *kbuf)
 	kbuf->valid = false;
 	if (kbuf->kaddr)
 		dma_buf_vunmap(kbuf->dbuf, kbuf->kaddr);
-	if (kbuf->sgt)
+	if (!IS_ERR_OR_NULL(kbuf->sgt))
 		dma_buf_unmap_attachment(kbuf->db_attach,
 					 kbuf->sgt,
 					 DMA_BIDIRECTIONAL);
-	if (kbuf->db_attach)
+	if (!IS_ERR_OR_NULL(kbuf->db_attach))
 		dma_buf_detach(kbuf->dbuf, kbuf->db_attach);
 	dma_buf_put(kbuf->dbuf);
 
