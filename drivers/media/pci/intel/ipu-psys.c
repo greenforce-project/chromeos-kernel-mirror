@@ -461,12 +461,12 @@ static inline void ipu_psys_kbuf_unmap(struct ipu_psys_kbuffer *kbuf)
 	kbuf->sgt = NULL;
 }
 
-static int ipu_psys_unmapbuf_locked(int fd, struct ipu_psys_fh *fh,
+static int ipu_psys_unmapbuf_locked(struct ipu_psys_fh *fh,
 				    struct ipu_psys_kbuffer *kbuf)
 {
 	struct ipu_psys *psys = fh->psys;
 
-	if (!kbuf || fd != kbuf->fd) {
+	if (WARN_ON_ONCE(!kbuf || !kbuf->dbuf)) {
 		dev_err(&psys->adev->dev, "invalid kbuffer\n");
 		return -EINVAL;
 	}
@@ -478,8 +478,6 @@ static int ipu_psys_unmapbuf_locked(int fd, struct ipu_psys_fh *fh,
 
 	if (!kbuf->userptr)
 		kfree(kbuf);
-
-	dev_dbg(&psys->adev->dev, "%s fd %d unmapped\n", __func__, fd);
 
 	return 0;
 }
@@ -617,7 +615,7 @@ int ipu_psys_mapbuf_locked(int fd, struct ipu_psys_fh *fh,
 		dev_dbg(&psys->adev->dev,
 			"dmabuf fd %d with kbuf %p changed, need remap.\n",
 			fd, kbuf);
-		ret = ipu_psys_unmapbuf_locked(fd, fh, kbuf);
+		ret = ipu_psys_unmapbuf_locked(fh, kbuf);
 		if (ret)
 			goto mapbuf_fail;
 
@@ -720,7 +718,7 @@ static long ipu_psys_unmapbuf(int fd, struct ipu_psys_fh *fh)
 		mutex_unlock(&fh->mutex);
 		return -EINVAL;
 	}
-	ret = ipu_psys_unmapbuf_locked(fd, fh, kbuf);
+	ret = ipu_psys_unmapbuf_locked(fh, kbuf);
 	mutex_unlock(&fh->mutex);
 
 	dev_dbg(&fh->psys->adev->dev, "IOC_UNMAPBUF\n");
