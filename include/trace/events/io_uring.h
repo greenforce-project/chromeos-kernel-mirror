@@ -7,8 +7,6 @@
 
 #include <linux/tracepoint.h>
 
-struct io_wq_work;
-
 /**
  * io_uring_create - called after a new io_uring context was prepared
  *
@@ -128,15 +126,15 @@ TRACE_EVENT(io_uring_file_get,
  * io_uring_queue_async_work - called before submitting a new async work
  *
  * @ctx:	pointer to a ring context structure
- * @hashed:	type of workqueue, hashed or normal
+ * @rw:		type of workqueue, normal or buffered writes
  * @req:	pointer to a submitted request
- * @work:	pointer to a submitted io_wq_work
+ * @work:	pointer to a submitted work_struct
  *
  * Allows to trace asynchronous work submission.
  */
 TRACE_EVENT(io_uring_queue_async_work,
 
-	TP_PROTO(void *ctx, int rw, void * req, struct io_wq_work *work,
+	TP_PROTO(void *ctx, int rw, void * req, struct work_struct *work,
 			 unsigned int flags),
 
 	TP_ARGS(ctx, rw, req, work, flags),
@@ -145,7 +143,7 @@ TRACE_EVENT(io_uring_queue_async_work,
 		__field(  void *,				ctx		)
 		__field(  int,					rw		)
 		__field(  void *,				req		)
-		__field(  struct io_wq_work *,		work	)
+		__field(  struct work_struct *,	work	)
 		__field(  unsigned int,			flags	)
 	),
 
@@ -159,7 +157,7 @@ TRACE_EVENT(io_uring_queue_async_work,
 
 	TP_printk("ring %p, request %p, flags %d, %s queue, work %p",
 			  __entry->ctx, __entry->req, __entry->flags,
-			  __entry->rw ? "hashed" : "normal", __entry->work)
+			  __entry->rw ? "buffered" : "normal", __entry->work)
 );
 
 /**
