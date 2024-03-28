@@ -54,8 +54,4 @@ static inline void io_wq_worker_running(struct task_struct *tsk)
 }
 #endif
 
-static inline bool io_wq_current_is_worker(void)
-{
-	return in_task() && (current->flags & PF_IO_WORKER);
-}
 #endif
