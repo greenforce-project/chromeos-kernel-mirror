@@ -73,9 +73,6 @@
 #include <linux/highmem.h>
 #include <linux/fs_struct.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/io_uring.h>
-
 #include <uapi/linux/io_uring.h>
 
 #include "internal.h"
@@ -542,7 +539,6 @@ static inline void io_queue_async_work(struct io_ring_ctx *ctx,
 		spin_unlock_irqrestore(&ctx->task_lock, flags);
 	}
 
-	trace_io_uring_queue_async_work(ctx, rw, req, &req->work, req->flags);
 	queue_work(ctx->sqo_wq[rw], &req->work);
 }
 
@@ -766,7 +762,6 @@ static void io_fail_links(struct io_kiocb *req)
 		link = list_first_entry(&req->link_list, struct io_kiocb, list);
 		list_del(&link->list);
 
-		trace_io_uring_fail_link(req, link);
 		io_cqring_add_event(req->ctx, link->user_data, -ECANCELED);
 		__io_free_req(link);
 	}
@@ -2167,7 +2162,6 @@ static int io_req_defer(struct io_ring_ctx *ctx, struct io_kiocb *req,
 	req->submit.sqe = sqe_copy;
 
 	INIT_WORK(&req->work, io_sq_wq_submit_work);
-	trace_io_uring_defer(ctx, req, false);
 	list_add_tail(&req->list, &ctx->defer_list);
 	spin_unlock_irq(&ctx->completion_lock);
 	return -EIOCBQUEUED;
@@ -2473,8 +2467,6 @@ static bool io_add_to_prev_work(struct async_list *list, struct io_kiocb *req)
 		spin_unlock_irq(&ctx->task_lock);
 	}
 	spin_unlock(&list->lock);
-
-	trace_io_uring_add_to_prev(req, ret);
 	return ret;
 }
 
@@ -2520,7 +2512,6 @@ static int io_req_set_file(struct io_ring_ctx *ctx, const struct sqe_submit *s,
 	} else {
 		if (s->needs_fixed_file)
 			return -EBADF;
-		trace_io_uring_file_get(ctx, fd);
 		req->file = io_file_get(state, fd);
 		if (unlikely(!req->file))
 			return -EBADF;
@@ -2630,7 +2621,6 @@ static int io_queue_link_head(struct io_ring_ctx *ctx, struct io_kiocb *req,
 
 	/* Insert shadow req to defer_list, blocking next IOs */
 	spin_lock_irq(&ctx->completion_lock);
-	trace_io_uring_defer(ctx, shadow, true);
 	list_add_tail(&shadow->list, &ctx->defer_list);
 	spin_unlock_irq(&ctx->completion_lock);
 
@@ -2708,7 +2698,6 @@ err:
 
 		s->sqe = sqe_copy;
 		memcpy(&req->submit, s, sizeof(*s));
-		trace_io_uring_link(ctx, req, prev);
 		list_add_tail(&req->list, &prev->link_list);
 	} else if (s->sqe->flags & IOSQE_IO_LINK) {
 		req->flags |= REQ_F_LINK;
@@ -2853,7 +2842,6 @@ out:
 			s.has_user = has_user;
 			s.in_async = true;
 			s.needs_fixed_file = true;
-			trace_io_uring_submit_sqe(ctx, true, true);
 			io_submit_sqe(ctx, &s, statep, &link);
 			submitted++;
 		}
@@ -3045,7 +3033,6 @@ out:
 		s.in_async = false;
 		s.needs_fixed_file = false;
 		submit++;
-		trace_io_uring_submit_sqe(ctx, true, false);
 		io_submit_sqe(ctx, &s, statep, &link);
 	}
 
@@ -3128,7 +3115,6 @@ static int io_cqring_wait(struct io_ring_ctx *ctx, int min_events,
 
 	ret = 0;
 	iowq.nr_timeouts = atomic_read(&ctx->cq_timeouts);
-	trace_io_uring_cqring_wait(ctx, min_events);
 	do {
 		prepare_to_wait_exclusive(&ctx->wait, &iowq.wq,
 						TASK_INTERRUPTIBLE);
@@ -4036,7 +4022,6 @@ static int io_uring_create(unsigned entries, struct io_uring_params *p)
 		goto err;
 
 	p->features = IORING_FEAT_SINGLE_MMAP;
-	trace_io_uring_create(ret, ctx, p->sq_entries, p->cq_entries, p->flags);
 	return ret;
 err:
 	io_ring_ctx_wait_and_kill(ctx);
@@ -4171,8 +4156,6 @@ SYSCALL_DEFINE4(io_uring_register, unsigned int, fd, unsigned int, opcode,
 	mutex_lock(&ctx->uring_lock);
 	ret = __io_uring_register(ctx, opcode, arg, nr_args);
 	mutex_unlock(&ctx->uring_lock);
-	trace_io_uring_register(ctx, opcode, ctx->nr_user_files, ctx->nr_user_bufs,
-							ctx->cq_ev_fd != NULL, ret);
 out_fput:
 	fdput(f);
 	return ret;
