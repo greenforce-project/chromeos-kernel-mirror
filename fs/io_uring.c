@@ -3067,9 +3067,8 @@ static int io_sq_offload_start(struct io_ring_ctx *ctx,
 	/* Do QD, or 4 * CPUS, whatever is smallest */
 	concurrency = min(ctx->sq_entries, 4 * num_online_cpus());
 	ctx->io_wq = io_wq_create(concurrency, ctx->sqo_mm, NULL);
-	if (IS_ERR(ctx->io_wq)) {
-		ret = PTR_ERR(ctx->io_wq);
-		ctx->io_wq = NULL;
+	if (!ctx->io_wq) {
+		ret = -ENOMEM;
 		goto err;
 	}
 
