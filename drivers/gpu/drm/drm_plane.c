@@ -1231,7 +1231,7 @@ out:
 }
 
 /**
- * drm_plane_add_size_hint_property - create a size hint property
+ * drm_plane_add_size_hints_property - create a size hints property
  *
  * @plane: drm plane
  * @hints: size hints
