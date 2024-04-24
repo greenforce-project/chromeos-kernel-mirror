@@ -28,17 +28,9 @@ static int ieee80211_set_ringparam(struct net_device *dev,
 	if (rp->rx_mini_pending != 0 || rp->rx_jumbo_pending != 0)
 		return -EINVAL;
 
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_lock(local->hw.wiphy);
-#else
 	rtnl_lock();
-#endif
 	ret = drv_set_ringparam(local, rp->tx_pending, rp->rx_pending);
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_unlock(local->hw.wiphy);
-#else
 	rtnl_unlock();
-#endif
 
 	return ret;
 }
@@ -56,18 +48,10 @@ static void ieee80211_get_ringparam(struct net_device *dev,
 
 	memset(rp, 0, sizeof(*rp));
 
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_lock(local->hw.wiphy);
-#else
 	rtnl_lock();
-#endif
 	drv_get_ringparam(local, &rp->tx_pending, &rp->tx_max_pending,
 			  &rp->rx_pending, &rp->rx_max_pending);
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_unlock(local->hw.wiphy);
-#else
 	rtnl_unlock();
-#endif
 }
 
 static const char ieee80211_gstrings_sta_stats[][ETH_GSTRING_LEN] = {
@@ -127,44 +111,34 @@ static void ieee80211_get_stats(struct net_device *dev,
 		data[i++] += sinfo.tx_retries;			\
 	} while (0)
 
-	/* For Managed stations, find the single station based on BSSID
-	 * and use that.  For interface types, iterate through all available
-	 * stations and add stats for any station that is assigned to this
-	 * network device.
-	 */
-
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_lock(local->hw.wiphy);
-#endif
-
 	if (sdata->vif.type == NL80211_IFTYPE_STATION) {
-		sta = sta_info_get_bss(sdata, sdata->deflink.u.mgd.bssid);
+			sta = sta_info_get_bss(sdata, sdata->deflink.u.mgd.bssid);
 
-		if (!(sta && !WARN_ON(sta->sdata->dev != dev)))
-			goto do_survey;
+			if (!(sta && !WARN_ON(sta->sdata->dev != dev)))
+				goto do_survey;
 
-		memset(&sinfo, 0, sizeof(sinfo));
-		sta_set_sinfo(sta, &sinfo, false);
+			memset(&sinfo, 0, sizeof(sinfo));
+			sta_set_sinfo(sta, &sinfo, false);
 
-		i = 0;
-		ADD_STA_STATS(&sta->deflink);
+			i = 0;
+			ADD_STA_STATS(&sta->deflink);
 
-		data[i++] = sta->sta_state;
+			data[i++] = sta->sta_state;
 
 
-		if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))
-			data[i] = 100000ULL *
-				cfg80211_calculate_bitrate(&sinfo.txrate);
-		i++;
-		if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_RX_BITRATE))
-			data[i] = 100000ULL *
-				cfg80211_calculate_bitrate(&sinfo.rxrate);
-		i++;
+			if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_TX_BITRATE))
+				data[i] = 100000ULL *
+					cfg80211_calculate_bitrate(&sinfo.txrate);
+			i++;
+			if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_RX_BITRATE))
+				data[i] = 100000ULL *
+					cfg80211_calculate_bitrate(&sinfo.rxrate);
+			i++;
 
-		if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG))
-			data[i] = (u8)sinfo.signal_avg;
-		i++;
-	} else {
+			if (sinfo.filled & BIT_ULL(NL80211_STA_INFO_SIGNAL_AVG))
+				data[i] = (u8)sinfo.signal_avg;
+			i++;
+		} else {
 		list_for_each_entry(sta, &local->sta_list, list) {
 			/* Make sure this station belongs to the proper dev */
 			if (sta->sdata->dev != dev)
@@ -232,16 +206,10 @@ do_survey:
 		data[i++] = -1LL;
 
 	if (WARN_ON(i != STA_STATS_LEN)) {
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-		wiphy_unlock(local->hw.wiphy);
-#endif
 		return;
 	}
 
 	drv_get_et_stats(sdata, stats, &(data[STA_STATS_LEN]));
-#if LINUX_VERSION_IS_GEQ(5,12,0)
-	wiphy_unlock(local->hw.wiphy);
-#endif
 }
 
 static void ieee80211_get_strings(struct net_device *dev, u32 sset, u8 *data)

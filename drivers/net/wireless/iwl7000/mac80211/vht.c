@@ -546,17 +546,6 @@ void ieee80211_sta_init_nss(struct link_sta_info *link_sta)
 	u8 ht_rx_nss = 0, vht_rx_nss = 0, he_rx_nss = 0, eht_rx_nss = 0, rx_nss;
 	bool support_160;
 
-	if (cfg_eht_cap_has_eht(link_sta->pub)) {
-		int i;
-		const u8 *rx_nss_mcs = (void *)&cfg_eht_cap(link_sta->pub)->eht_mcs_nss_supp;
-
-		/* get the max nss for EHT over all possible bandwidths and mcs */
-		for (i = 0; i < sizeof(struct ieee80211_eht_mcs_nss_supp); i++)
-			eht_rx_nss = max_t(u8, eht_rx_nss,
-					   u8_get_bits(rx_nss_mcs[i],
-						       IEEE80211_EHT_MCS_NSS_RX));
-	}
-
 	if (link_sta->pub->he_cap.has_he) {
 		int i;
 		u8 rx_mcs_80 = 0, rx_mcs_160 = 0;

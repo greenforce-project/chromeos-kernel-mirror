@@ -5288,39 +5288,6 @@ ieee80211_beacon_get_finish(struct ieee80211_hw *hw,
 		       IEEE80211_TX_CTL_FIRST_FRAGMENT;
 }
 
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-static void
-ieee80211_beacon_add_mbssid(struct sk_buff *skb, struct beacon_data *beacon,
-			    u8 i)
-{
-	if (!beacon->mbssid_ies || !beacon->mbssid_ies->cnt ||
-	    i > beacon->mbssid_ies->cnt)
-		return;
-
-	if (i < beacon->mbssid_ies->cnt) {
-		skb_put_data(skb, beacon->mbssid_ies->elem[i].data,
-			     beacon->mbssid_ies->elem[i].len);
-
-#if LINUX_VERSION_IS_GEQ(6,4,0)
-		if (beacon->rnr_ies && beacon->rnr_ies->cnt) {
-			skb_put_data(skb, beacon->rnr_ies->elem[i].data,
-				     beacon->rnr_ies->elem[i].len);
-
-			for (i = beacon->mbssid_ies->cnt; i < beacon->rnr_ies->cnt; i++)
-				skb_put_data(skb, beacon->rnr_ies->elem[i].data,
-					     beacon->rnr_ies->elem[i].len);
-		}
-#endif
-		return;
-	}
-
-	/* i == beacon->mbssid_ies->cnt, include all MBSSID elements */
-	for (i = 0; i < beacon->mbssid_ies->cnt; i++)
-		skb_put_data(skb, beacon->mbssid_ies->elem[i].data,
-			     beacon->mbssid_ies->elem[i].len);
-}
-#endif
-
 static struct sk_buff *
 ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
 			struct ieee80211_vif *vif,
@@ -5348,14 +5315,7 @@ ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
 	/* headroom, head length,
 	 * tail length, maximum TIM length and multiple BSSID length
 	 */
-#if LINUX_VERSION_IS_GEQ(6,4,0)
-	mbssid_len = ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies,
-						     beacon->rnr_ies,
-						     ema_index);
-#else
-	mbssid_len = ieee80211_get_mbssid_beacon_len(beacon->mbssid_ies,
-						     ema_index);
-#endif
+	mbssid_len = 0;
 
 	skb = dev_alloc_skb(local->tx_headroom + beacon->head_len +
 			    beacon->tail_len + 256 +
@@ -5373,13 +5333,6 @@ ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
 		offs->tim_length = skb->len - beacon->head_len;
 		offs->cntdwn_counter_offs[0] = beacon->cntdwn_counter_offsets[0];
 
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-		if (mbssid_len) {
-			ieee80211_beacon_add_mbssid(skb, beacon, ema_index);
-			offs->mbssid_off = skb->len - mbssid_len;
-		}
-#endif
-
 		/* for AP the csa offsets are from tail */
 		csa_off_base = skb->len;
 	}
@@ -5394,43 +5347,6 @@ ieee80211_beacon_get_ap(struct ieee80211_hw *hw,
 				    chanctx_conf, csa_off_base);
 	return skb;
 }
-
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-static struct ieee80211_ema_beacons *
-ieee80211_beacon_get_ap_ema_list(struct ieee80211_hw *hw,
-				 struct ieee80211_vif *vif,
-				 struct ieee80211_link_data *link,
-				 struct ieee80211_mutable_offsets *offs,
-				 bool is_template, struct beacon_data *beacon,
-				 struct ieee80211_chanctx_conf *chanctx_conf)
-{
-	struct ieee80211_ema_beacons *ema = NULL;
-
-	if (!beacon->mbssid_ies || !beacon->mbssid_ies->cnt)
-		return NULL;
-
-	ema = kzalloc(struct_size(ema, bcn, beacon->mbssid_ies->cnt),
-		      GFP_ATOMIC);
-	if (!ema)
-		return NULL;
-
-	for (ema->cnt = 0; ema->cnt < beacon->mbssid_ies->cnt; ema->cnt++) {
-		ema->bcn[ema->cnt].skb =
-			ieee80211_beacon_get_ap(hw, vif, link,
-						&ema->bcn[ema->cnt].offs,
-						is_template, beacon,
-						chanctx_conf, ema->cnt);
-		if (!ema->bcn[ema->cnt].skb)
-			break;
-	}
-
-	if (ema->cnt == beacon->mbssid_ies->cnt)
-		return ema;
-
-	ieee80211_beacon_free_ema_list(ema);
-	return NULL;
-}
-#endif
 
 #define IEEE80211_INCLUDE_ALL_MBSSID_ELEMS -1
 
@@ -5472,25 +5388,9 @@ __ieee80211_beacon_get(struct ieee80211_hw *hw,
 
 		if (ema_beacons) {
 			*ema_beacons =
-				ieee80211_beacon_get_ap_ema_list(hw, vif, link,
-								 offs,
-								 is_template,
-								 beacon,
-								 chanctx_conf);
+				NULL;
 		} else {
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-			if (beacon->mbssid_ies && beacon->mbssid_ies->cnt) {
-				if (ema_index >= beacon->mbssid_ies->cnt)
-					goto out; /* End of MBSSID elements */
-
-				if (ema_index <= IEEE80211_INCLUDE_ALL_MBSSID_ELEMS)
-					ema_index = beacon->mbssid_ies->cnt;
-			} else {
-#endif
-				ema_index = 0;
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-			}
-#endif
+			ema_index = 0;
 
 			skb = ieee80211_beacon_get_ap(hw, vif, link, offs,
 						      is_template, beacon,

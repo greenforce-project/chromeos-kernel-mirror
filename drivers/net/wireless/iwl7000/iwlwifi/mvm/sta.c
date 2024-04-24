@@ -96,10 +96,6 @@ u32 iwl_mvm_get_sta_ampdu_dens(struct ieee80211_link_sta *link_sta,
 			u8_get_bits(link_sta->he_cap.he_cap_elem.mac_cap_info[3],
 				    IEEE80211_HE_MAC_CAP3_MAX_AMPDU_LEN_EXP_MASK);
 
-	if (cfg_eht_cap_has_eht(link_sta))
-		agg_size += u8_get_bits(cfg_eht_cap(link_sta)->eht_cap_elem.mac_cap_info[1],
-					IEEE80211_EHT_MAC_CAP1_MAX_AMPDU_LEN_MASK);
-
 	/* Limit to max A-MPDU supported by FW */
 	agg_size = min_t(u32, agg_size,
 			 STA_FLG_MAX_AGG_SIZE_4M >> STA_FLG_MAX_AGG_SIZE_SHIFT);
@@ -826,11 +822,6 @@ static int iwl_mvm_get_queue_size(struct ieee80211_sta *sta)
 
 		if (!link)
 			continue;
-
-		/* support for 512 ba size */
-		if (cfg_eht_cap_has_eht(link) &&
-		    max_size < IWL_DEFAULT_QUEUE_SIZE_EHT)
-			max_size = IWL_DEFAULT_QUEUE_SIZE_EHT;
 
 		/* support for 256 ba size */
 		if (link->he_cap.has_he &&

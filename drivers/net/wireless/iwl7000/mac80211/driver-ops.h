@@ -122,10 +122,6 @@ static inline void drv_set_wakeup(struct ieee80211_local *local,
 				  bool enabled)
 {
 	might_sleep();
-	/* this doesn't really matter - nothing interesting happens here */
-#if LINUX_VERSION_IS_GEQ(6,7,0)
-	lockdep_assert_wiphy(local->hw.wiphy);
-#endif
 
 	if (!local->ops->set_wakeup)
 		return;
