@@ -95,40 +95,6 @@ iwl_mvm_iface_combinations_nan[] = {
 	},
 };
 
-/* not used with older HW and needs a locking patch in cfg80211 */
-#if LINUX_VERSION_IS_GEQ(6,1,0)
-static const struct cfg80211_pmsr_capabilities iwl_mvm_pmsr_capa = {
-	.max_peers = IWL_MVM_TOF_MAX_APS,
-	.report_ap_tsf = 1,
-	.randomize_mac_addr = 1,
-
-	.ftm = {
-		.supported = 1,
-		.asap = 1,
-		.non_asap = 1,
-		.request_lci = 1,
-		.request_civicloc = 1,
-#if LINUX_VERSION_IS_GEQ(5,7,0)
-		.trigger_based = 1,
-#endif
-#if LINUX_VERSION_IS_GEQ(5,13,0)
-		.non_trigger_based = 1,
-#endif
-		.max_bursts_exponent = -1, /* all supported */
-		.max_ftms_per_burst = 0, /* no limits */
-		.bandwidths = BIT(NL80211_CHAN_WIDTH_20_NOHT) |
-			      BIT(NL80211_CHAN_WIDTH_20) |
-			      BIT(NL80211_CHAN_WIDTH_40) |
-			      BIT(NL80211_CHAN_WIDTH_80) |
-			      BIT(NL80211_CHAN_WIDTH_160),
-		.preambles = BIT(NL80211_PREAMBLE_LEGACY) |
-			     BIT(NL80211_PREAMBLE_HT) |
-			     BIT(NL80211_PREAMBLE_VHT) |
-			     ieee80211_preamble_he(),
-	},
-};
-#endif
-
 static int __iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 				 enum set_key_cmd cmd,
 				 struct ieee80211_vif *vif,
@@ -179,10 +145,7 @@ struct ieee80211_regdomain *iwl_mvm_get_regdomain(struct wiphy *wiphy,
 					   MCC_UPDATE_CMD, 0);
 	IWL_DEBUG_LAR(mvm, "MCC update response version: %d\n", resp_ver);
 
-	regd = iwl_parse_nvm_mcc_info(mvm->trans->dev, mvm->cfg,
-#if LINUX_VERSION_IS_LESS(6,8,0)
-				      mvm->nvm_data,
-#endif
+	regd = iwl_parse_nvm_mcc_info(mvm->trans->dev, mvm->cfg,mvm->nvm_data,
 				      __le32_to_cpu(resp->n_channels),
 				      resp->channels,
 				      __le16_to_cpu(resp->mcc),
@@ -324,22 +287,12 @@ static const struct wiphy_iftype_ext_capab add_iftypes_ext_capa[] = {
 		.extended_capabilities = he_if_types_ext_capa_sta,
 		.extended_capabilities_mask = he_if_types_ext_capa_sta,
 		.extended_capabilities_len = sizeof(he_if_types_ext_capa_sta),
-		/* relevant only if EHT is supported */
-#if LINUX_VERSION_IS_GEQ(6,0,0)
-		.eml_capabilities = IWL_MVM_EMLSR_CAPA,
-		.mld_capa_and_ops = IWL_MVM_MLD_CAPA_OPS,
-#endif
 	},
 	{
 		.iftype = NL80211_IFTYPE_STATION,
 		.extended_capabilities = tm_if_types_ext_capa_sta,
 		.extended_capabilities_mask = tm_if_types_ext_capa_sta,
 		.extended_capabilities_len = sizeof(tm_if_types_ext_capa_sta),
-		/* relevant only if EHT is supported */
-#if LINUX_VERSION_IS_GEQ(6,0,0)
-		.eml_capabilities = IWL_MVM_EMLSR_CAPA,
-		.mld_capa_and_ops = IWL_MVM_MLD_CAPA_OPS,
-#endif
 	},
 };
 
@@ -541,15 +494,6 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	wiphy_ext_feature_set(hw->wiphy,
 			      NL80211_EXT_FEATURE_SCAN_MIN_PREQ_CONTENT);
 
-#if LINUX_VERSION_IS_GEQ(6,1,0)
-	if (fw_has_capa(&mvm->fw->ucode_capa,
-			IWL_UCODE_TLV_CAPA_FTM_CALIBRATED)) {
-		wiphy_ext_feature_set(hw->wiphy,
-				      NL80211_EXT_FEATURE_ENABLE_FTM_RESPONDER);
-		hw->wiphy->pmsr_capa = &iwl_mvm_pmsr_capa;
-	}
-#endif
-
 	if (sec_key_ver &&
 	    fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_BIGTK_TX_SUPPORT))
@@ -562,7 +506,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_TIME_SYNC_BOTH_FTM_TM))
-		set_hw_timestamp_max_peers(hw, 1);
+		{}
 
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_SPP_AMSDU_SUPPORT))
@@ -687,13 +631,11 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			hw->wiphy->bands[NL80211_BAND_5GHZ]->vht_cap.cap |=
 				IEEE80211_VHT_CAP_SU_BEAMFORMER_CAPABLE;
 	}
-#if LINUX_VERSION_IS_GEQ(5,10,0)
 	if (fw_has_capa(&mvm->fw->ucode_capa,
 			IWL_UCODE_TLV_CAPA_PSC_CHAN_SUPPORT) &&
 	    mvm->nvm_data->bands[NL80211_BAND_6GHZ].n_channels)
 		hw->wiphy->bands[NL80211_BAND_6GHZ] =
 			&mvm->nvm_data->bands[NL80211_BAND_6GHZ];
-#endif
 
 	hw->wiphy->hw_version = mvm->trans->hw_id;
 
@@ -741,11 +683,9 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			IWL_UCODE_TLV_CAPA_WFA_TPC_REP_IE_SUPPORT))
 		hw->wiphy->features |= NL80211_FEATURE_WFA_TPC_IE_IN_PROBES;
 
-#if LINUX_VERSION_IS_GEQ(5,8,0)
 	if (iwl_fw_lookup_cmd_ver(mvm->fw, WOWLAN_KEK_KCK_MATERIAL,
 				  IWL_FW_CMD_VER_UNKNOWN) == 3)
 		hw->wiphy->flags |= WIPHY_FLAG_SUPPORTS_EXT_KEK_KCK;
-#endif
 
 	if (fw_has_api(&mvm->fw->ucode_capa,
 		       IWL_UCODE_TLV_API_SCAN_TSF_REPORT)) {
@@ -889,11 +829,9 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 
 		for (i = 0; i < hw->wiphy->num_iftype_ext_capab; i++) {
 			if (mvm->trans->dbg_cfg.eml_capa_override)
-				cfg80211_ext_capa_set_eml_capabilities(capa,
-								       mvm->trans->dbg_cfg.eml_capa_override);
+				{}
 			if (mvm->trans->dbg_cfg.disable_eml)
-				cfg80211_ext_capa_set_eml_capabilities(capa,
-								       0);
+				{}
 		}
 
 		hw->wiphy->iftype_ext_capab = capa;
@@ -1744,27 +1682,7 @@ void iwl_mvm_channel_switch_disconnect_wk(struct work_struct *wk)
 static u8
 iwl_mvm_chandef_get_primary_80(struct cfg80211_chan_def *chandef)
 {
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-	int data_start;
-	int control_start;
-	int bw;
-
-	if (chandef->width == NL80211_CHAN_WIDTH_320)
-		bw = 320;
-	else if (chandef->width == NL80211_CHAN_WIDTH_160)
-		bw = 160;
-	else
-		return 0;
-
-	/* data is bw wide so the start is half the width */
-	data_start = chandef->center_freq1 - bw / 2;
-	/* control is 20Mhz width */
-	control_start = chandef->chan->center_freq - 10;
-
-	return (control_start - data_start) / 80;
-#else
 	return 0;
-#endif
 }
 
 static int iwl_mvm_alloc_bcast_mcast_sta(struct iwl_mvm *mvm,
@@ -2494,31 +2412,6 @@ static int iwl_mvm_set_pkt_ext_from_nominal_padding(struct iwl_he_pkt_ext_v2 *pk
 	return 0;
 }
 
-static void iwl_mvm_get_optimal_ppe_info(struct iwl_he_pkt_ext_v2 *pkt_ext,
-					 u8 nominal_padding)
-{
-	int i;
-
-	for (i = 0; i < MAX_HE_SUPP_NSS; i++) {
-		u8 bw;
-
-		for (bw = 0; bw < ARRAY_SIZE(pkt_ext->pkt_ext_qam_th[i]);
-		     bw++) {
-			u8 *qam_th = &pkt_ext->pkt_ext_qam_th[i][bw][0];
-
-			if (nominal_padding >
-			    IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_PKT_PAD_8US &&
-			    qam_th[1] == IWL_HE_PKT_EXT_NONE)
-				qam_th[1] = IWL_HE_PKT_EXT_4096QAM;
-			else if (nominal_padding ==
-				 IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_PKT_PAD_8US &&
-				 qam_th[0] == IWL_HE_PKT_EXT_NONE &&
-				 qam_th[1] == IWL_HE_PKT_EXT_NONE)
-				qam_th[0] = IWL_HE_PKT_EXT_4096QAM;
-		}
-	}
-}
-
 /* Set the pkt_ext field according to PPE Thresholds element */
 int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm,
 			    struct ieee80211_link_sta *link_sta,
@@ -2537,52 +2430,7 @@ int iwl_mvm_set_sta_pkt_ext(struct iwl_mvm *mvm,
 	memset(pkt_ext, IWL_HE_PKT_EXT_NONE,
 	       sizeof(struct iwl_he_pkt_ext_v2));
 
-	if (cfg_eht_cap_has_eht(link_sta)) {
-		nominal_padding =
-			u8_get_bits(cfg_eht_cap(link_sta)->eht_cap_elem.phy_cap_info[5],
-				    IEEE80211_EHT_PHY_CAP5_COMMON_NOMINAL_PKT_PAD_MASK);
-
-		/* If PPE Thresholds exists, parse them into a FW-familiar format. */
-		if (cfg_eht_cap(link_sta)->eht_cap_elem.phy_cap_info[5] &
-		    IEEE80211_EHT_PHY_CAP5_PPE_THRESHOLD_PRESENT) {
-			u8 nss = (cfg_eht_cap(link_sta)->eht_ppe_thres[0] &
-				  IEEE80211_EHT_PPE_THRES_NSS_MASK) + 1;
-			u8 *ppe = &cfg_eht_cap(link_sta)->eht_ppe_thres[0];
-			u8 ru_index_bitmap =
-				u16_get_bits(*ppe,
-					     IEEE80211_EHT_PPE_THRES_RU_INDEX_BITMASK_MASK);
-			 /* Starting after PPE header */
-			u8 ppe_pos_bit = IEEE80211_EHT_PPE_THRES_INFO_HEADER_SIZE;
-
-			iwl_mvm_parse_ppe(mvm, pkt_ext, nss, ru_index_bitmap,
-					  ppe, ppe_pos_bit, true);
-		/* EHT PPE Thresholds doesn't exist - set the API according to HE PPE Tresholds*/
-		} else if (link_sta->he_cap.he_cap_elem.phy_cap_info[6] &
-			   IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
-			/*
-			* Even though HE Capabilities IE doesn't contain PPE
-			* Thresholds for BW 320Mhz, thresholds for this BW will
-			* be filled in with the same values as 160Mhz, due to
-			* the inheritance, as required.
-			*/
-			iwl_mvm_set_pkt_ext_from_he_ppe(mvm, link_sta, pkt_ext,
-							true);
-
-			/*
-			* According to the requirements, for MCSs 12-13 the maximum value between
-			* HE PPE Threshold and Common Nominal Packet Padding needs to be taken
-			*/
-			iwl_mvm_get_optimal_ppe_info(pkt_ext, nominal_padding);
-
-		/*
-		* if PPE Thresholds doesn't present in both EHT IE and HE IE -
-		* take the Thresholds from Common Nominal Packet Padding field
-		*/
-		} else {
-			ret = iwl_mvm_set_pkt_ext_from_nominal_padding(pkt_ext,
-								       nominal_padding);
-		}
-	} else if (link_sta->he_cap.has_he) {
+	if (link_sta->he_cap.has_he) {
 		/* If PPE Thresholds exist, parse them into a FW-familiar format. */
 		if (link_sta->he_cap.he_cap_elem.phy_cap_info[6] &
 			IEEE80211_HE_PHY_CAP6_PPE_THRESHOLD_PRESENT) {
@@ -6324,12 +6172,6 @@ static void iwl_mvm_set_sta_rate(u32 rate_n_flags, struct rate_info *rinfo)
 		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
 
 	switch (format) {
-	case RATE_MCS_EHT_MSK:
-#if LINUX_VERSION_IS_GEQ(5,18,0)
-		/* TODO: GI/LTF/RU. How does the firmware encode them? */
-		rinfo->flags |= RATE_INFO_FLAGS_EHT_MCS;
-#endif
-		break;
 	case RATE_MCS_HE_MSK:
 		gi_ltf = u32_get_bits(rate_n_flags, RATE_MCS_HE_GI_LTF_MSK);
 
