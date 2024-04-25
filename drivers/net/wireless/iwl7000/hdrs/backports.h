@@ -357,10 +357,6 @@ static inline void dev_sw_netstats_tx_add(struct net_device *dev,
 	u64_stats_update_end(&tstats->syncp);
 }
 
-#define HZ_PER_KHZ		1000UL
-#define KHZ_PER_MHZ		1000UL
-#define HZ_PER_MHZ		1000000UL
-
 enum rfkill_hard_block_reasons {
 	RFKILL_HARD_BLOCK_SIGNAL        = 1 << 0,
 	RFKILL_HARD_BLOCK_NOT_OWNER     = 1 << 1,
@@ -463,6 +459,8 @@ kthread_complete_and_exit(struct completion *c, long ret)
 	complete_and_exit(c, ret);
 }
 
+#define SKB_DROP_REASON_MAX	1
+
 #define IEEE80211_CHAN_NO_HE 0
 #define IEEE80211_CHAN_NO_EHT 0
 
@@ -517,6 +515,13 @@ enum nl80211_eht_gi {
 
 #define RATE_INFO_BW_320 (RATE_INFO_BW_HE_RU + 1)
 #define NL80211_RRF_NO_320MHZ 0
+
+/*
+ * Same as SKB_DROP_REASON_NOT_SPECIFIED on some kernels,
+ * but that's OK since we won't report these reasons to
+ * the kernel anyway until 6.4, see kfree_skb_reason().
+ */
+#define SKB_NOT_DROPPED_YET	0
 
 struct cfg80211_rx_info {
 	int freq;
@@ -710,6 +715,10 @@ bool cfg80211_valid_disable_subchannel_bitmap(u16 *bitmap,
 #define ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da, mesh) \
 	ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da)
 
+#define SKB_CONSUMED (SKB_DROP_REASON_MAX + 1)
+#define VISIBLE_IF_KUNIT static
+#define EXPORT_SYMBOL_IF_KUNIT(...)
+
 #define kvmemdup LINUX_BACKPORT(kvmemdup)
 static inline void *kvmemdup(const void *src, size_t len, gfp_t gfp)
 {
@@ -756,6 +765,31 @@ iwl7000_cfg80211_rx_control_port(struct net_device *dev, struct sk_buff *skb,
 }
 #define cfg80211_rx_control_port iwl7000_cfg80211_rx_control_port
 
+enum skb_drop_reason_subsys {
+	SKB_DROP_REASON_SUBSYS_CORE,
+	SKB_DROP_REASON_SUBSYS_MAC80211_UNUSABLE,
+	SKB_DROP_REASON_SUBSYS_MAC80211_MONITOR,
+	SKB_DROP_REASON_SUBSYS_NUM
+};
+
+struct drop_reason_list {
+	const char * const *reasons;
+	size_t n_reasons;
+};
+
+#define SKB_DROP_REASON_SUBSYS_SHIFT	16
+#define SKB_DROP_REASON_SUBSYS_MASK	0xffff0000
+
+static inline void
+drop_reasons_register_subsys(enum skb_drop_reason_subsys subsys,
+			     const struct drop_reason_list *list)
+{}
+
+static inline void
+drop_reasons_unregister_subsys(enum skb_drop_reason_subsys subsys)
+{}
+
+#include <hdrs/linux/compiler_attributes.h>
 #include <linux/leds.h>
 
 #define NL80211_RRF_NO_EHT 0
