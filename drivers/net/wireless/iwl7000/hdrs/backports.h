@@ -27,145 +27,10 @@ static inline bool iwl7000_wiphy_ext_feature_isset(struct wiphy *wiphy,
 #define wiphy_ext_feature_set iwl7000_wiphy_ext_feature_set
 #define wiphy_ext_feature_isset iwl7000_wiphy_ext_feature_isset
 
-#define netdev_set_priv_destructor(_dev, _destructor) \
-	(_dev)->needs_free_netdev = true; \
-	(_dev)->priv_destructor = (_destructor);
-#define netdev_set_def_destructor(_dev) \
-	(_dev)->needs_free_netdev = true;
-
-#define rb_root_node(root) (root)->rb_root.rb_node
-
-#ifndef ETH_P_PREAUTH
-#define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
-#endif
-
 int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 			      const u8 *buf, size_t len,
 			      const u8 *dest, __be16 proto, bool unencrypted,
 			      int link_id, u64 *cookie);
-
-#ifndef lockdep_assert
-#define lockdep_assert(x) do {} while (0)
-#endif
-
-#ifndef NET_DEVICE_PATH_STACK_MAX
-enum net_device_path_type {
-	DEV_PATH_ETHERNET = 0,
-	DEV_PATH_VLAN,
-	DEV_PATH_BRIDGE,
-	DEV_PATH_PPPOE,
-	DEV_PATH_DSA,
-};
-
-struct net_device_path {
-	enum net_device_path_type	type;
-	const struct net_device		*dev;
-	union {
-		struct {
-			u16		id;
-			__be16		proto;
-			u8		h_dest[ETH_ALEN];
-		} encap;
-		struct {
-			enum {
-				DEV_PATH_BR_VLAN_KEEP,
-				DEV_PATH_BR_VLAN_TAG,
-				DEV_PATH_BR_VLAN_UNTAG,
-				DEV_PATH_BR_VLAN_UNTAG_HW,
-			}		vlan_mode;
-			u16		vlan_id;
-			__be16		vlan_proto;
-		} bridge;
-		struct {
-			int port;
-			u16 proto;
-		} dsa;
-	};
-};
-
-#define NET_DEVICE_PATH_STACK_MAX	5
-#define NET_DEVICE_PATH_VLAN_MAX	2
-
-struct net_device_path_stack {
-	int			num_paths;
-	struct net_device_path	path[NET_DEVICE_PATH_STACK_MAX];
-};
-
-struct net_device_path_ctx {
-	const struct net_device *dev;
-	const u8		*daddr;
-
-	int			num_vlans;
-	struct {
-		u16		id;
-		__be16		proto;
-	} vlan[NET_DEVICE_PATH_VLAN_MAX];
-};
-#endif /* NET_DEVICE_PATH_STACK_MAX */
-
-#ifndef memset_after
-#define memset_after(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetofend(typeof(*(obj)), member), __val,	\
-	       sizeof(*(obj)) - offsetofend(typeof(*(obj)), member));	\
-})
-#endif
-
-#ifndef memset_startat
-#define memset_startat(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetof(typeof(*(obj)), member), __val,		\
-	       sizeof(*(obj)) - offsetof(typeof(*(obj)), member));	\
-})
-#endif
-
-#ifndef __BUILD_BUG_ON_NOT_POWER_OF_2
-#define __BUILD_BUG_ON_NOT_POWER_OF_2(...)
-#endif
-
-#ifndef skb_list_walk_safe
-#define skb_list_walk_safe(first, skb, next_skb)				\
-	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);	\
-	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
-#endif
-
-#ifdef CONFIG_THERMAL
-#include <linux/thermal.h>
-struct backport_thermal_trip {
-	int temperature;
-	int hysteresis;
-	int threshold;
-	enum thermal_trip_type type;
-	u8 flags;
-	void *priv;
-};
-#define thermal_trip backport_thermal_trip
-#endif
-
-struct wiphy_work;
-typedef void (*wiphy_work_func_t)(struct wiphy *, struct wiphy_work *);
-
-struct wiphy_work {
-	struct list_head entry;
-	wiphy_work_func_t func;
-};
-
-static inline void wiphy_work_init(struct wiphy_work *work,
-				   wiphy_work_func_t func)
-{
-	INIT_LIST_HEAD(&work->entry);
-	work->func = func;
-}
-
-struct wiphy_delayed_work {
-	struct wiphy_work work;
-	struct wiphy *wiphy;
-	struct timer_list timer;
-};
 
 #define NL80211_EXT_FEATURE_AQL -1
 
@@ -193,6 +58,12 @@ int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 			      enum ieee80211_vht_chanwidth bw,
 			      int mcs, bool ext_nss_bw_capable,
 			      unsigned int max_vht_nss);
+
+#ifndef skb_list_walk_safe
+#define skb_list_walk_safe(first, skb, next_skb)				\
+	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);	\
+	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
+#endif
 
 #define NL80211_EXT_FEATURE_BEACON_PROTECTION -1
 #define NL80211_EXT_FEATURE_PROTECTED_TWT -1
@@ -390,6 +261,61 @@ wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
 	wiphy_rfkill_set_hw_state(wiphy, blocked);
 }
 
+#ifndef NET_DEVICE_PATH_STACK_MAX
+enum net_device_path_type {
+	DEV_PATH_ETHERNET = 0,
+	DEV_PATH_VLAN,
+	DEV_PATH_BRIDGE,
+	DEV_PATH_PPPOE,
+	DEV_PATH_DSA,
+};
+
+struct net_device_path {
+	enum net_device_path_type	type;
+	const struct net_device		*dev;
+	union {
+		struct {
+			u16		id;
+			__be16		proto;
+			u8		h_dest[ETH_ALEN];
+		} encap;
+		struct {
+			enum {
+				DEV_PATH_BR_VLAN_KEEP,
+				DEV_PATH_BR_VLAN_TAG,
+				DEV_PATH_BR_VLAN_UNTAG,
+				DEV_PATH_BR_VLAN_UNTAG_HW,
+			}		vlan_mode;
+			u16		vlan_id;
+			__be16		vlan_proto;
+		} bridge;
+		struct {
+			int port;
+			u16 proto;
+		} dsa;
+	};
+};
+
+#define NET_DEVICE_PATH_STACK_MAX	5
+#define NET_DEVICE_PATH_VLAN_MAX	2
+
+struct net_device_path_stack {
+	int			num_paths;
+	struct net_device_path	path[NET_DEVICE_PATH_STACK_MAX];
+};
+
+struct net_device_path_ctx {
+	const struct net_device *dev;
+	const u8		*daddr;
+
+	int			num_vlans;
+	struct {
+		u16		id;
+		__be16		proto;
+	} vlan[NET_DEVICE_PATH_VLAN_MAX];
+};
+#endif /* NET_DEVICE_PATH_STACK_MAX */
+
 #define NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE -1
 
 static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
@@ -424,6 +350,10 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 
 /* make this code disappear, rfkill moved from rdev to wiphy */
 #define rfkill_blocked(__rkfill) false
+
+#ifndef lockdep_assert
+#define lockdep_assert(x) do {} while (0)
+#endif
 
 #define NL80211_BAND_LC	5
 

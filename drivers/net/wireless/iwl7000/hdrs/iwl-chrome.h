@@ -34,54 +34,74 @@
 #include <linux/if_vlan.h>
 #include "net/fq.h"
 
+
+#ifdef CONFIG_THERMAL
+#include <linux/thermal.h>
+struct backport_thermal_trip {
+	int temperature;
+	int hysteresis;
+	int threshold;
+	enum thermal_trip_type type;
+	u8 flags;
+	void *priv;
+};
+#define thermal_trip backport_thermal_trip
+#endif
+
+struct wiphy;
+struct wiphy_work;
+typedef void (*wiphy_work_func_t)(struct wiphy *, struct wiphy_work *);
+
+struct wiphy_work {
+	struct list_head entry;
+	wiphy_work_func_t func;
+};
+
+static inline void wiphy_work_init(struct wiphy_work *work,
+				   wiphy_work_func_t func)
+{
+	INIT_LIST_HEAD(&work->entry);
+	work->func = func;
+}
+
+struct wiphy_delayed_work {
+	struct wiphy_work work;
+	struct wiphy *wiphy;
+	struct timer_list timer;
+};
+
+#ifndef memset_after
+#define memset_after(obj, v, member)					\
+({									\
+	u8 *__ptr = (u8 *)(obj);					\
+	typeof(v) __val = (v);						\
+	memset(__ptr + offsetofend(typeof(*(obj)), member), __val,	\
+	       sizeof(*(obj)) - offsetofend(typeof(*(obj)), member));	\
+})
+#endif
+
+#ifndef memset_startat
+#define memset_startat(obj, v, member)					\
+({									\
+	u8 *__ptr = (u8 *)(obj);					\
+	typeof(v) __val = (v);						\
+	memset(__ptr + offsetof(typeof(*(obj)), member), __val,		\
+	       sizeof(*(obj)) - offsetof(typeof(*(obj)), member));	\
+})
+#endif
+
 #ifndef DECLARE_FLEX_ARRAY
-/**
- * __DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
- *
- * @TYPE: The type of each flexible array element
- * @NAME: The name of the flexible array member
- *
- * In order to have a flexible array member in a union or alone in a
- * struct, it needs to be wrapped in an anonymous struct with at least 1
- * named member, but that member can be empty.
-+ */
 #define __DECLARE_FLEX_ARRAY(TYPE, NAME)       \
 	struct {			       \
 		struct { } __empty_ ## NAME;   \
 		TYPE NAME[];		       \
 	}
 
-/**
- * DECLARE_FLEX_ARRAY() - Declare a flexible array usable in a union
- *
- * @TYPE: The type of each flexible array element
- * @NAME: The name of the flexible array member
- *
- * In order to have a flexible array member in a union or alone in a
- * struct, it needs to be wrapped in an anonymous struct with at least 1
- * named member, but that member can be empty.
- */
 #define DECLARE_FLEX_ARRAY(TYPE, NAME) \
 	__DECLARE_FLEX_ARRAY(TYPE, NAME)
 #endif
 
 #ifndef __struct_group
-
-/**
- * __struct_group() - Create a mirrored named and anonyomous struct
- *
- * @TAG: The tag name for the named sub-struct (usually empty)
- * @NAME: The identifier name of the mirrored sub-struct
- * @ATTRS: Any struct attributes (usually empty)
- * @MEMBERS: The member declarations for the mirrored structs
- *
- * Used to create an anonymous union of two structs with identical layout
- * and size: one anonymous and one named. The former's members can be used
- * normally without sub-struct naming, and the latter can be used to
- * reason about the start, end, and size of the group of struct members.
- * The named struct can also be explicitly tagged for layer reuse, as well
- * as both having struct attributes appended.
- */
 #define __struct_group(TAG, NAME, ATTRS, MEMBERS...) \
 	union { \
 		struct { MEMBERS } ATTRS; \
@@ -91,19 +111,6 @@
 #endif /* __struct_group */
 
 #ifndef struct_group
-
-/**
- * struct_group() - Wrap a set of declarations in a mirrored struct
- *
- * @NAME: The identifier name of the mirrored sub-struct
- * @MEMBERS: The member declarations for the mirrored structs
- *
- * Used to create an anonymous union of two structs with identical
- * layout and size: one anonymous and one named. The former can be
- * used normally without sub-struct naming, and the latter can be
- * used to reason about the start, end, and size of the group of
- * struct members.
- */
 #define struct_group(NAME, MEMBERS...)	\
 	__struct_group(/* no tag */, NAME, /* no attrs */, MEMBERS)
 
@@ -132,7 +139,6 @@
 
 /* mac80211 & backport - order matters, need this inbetween */
 #include <hdrs/backports.h>
-
 #include <hdrs/net/codel.h>
 #include <hdrs/net/mac80211.h>
 
@@ -144,6 +150,11 @@
 #define __genl_ro_after_init __ro_after_init
 #define netdev_tstats(dev)	dev->tstats
 #define netdev_assign_tstats(dev, e)	dev->tstats = (e);
+#define netdev_set_priv_destructor(_dev, _destructor) \
+	(_dev)->needs_free_netdev = true; \
+	(_dev)->priv_destructor = (_destructor);
+#define netdev_set_def_destructor(_dev) \
+	(_dev)->needs_free_netdev = true;
 
 static inline struct netlink_ext_ack *genl_info_extack(struct genl_info *info)
 {
