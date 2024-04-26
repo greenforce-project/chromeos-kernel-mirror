@@ -27,11 +27,6 @@ static inline bool iwl7000_wiphy_ext_feature_isset(struct wiphy *wiphy,
 #define wiphy_ext_feature_set iwl7000_wiphy_ext_feature_set
 #define wiphy_ext_feature_isset iwl7000_wiphy_ext_feature_isset
 
-int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
-			      const u8 *buf, size_t len,
-			      const u8 *dest, __be16 proto, bool unencrypted,
-			      int link_id, u64 *cookie);
-
 #define NL80211_EXT_FEATURE_AQL -1
 
 #define IEEE80211_DEFAULT_AQL_TXQ_LIMIT_L	5000
@@ -113,15 +108,6 @@ ieee80211_get_he_6ghz_capa(const struct ieee80211_supported_band *sband,
 void ieee80211_mgmt_frame_register(struct wiphy *wiphy,
 				   struct wireless_dev *wdev,
 				   u16 frame_type, bool reg);
-
-static inline int
-bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
-			     const u8 *buf, size_t len,
-			     const u8 *dest, __be16 proto, bool unencrypted)
-{
-	return ieee80211_tx_control_port(wiphy, dev, buf, len, dest, proto,
-					 unencrypted, -1, NULL);
-}
 
 #define kfree_sensitive(p) kzfree(p)
 
@@ -580,18 +566,6 @@ static inline void cfg80211_assoc_failure(struct net_device *dev,
 	else
 		cfg80211_abandon_assoc(dev, data->bss[0]);
 }
-
-#if LINUX_VERSION_IS_GEQ(5,8,0)
-static inline int
-bp_ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
-			     const u8 *buf, size_t len,
-			     const u8 *dest, __be16 proto, bool unencrypted,
-			     u64 *cookie)
-{
-	return ieee80211_tx_control_port(wiphy, dev, buf, len, dest, proto,
-					 unencrypted, -1, cookie);
-}
-#endif /* >= 5.8 */
 
 static inline const struct wiphy_iftype_ext_capab *
 cfg80211_get_iftype_ext_capa(struct wiphy *wiphy, enum nl80211_iftype type)
