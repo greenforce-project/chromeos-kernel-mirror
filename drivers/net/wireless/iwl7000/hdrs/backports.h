@@ -27,26 +27,60 @@ static inline bool iwl7000_wiphy_ext_feature_isset(struct wiphy *wiphy,
 #define wiphy_ext_feature_set iwl7000_wiphy_ext_feature_set
 #define wiphy_ext_feature_isset iwl7000_wiphy_ext_feature_isset
 
-#define netdev_set_priv_destructor(_dev, _destructor) \
-	(_dev)->needs_free_netdev = true; \
-	(_dev)->priv_destructor = (_destructor);
-#define netdev_set_def_destructor(_dev) \
-	(_dev)->needs_free_netdev = true;
-
-#define rb_root_node(root) (root)->rb_root.rb_node
-
-#ifndef ETH_P_PREAUTH
-#define ETH_P_PREAUTH  0x88C7	/* 802.11 Preauthentication */
-#endif
-
 int ieee80211_tx_control_port(struct wiphy *wiphy, struct net_device *dev,
 			      const u8 *buf, size_t len,
 			      const u8 *dest, __be16 proto, bool unencrypted,
 			      int link_id, u64 *cookie);
 
-#ifndef lockdep_assert
-#define lockdep_assert(x) do {} while (0)
+#ifndef CONFIG_LOCKDEP
+/* upstream since 5.11 in this exact same way - calls compile away */
+int lockdep_is_held(const void *);
 #endif
+
+static inline void dev_sw_netstats_tx_add(struct net_device *dev,
+					  unsigned int packets,
+					  unsigned int len)
+{
+	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
+
+	u64_stats_update_begin(&tstats->syncp);
+	tstats->tx_bytes += len;
+	tstats->tx_packets += packets;
+	u64_stats_update_end(&tstats->syncp);
+}
+
+enum rfkill_hard_block_reasons {
+	RFKILL_HARD_BLOCK_SIGNAL        = 1 << 0,
+	RFKILL_HARD_BLOCK_NOT_OWNER     = 1 << 1,
+};
+
+#define wiphy_dereference(w, r) rtnl_dereference(r)
+#define regulatory_set_wiphy_regd_sync(w, r) regulatory_set_wiphy_regd_sync_rtnl(w, r)
+#define lockdep_assert_wiphy(w) ASSERT_RTNL()
+#define cfg80211_register_netdevice(n) register_netdevice(n)
+#define cfg80211_unregister_netdevice(n) unregister_netdevice(n)
+#define cfg80211_sched_scan_stopped_locked(w, r) cfg80211_sched_scan_stopped_rtnl(w, r)
+#define ASSOC_REQ_DISABLE_HE BIT(4)
+static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
+{
+	if (wdev->netdev)
+		unregister_netdevice(wdev->netdev);
+	else
+		cfg80211_unregister_wdev(wdev);
+}
+#define cfg80211_unregister_wdev __iwl7000_cfg80211_unregister_wdev
+
+#define NL80211_EXT_FEATURE_SECURE_LTF -1
+
+/* This will get enum rfkill_hard_block_reasons used below */
+#include <uapi/linux/rfkill.h>
+
+static inline void
+wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
+				 enum rfkill_hard_block_reasons reason)
+{
+	wiphy_rfkill_set_hw_state(wiphy, blocked);
+}
 
 #ifndef NET_DEVICE_PATH_STACK_MAX
 enum net_device_path_type {
@@ -103,120 +137,6 @@ struct net_device_path_ctx {
 };
 #endif /* NET_DEVICE_PATH_STACK_MAX */
 
-#ifndef memset_after
-#define memset_after(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetofend(typeof(*(obj)), member), __val,	\
-	       sizeof(*(obj)) - offsetofend(typeof(*(obj)), member));	\
-})
-#endif
-
-#ifndef memset_startat
-#define memset_startat(obj, v, member)					\
-({									\
-	u8 *__ptr = (u8 *)(obj);					\
-	typeof(v) __val = (v);						\
-	memset(__ptr + offsetof(typeof(*(obj)), member), __val,		\
-	       sizeof(*(obj)) - offsetof(typeof(*(obj)), member));	\
-})
-#endif
-
-#ifndef __BUILD_BUG_ON_NOT_POWER_OF_2
-#define __BUILD_BUG_ON_NOT_POWER_OF_2(...)
-#endif
-
-#ifndef skb_list_walk_safe
-#define skb_list_walk_safe(first, skb, next_skb)				\
-	for ((skb) = (first), (next_skb) = (skb) ? (skb)->next : NULL; (skb);	\
-	     (skb) = (next_skb), (next_skb) = (skb) ? (skb)->next : NULL)
-#endif
-
-#ifdef CONFIG_THERMAL
-#include <linux/thermal.h>
-struct backport_thermal_trip {
-	int temperature;
-	int hysteresis;
-	int threshold;
-	enum thermal_trip_type type;
-	u8 flags;
-	void *priv;
-};
-#define thermal_trip backport_thermal_trip
-#endif
-
-struct wiphy_work;
-typedef void (*wiphy_work_func_t)(struct wiphy *, struct wiphy_work *);
-
-struct wiphy_work {
-	struct list_head entry;
-	wiphy_work_func_t func;
-};
-
-static inline void wiphy_work_init(struct wiphy_work *work,
-				   wiphy_work_func_t func)
-{
-	INIT_LIST_HEAD(&work->entry);
-	work->func = func;
-}
-
-struct wiphy_delayed_work {
-	struct wiphy_work work;
-	struct wiphy *wiphy;
-	struct timer_list timer;
-};
-
-#ifndef CONFIG_LOCKDEP
-/* upstream since 5.11 in this exact same way - calls compile away */
-int lockdep_is_held(const void *);
-#endif
-
-static inline void dev_sw_netstats_tx_add(struct net_device *dev,
-					  unsigned int packets,
-					  unsigned int len)
-{
-	struct pcpu_sw_netstats *tstats = this_cpu_ptr(dev->tstats);
-
-	u64_stats_update_begin(&tstats->syncp);
-	tstats->tx_bytes += len;
-	tstats->tx_packets += packets;
-	u64_stats_update_end(&tstats->syncp);
-}
-
-enum rfkill_hard_block_reasons {
-	RFKILL_HARD_BLOCK_SIGNAL        = 1 << 0,
-	RFKILL_HARD_BLOCK_NOT_OWNER     = 1 << 1,
-};
-
-#define wiphy_dereference(w, r) rtnl_dereference(r)
-#define regulatory_set_wiphy_regd_sync(w, r) regulatory_set_wiphy_regd_sync_rtnl(w, r)
-#define lockdep_assert_wiphy(w) ASSERT_RTNL()
-#define cfg80211_register_netdevice(n) register_netdevice(n)
-#define cfg80211_unregister_netdevice(n) unregister_netdevice(n)
-#define cfg80211_sched_scan_stopped_locked(w, r) cfg80211_sched_scan_stopped_rtnl(w, r)
-#define ASSOC_REQ_DISABLE_HE BIT(4)
-static inline void __iwl7000_cfg80211_unregister_wdev(struct wireless_dev *wdev)
-{
-	if (wdev->netdev)
-		unregister_netdevice(wdev->netdev);
-	else
-		cfg80211_unregister_wdev(wdev);
-}
-#define cfg80211_unregister_wdev __iwl7000_cfg80211_unregister_wdev
-
-#define NL80211_EXT_FEATURE_SECURE_LTF -1
-
-/* This will get enum rfkill_hard_block_reasons used below */
-#include <uapi/linux/rfkill.h>
-
-static inline void
-wiphy_rfkill_set_hw_state_reason(struct wiphy *wiphy, bool blocked,
-				 enum rfkill_hard_block_reasons reason)
-{
-	wiphy_rfkill_set_hw_state(wiphy, blocked);
-}
-
 #define NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE -1
 
 static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
@@ -251,6 +171,10 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 
 /* make this code disappear, rfkill moved from rdev to wiphy */
 #define rfkill_blocked(__rkfill) false
+
+#ifndef lockdep_assert
+#define lockdep_assert(x) do {} while (0)
+#endif
 
 #define NL80211_BAND_LC	5
 
