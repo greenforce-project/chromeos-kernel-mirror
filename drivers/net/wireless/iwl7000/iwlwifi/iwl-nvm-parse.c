@@ -403,7 +403,6 @@ static int iwl_init_channel_map(struct iwl_trans *trans,
 	u32 ch_flags;
 	int num_of_ch;
 	const u16 *nvm_chan;
-	int band;
 
 	if (cfg->uhb_supported) {
 		num_of_ch = IWL_NVM_NUM_CHANNELS_UHB;
@@ -417,7 +416,8 @@ static int iwl_init_channel_map(struct iwl_trans *trans,
 	}
 
 	for (ch_idx = 0; ch_idx < num_of_ch; ch_idx++) {
-		band = iwl_nl80211_band_from_channel_idx(ch_idx);
+		int band =
+			iwl_nl80211_band_from_channel_idx(ch_idx);
 		if (band == -1)
 			continue;
 
@@ -1763,8 +1763,8 @@ iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
 	reg_capa = iwl_get_reg_capa(cap, resp_ver);
 
 	for (ch_idx = 0; ch_idx < num_of_ch; ch_idx++) {
-		int band = iwl_nl80211_band_from_channel_idx(ch_idx);
-
+		int band =
+			iwl_nl80211_band_from_channel_idx(ch_idx);
 		if (band == -1)
 			continue;
 
