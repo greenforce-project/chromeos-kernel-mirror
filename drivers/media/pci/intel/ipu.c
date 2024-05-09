@@ -640,6 +640,9 @@ static void ipu_pci_remove(struct pci_dev *pdev)
 	isp->pkg_dir_dma_addr = 0;
 	isp->pkg_dir_size = 0;
 
+	ipu_mmu_cleanup(isp->psys->mmu);
+	ipu_mmu_cleanup(isp->isys->mmu);
+
 	ipu_bus_del_devices(pdev);
 
 	pm_runtime_forbid(&pdev->dev);
@@ -651,9 +654,6 @@ static void ipu_pci_remove(struct pci_dev *pdev)
 	ipu_buttress_exit(isp);
 
 	release_firmware(isp->cpd_fw);
-
-	ipu_mmu_cleanup(isp->psys->mmu);
-	ipu_mmu_cleanup(isp->isys->mmu);
 }
 
 static void ipu_pci_reset_prepare(struct pci_dev *pdev)
