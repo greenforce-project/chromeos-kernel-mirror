@@ -12,6 +12,7 @@
 #define ieee80211_calc_rx_airtime __iwl7000_ieee80211_calc_rx_airtime
 #define ieee80211_calc_tx_airtime __iwl7000_ieee80211_calc_tx_airtime
 #define ieee80211_get_vht_max_nss __iwl7000_ieee80211_get_vht_max_nss
+#define mul_u64_u64_div_u64 __iwl7000_mul_u64_u64_div_u64
 #define wiphy_work_flush __iwl7000_wiphy_work_flush
 #define wiphy_delayed_work_flush __iwl7000_wiphy_delayed_work_flush
 #define wiphy_work_queue __iwl7000_wiphy_work_queue

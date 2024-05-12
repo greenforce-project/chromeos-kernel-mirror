@@ -109,6 +109,8 @@ void ieee80211_mgmt_frame_register(struct wiphy *wiphy,
 				   struct wireless_dev *wdev,
 				   u16 frame_type, bool reg);
 
+#include <linux/math64.h>
+
 #define kfree_sensitive(p) kzfree(p)
 
 #include <linux/thermal.h>
@@ -126,6 +128,8 @@ static inline int thermal_zone_device_enable(struct thermal_zone_device *tz)
 #define NL80211_CHAN_WIDTH_4 10
 #define NL80211_CHAN_WIDTH_8 11
 #define NL80211_CHAN_WIDTH_16 12
+
+u64 mul_u64_u64_div_u64(u64 a, u64 b, u64 c);
 
 #define WIPHY_FLAG_SPLIT_SCAN_6GHZ 0
 #define NL80211_SCAN_FLAG_COLOCATED_6GHZ 0
