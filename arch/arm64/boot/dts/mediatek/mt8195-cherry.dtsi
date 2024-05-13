@@ -141,9 +141,21 @@
 			no-map;
 		};
 
+		adsp_mem_reserved: adsp_mem_region {
+			compatible = "mediatek,adsp-reserved-memory";
+			no-map;
+			reg = <0 0x60000000 0 0xD80000>;
+		};
+
 		snd_dma_mem_reserved: snd_dma_mem_region {
 			compatible = "shared-dma-pool";
-			reg = <0 0x60D80000 0 0x0100000>;
+			reg = <0 0x60D80000 0 0x100000>;
+			no-map;
+		};
+
+		adsp_dma_mem_reserved: adsp_dma_mem_region {
+			compatible = "shared-dma-pool";
+			reg = <0 0x60E80000 0 0x280000>;
 			no-map;
 		};
 	};
@@ -293,6 +305,12 @@
 		enable-active-high;
 		regulator-always-on;
 	};
+};
+
+&adsp {
+	status = "okay";
+
+	memory-region = <&adsp_dma_mem_reserved>, <&adsp_mem_reserved>;
 };
 
 &afe {
