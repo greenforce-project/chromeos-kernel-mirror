@@ -1658,7 +1658,6 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 				     enum sta_link_apply_mode mode,
 				     struct station_parameters *params)
 {
-	int ret = 0;
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
 	u32 link_id = 0;
@@ -1685,6 +1684,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 		return -EINVAL;
 
 	if (params->sta_modify_mask & STATION_PARAM_APPLY_STA_TXPOWER) {
+		int ret;
+
 		link_sta->pub->txpwr.type = params->txpwr.type;
 		if (params->txpwr.type == NL80211_TX_POWER_LIMITED)
 			link_sta->pub->txpwr.power = params->txpwr.power;
@@ -1729,7 +1730,7 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 
 	ieee80211_sta_init_nss(link_sta);
 
-	return ret;
+	return 0;
 }
 
 static int sta_apply_parameters(struct ieee80211_local *local,
