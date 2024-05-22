@@ -943,6 +943,9 @@ static int sd_power_on(struct realtek_pci_sdmmc *host, unsigned char power_mode)
 	if (err < 0)
 		return err;
 
+	/* send at least 74 clocks */
+	rtsx_pci_write_register(pcr, SD_BUS_STAT, SD_CLK_TOGGLE_EN, SD_CLK_TOGGLE_EN);
+
 	if (PCI_PID(pcr) == PID_5261) {
 		/*
 		 * If test mode is set switch to SD Express mandatorily,
@@ -966,9 +969,6 @@ static int sd_power_on(struct realtek_pci_sdmmc *host, unsigned char power_mode)
 			mmc->caps2 &= ~(MMC_CAP2_SD_EXP | MMC_CAP2_SD_EXP_1_2V);
 		}
 	}
-
-	/* send at least 74 clocks */
-	rtsx_pci_write_register(pcr, SD_BUS_STAT, SD_CLK_TOGGLE_EN, SD_CLK_TOGGLE_EN);
 
 finish:
 	host->prev_power_state = power_mode;
