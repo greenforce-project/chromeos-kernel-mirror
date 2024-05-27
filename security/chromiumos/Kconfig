@@ -41,14 +41,6 @@ config ALT_SYSCALL_CHROMIUMOS_LEGACY_API
        default y
        depends on ALT_SYSCALL_CHROMIUMOS && ARM
 
-config SECURITY_CHROMIUMOS_READONLY_PROC_SELF_MEM
-	bool "Force /proc/<pid>/mem paths to be read-only"
-	default y
-	help
-	  When enabled, attempts to open /proc/self/mem for write access
-	  will always fail.  Write access to this file allows bypassing
-	  of memory map permissions (such as modifying read-only code).
-
 config CC_HAS_AUTO_VAR_INIT
        def_bool $(cc-option,-ftrivial-auto-var-init=pattern)
 
