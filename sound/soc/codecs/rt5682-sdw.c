@@ -404,21 +404,6 @@ static int rt5682_io_init(struct device *dev, struct sdw_slave *slave)
 
 	pm_runtime_get_noresume(&slave->dev);
 
-	while (loop > 0) {
-		regmap_read(rt5682->regmap, RT5682_DEVICE_ID, &val);
-		if (val == DEVICE_ID)
-			break;
-		dev_warn(dev, "Device with ID register %x is not rt5682\n", val);
-		usleep_range(30000, 30005);
-		loop--;
-	}
-
-	if (val != DEVICE_ID) {
-		dev_err(dev, "Device with ID register %x is not rt5682\n", val);
-		ret = -ENODEV;
-		goto err_nodev;
-	}
-
 	if (rt5682->first_hw_init) {
 		regcache_cache_only(rt5682->regmap, false);
 		regcache_cache_bypass(rt5682->regmap, true);
@@ -432,9 +417,11 @@ static int rt5682_io_init(struct device *dev, struct sdw_slave *slave)
 		usleep_range(30000, 30005);
 		loop--;
 	}
+
 	if (val != DEVICE_ID) {
 		dev_err(dev, "Device with ID register %x is not rt5682\n", val);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto err_nodev;
 	}
 
 	rt5682_calibrate(rt5682);
