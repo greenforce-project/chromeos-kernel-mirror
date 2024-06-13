@@ -65,3 +65,4 @@ config IWL7000_VENDOR_CMDS
 
 	  This option mostly exists for non-upstream tagging, so best
 	  leave it set to Y.
+
