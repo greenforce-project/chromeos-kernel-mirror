@@ -1272,7 +1272,7 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 
 int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
 {
-	bool fast_resume;
+	bool fast_resume = false;
 	int ret;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -1298,8 +1298,10 @@ int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
 		mvm->nvm_data = NULL;
 	}
 
+#ifdef CONFIG_PM
 	/* fast_resume will be cleared by iwl_mvm_fast_resume */
 	fast_resume = mvm->fast_resume;
+
 	if (fast_resume) {
 		ret = iwl_mvm_fast_resume(mvm);
 		if (ret) {
@@ -1318,6 +1320,7 @@ int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
 			set_bit(IWL_MVM_STATUS_FIRMWARE_RUNNING, &mvm->status);
 		}
 	}
+#endif /* CONFIG_PM */
 
 	if (test_bit(IWL_MVM_STATUS_HW_RESTART_REQUESTED, &mvm->status)) {
 		/*
