@@ -201,6 +201,17 @@ static inline u64 skb_get_kcov_handle(struct sk_buff *skb)
 # define tracepoint_enabled(tracepoint) false
 #endif
 
+#define ieee80211_he_obss_pd LINUX_BACKPORT(ieee80211_he_obss_pd)
+struct ieee80211_he_obss_pd {
+	bool enable;
+	u8 sr_ctrl;
+	u8 non_srg_max_offset;
+	u8 min_offset;
+	u8 max_offset;
+	u8 bss_color_bitmap[8];
+	u8 partial_bssid_bitmap[8];
+};
+
 #ifndef CONFIG_LOCKDEP
 /* upstream since 5.11 in this exact same way - calls compile away */
 int lockdep_is_held(const void *);
