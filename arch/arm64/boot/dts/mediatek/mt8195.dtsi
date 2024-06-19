@@ -1382,6 +1382,9 @@
 			svs_calibration: calib@580 {
 				reg = <0x580 0x64>;
 			};
+			socinfo-data1@7a0 {
+				reg = <0x7a0 0x4>;
+			};
 		};
 
 		u3phy2: t-phy@11c40000 {
@@ -3646,24 +3649,6 @@
 		};
 	};
 
-	reserved_memory: reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		adsp_mem_reserved: adsp_mem_region {
-			compatible = "mediatek,adsp-reserved-memory";
-			no-map;
-			reg = <0 0x60000000 0 0xD80000>;
-		};
-
-		adsp_dma_mem_reserved: adsp_dma_mem_region {
-			compatible = "shared-dma-pool";
-			reg = <0 0x60E80000 0 0x0280000>;
-			no-map;
-		};
-	};
-
 	sound: mt8195-sound {
 		mediatek,platform = <&afe>;
 		status = "disabled";
@@ -3844,8 +3829,6 @@
 			 "mainpll_d7_d2",
 			 "scp_adsp_audiodsp",
 			 "audio_h";
-		memory-region = <&adsp_dma_mem_reserved>,
-					<&adsp_mem_reserved>;
 		power-domains = <&spm MT8195_POWER_DOMAIN_ADSP>;
 		mbox-names = "mbox0", "mbox1";
 		mboxes = <&adsp_mailbox0>, <&adsp_mailbox1>;
