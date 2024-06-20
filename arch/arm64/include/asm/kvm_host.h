@@ -81,8 +81,13 @@ struct kvm_arch {
 	/* Interrupt controller */
 	struct vgic_dist	vgic;
 
+	/* Timers */
+	struct arch_timer_vm_data timer_data;
+
 	/* Mandated version of PSCI */
 	u32 psci_version;
+
+	bool vm_counter_offset;
 };
 
 #define KVM_NR_MEM_OBJS     40
@@ -161,6 +166,12 @@ enum vcpu_sysreg {
 	APDBKEYHI_EL1,
 	APGAKEYLO_EL1,
 	APGAKEYHI_EL1,
+
+	CNTVOFF_EL2,
+	CNTV_CVAL_EL0,
+	CNTV_CTL_EL0,
+	CNTP_CVAL_EL0,
+	CNTP_CTL_EL0,
 
 	/* 32bit specific registers. Keep them at the end of the range */
 	DACR32_EL2,	/* Domain Access Control Register */
@@ -486,6 +497,9 @@ int handle_exit(struct kvm_vcpu *vcpu, struct kvm_run *run,
 void handle_exit_early(struct kvm_vcpu *vcpu, struct kvm_run *run,
 		       int exception_index);
 
+bool lock_all_vcpus(struct kvm *kvm);
+void unlock_all_vcpus(struct kvm *kvm);
+
 int kvm_perf_init(void);
 int kvm_perf_teardown(void);
 
@@ -592,6 +606,9 @@ int kvm_arm_vcpu_arch_has_attr(struct kvm_vcpu *vcpu,
 			       struct kvm_device_attr *attr);
 
 static inline void __cpu_init_stage2(void) {}
+
+int kvm_vm_ioctl_set_counter_offset(struct kvm *kvm,
+				   struct kvm_arm_counter_offset *offset);
 
 /* Guest/host FPSIMD coordination helpers */
 int kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
