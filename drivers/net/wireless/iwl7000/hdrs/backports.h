@@ -352,6 +352,14 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 /* make this code disappear, rfkill moved from rdev to wiphy */
 #define rfkill_blocked(__rkfill) false
 
+#ifndef PTR_IF
+#define PTR_IF(cond, ptr)       ((cond) ? (ptr) : NULL)
+#endif
+
+#ifndef pm_sleep_ptr
+#define pm_sleep_ptr(_ptr) PTR_IF(IS_ENABLED(CONFIG_PM_SLEEP), (_ptr))
+#endif
+
 #ifndef lockdep_assert
 #define lockdep_assert(x) do {} while (0)
 #endif
