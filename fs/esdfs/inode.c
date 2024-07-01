@@ -298,9 +298,9 @@ static int esdfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	}
 
 	rd.old_dir         = lower_old_dir_dentry->d_inode;
-	rd.old_dentry      = lower_old_dir_dentry;
+	rd.old_dentry      = lower_old_dentry;
 	rd.new_dir         = lower_new_dir_dentry->d_inode;
-	rd.new_dentry      = lower_new_dir_dentry;
+	rd.new_dentry      = lower_new_dentry;
 	rd.delegated_inode = NULL;
 	rd.flags           = flags;
 	err = vfs_rename(&rd);
