@@ -20,7 +20,7 @@
 #include "mtk_common.h"
 #include "remoteproc_internal.h"
 
-#define MAX_CODE_SIZE 0x500000
+#define MAX_CODE_SIZE 0x800000
 #define SECTION_NAME_IPI_BUFFER ".ipi_buffer"
 
 /**
