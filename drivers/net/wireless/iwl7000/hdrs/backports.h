@@ -508,6 +508,14 @@ void cfg80211_mgmt_tx_status_ext(struct wireless_dev *wdev,
 				status->ack, gfp);
 }
 
+struct cfg80211_assoc_link {
+	struct cfg80211_bss *bss;
+	const u8 *elems;
+	size_t elems_len;
+	bool disabled;
+	int error;
+};
+
 #ifdef CONFIG_THERMAL
 static inline
 int for_each_thermal_trip(struct thermal_zone_device *tz,
@@ -1077,3 +1085,19 @@ enum ieee80211_ap_reg_power {
 struct cfg80211_iface_usage {
 	u32 types_mask;
 };
+
+
+struct cfg80211_mlo_reconf_done_data {
+	const u8 *buf;
+	size_t len;
+	u16 added_links;
+	struct {
+		struct cfg80211_bss *bss;
+	} links[IEEE80211_MLD_MAX_NUM_LINKS];
+};
+
+static inline void
+cfg80211_mlo_reconf_add_done(struct net_device *dev,
+			     struct cfg80211_mlo_reconf_done_data *data)
+{
+}
