@@ -312,6 +312,7 @@ struct kvm_vcpu {
 	u64 suspend_time_ns;
 	spinlock_t suspend_time_ns_lock;
 #endif
+	bool suspended;
 
 #ifdef CONFIG_HAVE_KVM_CPU_RELAX_INTERCEPT
 	/*
@@ -525,6 +526,8 @@ struct kvm {
 	u64 base_offs_boot_ns;
 #endif
 	bool vm_bugged;
+	u64 last_suspend_duration;
+	u64 suspended_time;
 };
 
 #define kvm_err(fmt, ...) \
