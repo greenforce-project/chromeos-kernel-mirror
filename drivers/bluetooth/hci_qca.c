@@ -220,7 +220,6 @@ struct qca_serdev {
 	struct hci_uart	 serdev_hu;
 	struct gpio_desc *bt_en;
 	struct gpio_desc *sw_ctrl;
-	struct gpio_desc *wlan_en;
 	struct clk	 *susclk;
 	enum qca_btsoc_type btsoc_type;
 	struct qca_power *bt_power;
@@ -1739,25 +1738,12 @@ static int qca_regulator_init(struct hci_uart *hu)
 	if (qcadev->bt_en) {
 		gpiod_set_value_cansleep(qcadev->bt_en, 0);
 		msleep(50);
-	}
-
-	if (!qcadev->wlan_en || (qcadev->wlan_en && gpiod_get_value_cansleep(qcadev->wlan_en)))
 		gpiod_set_value_cansleep(qcadev->bt_en, 1);
-
-	if (qcadev->wlan_en && !gpiod_get_value_cansleep(qcadev->wlan_en)) {
-		gpiod_set_value_cansleep(qcadev->bt_en, 0);
-		msleep(100);
-		gpiod_set_value_cansleep(qcadev->bt_en, 1);
-	}
-
-	if (!gpiod_get_value_cansleep(qcadev->bt_en))
-		gpiod_set_value_cansleep(qcadev->bt_en, 1);
-
-	msleep(50);
-
-	if (qcadev->sw_ctrl) {
-		sw_ctrl_state = gpiod_get_value_cansleep(qcadev->sw_ctrl);
-		bt_dev_dbg(hu->hdev, "SW_CTRL is %d", sw_ctrl_state);
+		msleep(50);
+		if (qcadev->sw_ctrl) {
+			sw_ctrl_state = gpiod_get_value_cansleep(qcadev->sw_ctrl);
+			bt_dev_dbg(hu->hdev, "SW_CTRL is %d", sw_ctrl_state);
+		}
 	}
 
 	qca_set_speed(hu, QCA_INIT_SPEED);
@@ -2163,8 +2149,8 @@ static void qca_power_shutdown(struct hci_uart *hu)
 	case QCA_WCN6750:
 	case QCA_WCN6855:
 		gpiod_set_value_cansleep(qcadev->bt_en, 0);
-		qca_regulator_disable(qcadev);
 		msleep(100);
+		qca_regulator_disable(qcadev);
 		if (qcadev->sw_ctrl) {
 			sw_ctrl_state = gpiod_get_value_cansleep(qcadev->sw_ctrl);
 			bt_dev_dbg(hu->hdev, "SW_CTRL is %d", sw_ctrl_state);
@@ -2328,10 +2314,6 @@ static int qca_serdev_probe(struct serdev_device *serdev)
 
 		qcadev->bt_power->vregs_on = false;
 
-		qcadev->wlan_en = devm_gpiod_get_optional(&serdev->dev, "wlan", GPIOD_ASIS);
-		if (!qcadev->wlan_en && data->soc_type == QCA_WCN6750)
-			dev_err(&serdev->dev, "failed to acquire WL_EN gpio");
-
 		qcadev->bt_en = devm_gpiod_get_optional(&serdev->dev, "enable",
 					       GPIOD_OUT_LOW);
 		if (IS_ERR(qcadev->bt_en) &&
@@ -2456,15 +2438,27 @@ static void qca_serdev_shutdown(struct device *dev)
 	struct qca_serdev *qcadev = serdev_device_get_drvdata(serdev);
 	struct hci_uart *hu = &qcadev->serdev_hu;
 	struct hci_dev *hdev = hu->hdev;
-	struct qca_data *qca = hu->priv;
 	const u8 ibs_wake_cmd[] = { 0xFD };
 	const u8 edl_reset_soc_cmd[] = { 0x01, 0x00, 0xFC, 0x01, 0x05 };
 
 	if (qcadev->btsoc_type == QCA_QCA6390) {
-		if (test_bit(QCA_BT_OFF, &qca->flags) ||
-		    !test_bit(HCI_RUNNING, &hdev->flags))
+		/* The purpose of sending the VSC is to reset SOC into a initial
+		 * state and the state will ensure next hdev->setup() success.
+		 * if HCI_QUIRK_NON_PERSISTENT_SETUP is set, it means that
+		 * hdev->setup() can do its job regardless of SoC state, so
+		 * don't need to send the VSC.
+		 * if HCI_SETUP is set, it means that hdev->setup() was never
+		 * invoked and the SOC is already in the initial state, so
+		 * don't also need to send the VSC.
+		 */
+		if (test_bit(HCI_QUIRK_NON_PERSISTENT_SETUP, &hdev->quirks) ||
+		    hci_dev_test_flag(hdev, HCI_SETUP))
 			return;
 
+		/* The serdev must be in open state when conrol logic arrives
+		 * here, so also fix the use-after-free issue caused by that
+		 * the serdev is flushed or wrote after it is closed.
+		 */
 		serdev_device_write_flush(serdev);
 		ret = serdev_device_write_buf(serdev, ibs_wake_cmd,
 					      sizeof(ibs_wake_cmd));

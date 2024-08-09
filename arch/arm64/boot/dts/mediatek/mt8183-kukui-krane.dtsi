@@ -441,8 +441,6 @@
 };
 
 &seninf {
-	status = "okay";
-
 	ports {
 		port@0 {
 			reg = <0>;

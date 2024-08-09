@@ -64,6 +64,14 @@
 	};
 };
 
+&pcie0 {
+	status = "okay";
+};
+
+&pciephy {
+	status = "okay";
+};
+
 &pio_default{
 	low_power_pu_pd_pins {
 		pinmux = <PINMUX_GPIO8__FUNC_GPIO8>,
@@ -117,7 +125,6 @@
 &sound {
 	compatible = "mediatek,mt8195_mt6359_max98390_rt5682";
 	model = "m8195_m98390_5682s";
-	mediatek,dptx-codec = <&dp_tx>;
 };
 
 &audio_codec {

@@ -1161,11 +1161,6 @@ struct vma_prepare {
 };
 
 #ifdef CONFIG_64BIT
-/* VM is sealed, in vm_flags */
-#define VM_SEALED	_BITUL(63)
-#endif
-
-#ifdef CONFIG_64BIT
 static inline int can_do_mseal(unsigned long flags)
 {
 	if (flags)

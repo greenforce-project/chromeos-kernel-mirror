@@ -2078,10 +2078,8 @@ static int anx7625_setup_dsi_device(struct anx7625_data *ctx)
 	};
 
 	host = of_find_mipi_dsi_host_by_node(ctx->pdata.mipi_host_node);
-	if (!host) {
-		DRM_DEV_ERROR(dev, "fail to find dsi host.\n");
-		return -EPROBE_DEFER;
-	}
+	if (!host)
+		return dev_err_probe(dev, -EPROBE_DEFER, "fail to find dsi host.\n");
 
 	dsi = devm_mipi_dsi_device_register_full(dev, host, &info);
 	if (IS_ERR(dsi)) {
@@ -2483,15 +2481,22 @@ static void anx7625_bridge_atomic_disable(struct drm_bridge *bridge,
 	mutex_unlock(&ctx->aux_lock);
 }
 
+static void
+anx7625_audio_update_connector_status(struct anx7625_data *ctx,
+				      enum drm_connector_status status);
+
 static enum drm_connector_status
 anx7625_bridge_detect(struct drm_bridge *bridge)
 {
 	struct anx7625_data *ctx = bridge_to_anx7625(bridge);
 	struct device *dev = ctx->dev;
+	enum drm_connector_status status;
 
 	DRM_DEV_DEBUG_DRIVER(dev, "drm bridge detect\n");
 
-	return anx7625_sink_detect(ctx);
+	status = anx7625_sink_detect(ctx);
+	anx7625_audio_update_connector_status(ctx, status);
+	return status;
 }
 
 static struct edid *anx7625_bridge_get_edid(struct drm_bridge *bridge,
@@ -2630,6 +2635,17 @@ static void anx7625_typec_two_ports_update(struct anx7625_data *ctx)
 		anx7625_set_crosspoint_switch(ctx, TYPEC_ORIENTATION_REVERSE);
 }
 
+static bool _anx7625_typec_is_dp_connected(struct anx7625_data *ctx)
+{
+	int i;
+
+	for (i = 0; i < ctx->num_typec_switches; i++)
+		if (ctx->typec_ports[i].dp_connected)
+			return true;
+
+	return false;
+}
+
 static int anx7625_typec_mux_set(struct typec_mux_dev *mux,
 				 struct typec_mux_state *state)
 {
@@ -2638,24 +2654,23 @@ static int anx7625_typec_mux_set(struct typec_mux_dev *mux,
 	struct device *dev = ctx->dev;
 	bool new_dp_connected, old_dp_connected;
 
-	if (ctx->num_typec_switches == 1)
-		return 0;
+	old_dp_connected = _anx7625_typec_is_dp_connected(ctx);
 
-	old_dp_connected = ctx->typec_ports[0].dp_connected || ctx->typec_ports[1].dp_connected;
-
-	dev_dbg(dev, "mux_set dp_connected: c0=%d, c1=%d\n",
-		ctx->typec_ports[0].dp_connected, ctx->typec_ports[1].dp_connected);
-
-	data->dp_connected = (state->alt && state->alt->svid == USB_TYPEC_DP_SID &&
+	data->dp_connected = (state->alt &&
+			      state->alt->svid == USB_TYPEC_DP_SID &&
 			      state->alt->mode == USB_TYPEC_DP_MODE);
 
-	new_dp_connected = ctx->typec_ports[0].dp_connected || ctx->typec_ports[1].dp_connected;
+	new_dp_connected = _anx7625_typec_is_dp_connected(ctx);
+
+	dev_dbg(dev, "mux_set old_dp_connected=%d, new_dp_connected=%d\n",
+		old_dp_connected, new_dp_connected);
 
 	/* dp on, power on first */
 	if (!old_dp_connected && new_dp_connected)
 		pm_runtime_get_sync(dev);
 
-	anx7625_typec_two_ports_update(ctx);
+	if (ctx->num_typec_switches == 2)
+		anx7625_typec_two_ports_update(ctx);
 
 	/* dp off, power off last */
 	if (old_dp_connected && !new_dp_connected)
