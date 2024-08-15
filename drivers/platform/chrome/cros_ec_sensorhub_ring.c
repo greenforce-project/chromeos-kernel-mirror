@@ -32,31 +32,6 @@
 /* To measure by how much the filter is overshooting, if it happens. */
 #define FUTURE_TS_ANALYTICS_COUNT_MAX 100
 
-#if IS_ENABLED(CONFIG_IIO_CROS_EC_SENSORS_RING)
-/*
- * To be compliant with existing code, device buffer is only for
- * triggered samples.
- */
-static inline int
-cros_sensorhub_send_sample(struct cros_ec_sensorhub *sensorhub,
-			   struct cros_ec_sensors_ring_sample *sample)
-{
-	cros_ec_sensorhub_push_data_cb_t cb;
-	int id = sample->sensor_id;
-	struct iio_dev *indio_dev;
-
-	if (id >= sensorhub->sensor_num)
-		return -EINVAL;
-
-	cb = sensorhub->push_data[sensorhub->sensor_num].push_data_cb;
-
-	indio_dev = sensorhub->push_data[sensorhub->sensor_num].indio_dev;
-	if (!indio_dev)
-		return 0;
-
-	return cb(indio_dev, (s16 *)sample, 0);
-}
-#else
 static inline int
 cros_sensorhub_send_sample(struct cros_ec_sensorhub *sensorhub,
 			   struct cros_ec_sensors_ring_sample *sample)
@@ -76,7 +51,6 @@ cros_sensorhub_send_sample(struct cros_ec_sensorhub *sensorhub,
 
 	return cb(indio_dev, sample->vector, sample->timestamp);
 }
-#endif
 
 /**
  * cros_ec_sensorhub_register_push_data() - register the callback to the hub.
