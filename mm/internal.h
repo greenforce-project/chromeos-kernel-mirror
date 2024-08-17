@@ -1192,6 +1192,8 @@ static inline bool can_modify_vma(struct vm_area_struct *vma)
 	return true;
 }
 
+bool can_modify_vma_madv(struct vm_area_struct *vma, int behavior);
+
 #else
 static inline int can_do_mseal(unsigned long flags)
 {
@@ -1211,6 +1213,11 @@ static inline bool can_modify_mm_madv(struct mm_struct *mm, unsigned long start,
 }
 
 static inline bool can_modify_vma(struct vm_area_struct *vma)
+{
+	return true;
+}
+
+static inline bool can_modify_vma_madv(struct vm_area_struct *vma, int behavior)
 {
 	return true;
 }
