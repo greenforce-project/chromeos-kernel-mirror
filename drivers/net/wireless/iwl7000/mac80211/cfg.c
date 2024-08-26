@@ -162,6 +162,24 @@ static struct wireless_dev *ieee80211_add_iface(struct wiphy *wiphy,
 		}
 	}
 
+	/* Let the driver know that an interface is going to be added.
+	 * Indicate so only for interface types that will be added to the
+	 * driver.
+	 */
+	switch (type) {
+	case NL80211_IFTYPE_AP_VLAN:
+		break;
+	case NL80211_IFTYPE_MONITOR:
+		if (!ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF) ||
+		    !(params->flags & MONITOR_FLAG_ACTIVE))
+			break;
+		fallthrough;
+	default:
+		drv_prep_add_interface(local,
+				       ieee80211_vif_type_p2p(&sdata->vif));
+		break;
+	}
+
 	return wdev;
 }
 
@@ -713,9 +731,6 @@ static int ieee80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 		break;
 	}
 
-	params.key = key->conf.key;
-	params.key_len = key->conf.keylen;
-
 	callback(cookie, &params);
 	err = 0;
 
@@ -1225,7 +1240,10 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		if (old)
 			kfree_rcu(old, rcu_head);
 		RCU_INIT_POINTER(link->u.ap.beacon, NULL);
-		sdata->u.ap.active = false;
+
+		if (ieee80211_num_beaconing_links(sdata) == 0)
+			sdata->u.ap.active = false;
+
 		goto error;
 	}
 
@@ -1335,11 +1353,12 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	list_for_each_entry(vlan, &sdata->u.ap.vlans, u.vlan.list)
 		netif_carrier_off(vlan->dev);
 
-	if (ieee80211_num_beaconing_links(sdata) <= 1)
+	if (ieee80211_num_beaconing_links(sdata) <= 1) {
 		netif_carrier_off(dev);
+		sdata->u.ap.active = false;
+	}
 
 	/* remove beacon and probe response */
-	sdata->u.ap.active = false;
 	RCU_INIT_POINTER(link->u.ap.beacon, NULL);
 	RCU_INIT_POINTER(link->u.ap.probe_resp, NULL);
 	RCU_INIT_POINTER(link->u.ap.fils_discovery, NULL);
@@ -2654,8 +2673,9 @@ static int ieee80211_set_mcast_rate(struct wiphy *wiphy, struct net_device *dev,
 	memcpy(sdata->vif.bss_conf.mcast_rate, rate,
 	       sizeof(int) * NUM_NL80211_BANDS);
 
-	ieee80211_link_info_change_notify(sdata, &sdata->deflink,
-					  BSS_CHANGED_MCAST_RATE);
+	if (ieee80211_sdata_running(sdata))
+		ieee80211_link_info_change_notify(sdata, &sdata->deflink,
+						  BSS_CHANGED_MCAST_RATE);
 
 	return 0;
 }
@@ -4207,32 +4227,19 @@ void ieee80211_color_collision_detection_work(struct work_struct *work)
 	struct ieee80211_sub_if_data *sdata = link->sdata;
 }
 
-void ieee80211_color_change_finish(struct ieee80211_vif *vif)
+void ieee80211_color_change_finish(struct ieee80211_vif *vif, u8 link_id)
 {
 }
+
+
 EXPORT_SYMBOL_GPL(ieee80211_color_change_finish);
 
-void
-ieee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
-				      u64 color_bitmap)
+void ieee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
+					   u64 color_bitmap, u8 link_id)
 {
-	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
-	struct ieee80211_link_data *link = &sdata->deflink;
-
-	if (sdata->vif.bss_conf.color_change_active || sdata->vif.bss_conf.csa_active)
-		return;
-
-	if (delayed_work_pending(&link->color_collision_detect_work))
-		return;
-
-	link->color_bitmap = color_bitmap;
-	/* queue the color collision detection event every 500 ms in order to
-	 * avoid sending too much netlink messages to userspace.
-	 */
-	ieee80211_queue_delayed_work(&sdata->local->hw,
-				     &link->color_collision_detect_work,
-				     msecs_to_jiffies(500));
 }
+
+
 EXPORT_SYMBOL_GPL(ieee80211_obss_color_collision_notify);
 
 const struct cfg80211_ops mac80211_config_ops = {
