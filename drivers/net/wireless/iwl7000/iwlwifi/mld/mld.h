@@ -20,6 +20,7 @@
 #include "fw/api/mac.h"
 #include "fw/api/phy-ctxt.h"
 #include "fw/api/datapath.h"
+#include "fw/api/rx.h"
 #include "fw/dbg.h"
 
 #include "notif.h"
