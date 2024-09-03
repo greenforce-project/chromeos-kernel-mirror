@@ -13,7 +13,7 @@
 #include <dt-bindings/interconnect/mtk,emi.h>
 
 #if IS_ENABLED(CONFIG_MTK_DVFSRC)
-#include "internal.h"
+#include <soc/mediatek/internal.h>
 #include <trace/events/mtk_qos_trace.h>
 #endif
 
