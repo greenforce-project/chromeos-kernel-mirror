@@ -4,6 +4,7 @@
  */
 
 /dts-v1/;
+#include <dt-bindings/clock/mmdvfs-clk.h>
 #include <dt-bindings/clock/mt8196-clk.h>
 #include <dt-bindings/interconnect/mtk,emi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -928,6 +929,277 @@
 
 	mgm: mgm {
 		compatible = "arm,physical-memory-group-manager";
+	};
+
+	opp_table_disp: opp-table-disp {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <273000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <364000000>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <458000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <624000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <728000000>;
+			opp-level = <4>;
+		};
+	};
+
+	opp_table_mminfra: opp-table-mminfra {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <130000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <242000000>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <364000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <458000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <624000000>;
+			opp-level = <4>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <728000000>;
+			opp-level = <5>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <832000000>;
+			opp-level = <6>;
+		};
+	};
+
+	opp_table_venc: opp-table-venc {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <250000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <250000001>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <312000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <458000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <624000000>;
+			opp-level = <4>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <832000000>;
+			opp-level = <5>;
+		};
+
+		opp-6 {
+			opp-hz = /bits/ 64 <832000001>;
+			opp-level = <6>;
+		};
+	};
+
+	opp_table_vdec: opp-table-vdec {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <218000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <218000001>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <273000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <436000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <546000000>;
+			opp-level = <4>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <1050000000>;
+			opp-level = <5>;
+		};
+	};
+
+	opp_table_cam: opp-table-cam {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <173000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <312000000>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <416000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <564000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <660000000>;
+			opp-level = <4>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <660000001>;
+			opp-level = <5>;
+		};
+	};
+
+	opp_table_img: opp-table-img {
+		compatible = "operating-points-v2";
+
+		opp-0 {
+			opp-hz = /bits/ 64 <173000000>;
+			opp-level = <0>;
+		};
+
+		opp-1 {
+			opp-hz = /bits/ 64 <312000000>;
+			opp-level = <1>;
+		};
+
+		opp-2 {
+			opp-hz = /bits/ 64 <416000000>;
+			opp-level = <2>;
+		};
+
+		opp-3 {
+			opp-hz = /bits/ 64 <550000000>;
+			opp-level = <3>;
+		};
+
+		opp-4 {
+			opp-hz = /bits/ 64 <660000000>;
+			opp-level = <4>;
+		};
+
+		opp-5 {
+			opp-hz = /bits/ 64 <660000001>;
+			opp-level = <5>;
+		};
+	};
+
+	mmdvfs_mux: mmdvfs-mux {
+		compatible = "mediatek,mtk-mmdvfs-mux";
+		clocks = <&cksys_gp2_clk CLK_CK2_DISP_SEL>,
+				<&cksys_gp2_clk CLK_CK2_MDP_SEL>,
+				<&cksys_gp2_clk CLK_CK2_MDP_SEL>,
+				<&cksys_gp2_clk CLK_CK2_MMINFRA_SEL>,
+				<&cksys_gp2_clk CLK_CK2_VENC_SEL>,
+				<&cksys_gp2_clk CLK_CK2_VDEC_SEL>,
+				<&cksys_gp2_clk CLK_CK2_IMG1_SEL>,
+				<&cksys_gp2_clk CLK_CK2_CAM_SEL>;
+		clock-names =
+				"mux-dis", "mux-mdp", "mux-mml", "mux-smi",
+				"mux-ven", "mux-vde", "mux-img", "mux-cam";
+		mediatek,mmdvfs-opp-table =
+			<&opp_table_disp>, <&opp_table_disp>, <&opp_table_disp>,
+			<&opp_table_mminfra>, <&opp_table_venc>, <&opp_table_vdec>,
+			<&opp_table_img>, <&opp_table_cam>;
+		mediatek,mmdvfs-vcp-mux-id = <8>, <9>, <9>, <0>, <2>, <7>, <4>, <3>;
+		#clock-cells = <1>;
+		mediatek,mmdvfs-user-target =
+			<MMDVFS_MUX_DIS>, <MMDVFS_MUX_MDP>, <MMDVFS_MUX_MML>,
+			<MMDVFS_MUX_SMI>, <MMDVFS_MUX_VEN>, <MMDVFS_MUX_VEN>,
+			<MMDVFS_MUX_VEN>, <MMDVFS_MUX_VDE>, <MMDVFS_MUX_IMG>,
+			<MMDVFS_MUX_CAM>, <MMDVFS_MUX_VEN>, <MMDVFS_MUX_CAM>,
+			<MMDVFS_MUX_MDP>, <MMDVFS_MUX_VDE>, <MMDVFS_MUX_DIS>,
+			<MMDVFS_MUX_MDP>, <MMDVFS_MUX_MML>, <MMDVFS_MUX_SMI>,
+			<MMDVFS_MUX_VEN>, <MMDVFS_MUX_VDE>, <MMDVFS_MUX_IMG>,
+			<MMDVFS_MUX_CAM>, <MMDVFS_MUX_SMI>, <MMDVFS_MUX_SMI>;
+		mediatek,mmdvfs-user-names =
+			"user-disp", "user-mdp", "user-mml",
+			"user-smi", "user-jpegdec", "user-jpegenc",
+			"user-venc", "user-vfmt", "user-img",
+			"user-cam", "user-vcore", "user-vmm",
+			"user-vdisp", "user-vdec", "dummy-dis",
+			"dummy-mdp", "dummy-mml", "dummy-smi",
+			"dummy-ven", "dummy-vde", "dummy-img",
+			"dummy-cam", "user-img-smi", "user-vcp-smi";
+		mediatek,free-run;
+		mediatek,dpsw-thres = <1>;
+		mediatek,mmdebug = <&mmdebug>;
+		mediatek,restore-step;
+		mediatek,vcore-check-rg = <0x1c0132b0>;
+		mediatek,vcore-check-offset = <6>;
+		mediatek,vcp = <&vcp>;
+		mediatek,mmup-sram;
+	};
+
+	mmdvfs-user {
+		compatible = "mediatek,mtk-mmdvfs-user";
+		clocks = <&mmdvfs_mux MMDVFS_USER_VCORE>, <&mmdvfs_mux MMDVFS_USER_VMM>,
+				<&mmdvfs_mux MMDVFS_USER_VDISP>, <&mmdvfs_mux MMDVFS_USER_VDEC>,
+				<&mmdvfs_mux DUMMY_USER_DIS>, <&mmdvfs_mux DUMMY_USER_MDP>,
+				<&mmdvfs_mux DUMMY_USER_MML>, <&mmdvfs_mux DUMMY_USER_SMI>,
+				<&mmdvfs_mux DUMMY_USER_VEN>, <&mmdvfs_mux DUMMY_USER_VDE>,
+				<&mmdvfs_mux DUMMY_USER_IMG>, <&mmdvfs_mux DUMMY_USER_CAM>;
+		clock-names = "user-vcore", "user-vmm", "user-vdisp", "user-vdec",
+			"dummy-dis", "dummy-mdp", "dummy-mml", "dummy-smi",
+			"dummy-ven", "dummy-vde", "dummy-img", "dummy-cam";
+
+		mediatek,mmdvfs-mux = <&mmdvfs_mux>;
 	};
 
 	soc {
