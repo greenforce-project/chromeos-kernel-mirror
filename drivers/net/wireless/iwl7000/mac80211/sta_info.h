@@ -804,7 +804,7 @@ void ieee80211_assign_tid_tx(struct sta_info *sta, int tid,
 #define rcu_dereference_protected_tid_tx(sta, tid)			\
 	rcu_dereference_protected((sta)->ampdu_mlme.tid_tx[tid],	\
 				  lockdep_is_held(&(sta)->lock) ||	\
-				  lockdep_is_held(&(sta)->local->hw.wiphy->mtx));
+				  lockdep_rtnl_is_held());
 
 /* Maximum number of frames to buffer per power saving station per AC */
 #define STA_MAX_TX_BUFFER	64

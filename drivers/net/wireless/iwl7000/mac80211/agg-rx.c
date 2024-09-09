@@ -72,7 +72,7 @@ void __ieee80211_stop_rx_ba_session(struct sta_info *sta, u16 tid,
 	lockdep_assert_wiphy(sta->local->hw.wiphy);
 
 	tid_rx = rcu_dereference_protected(sta->ampdu_mlme.tid_rx[tid],
-					lockdep_is_held(&sta->local->hw.wiphy->mtx));
+					lockdep_rtnl_is_held());
 
 	if (!test_bit(tid, sta->ampdu_mlme.agg_session_valid))
 		return;
