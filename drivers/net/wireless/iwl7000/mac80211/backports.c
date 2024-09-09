@@ -883,3 +883,4 @@ int cfg80211_chandef_primary(const struct cfg80211_chan_def *c,
 
 	return center;
 }
+EXPORT_SYMBOL_GPL(cfg80211_chandef_primary);
