@@ -2139,7 +2139,7 @@ struct wireless_dev *ieee80211_vif_to_wdev(struct ieee80211_vif *vif);
 
 static inline bool lockdep_vif_wiphy_mutex_held(struct ieee80211_vif *vif)
 {
-	return lockdep_is_held(&ieee80211_vif_to_wdev(vif)->wiphy->mtx);
+	return lockdep_rtnl_is_held();
 }
 
 #define link_conf_dereference_protected(vif, link_id)		\
