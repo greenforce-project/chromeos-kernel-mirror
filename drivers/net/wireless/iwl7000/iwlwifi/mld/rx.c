@@ -44,9 +44,13 @@ void iwl_mld_pass_packet_to_mac80211(struct iwl_mld *mld,
 				     struct sk_buff *skb, int queue,
 				     struct ieee80211_sta *sta)
 {
+	KUNIT_STATIC_STUB_REDIRECT(iwl_mld_pass_packet_to_mac80211,
+				   mld, napi, skb, queue, sta);
+
 	/* TODO: check PN (task=DP) */
 	ieee80211_rx_napi(mld->hw, sta, skb, napi);
 }
+EXPORT_SYMBOL_IF_IWLWIFI_KUNIT(iwl_mld_pass_packet_to_mac80211);
 
 static void iwl_mld_fill_signal(struct iwl_mld *mld,
 				struct ieee80211_rx_status *rx_status,
