@@ -1947,16 +1947,10 @@ static void uvc_unregister_video(struct uvc_device *dev)
 {
 	struct uvc_streaming *stream;
 
-	mutex_lock(&dev->lock);
-
 	list_for_each_entry(stream, &dev->streams, list) {
 		/* Nothing to do here, continue. */
 		if (!video_is_registered(&stream->vdev))
 			continue;
-
-		/* 1. Wait for old ioctls to finish. */
-		mutex_lock(&stream->mutex);
-		mutex_lock(&stream->queue.mutex);
 
 		/*
 		 * For stream->vdev we follow the same logic as:
@@ -1969,8 +1963,13 @@ static void uvc_unregister_video(struct uvc_device *dev)
 		/* 2. Ensure that no new ioctls can be called. */
 		video_unregister_device(&stream->vdev);
 
+		/* 3. Wait for old ioctls to finish. */
+		mutex_lock(&stream->mutex);
+
 		/* 4. Stop streaming. */
 		uvc_queue_release(&stream->queue);
+
+		mutex_unlock(&stream->mutex);
 
 		put_device(&stream->vdev.dev);
 
@@ -1986,11 +1985,6 @@ static void uvc_unregister_video(struct uvc_device *dev)
 		 */
 
 		uvc_debugfs_cleanup_stream(stream);
-
-		vb2_queue_release(&stream->queue.queue);
-
-		mutex_unlock(&stream->queue.mutex);
-		mutex_unlock(&stream->mutex);
 	}
 
 	uvc_status_unregister(dev);
@@ -2002,7 +1996,6 @@ static void uvc_unregister_video(struct uvc_device *dev)
 	if (media_devnode_is_registered(dev->mdev.devnode))
 		media_device_unregister(&dev->mdev);
 #endif
-	mutex_unlock(&dev->lock);
 }
 
 int uvc_register_video_device(struct uvc_device *dev,
