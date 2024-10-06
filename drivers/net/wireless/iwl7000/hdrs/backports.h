@@ -331,6 +331,13 @@ static inline void LINUX_BACKPORT(free_netdev)(struct net_device *dev)
 }
 #define free_netdev LINUX_BACKPORT(free_netdev)
 
+#define kmemdup_array LINUX_BACKPORT(kmemdup_array)
+static inline void *
+kmemdup_array(const void *src, size_t count, size_t element_size, gfp_t gfp)
+{
+       return kmemdup(src, element_size * count, gfp);
+}
+
 
 enum ieee80211_ap_reg_power {
 	IEEE80211_REG_UNSET_AP,
