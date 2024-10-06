@@ -189,7 +189,8 @@ static void iwl_mld_power_build_cmd(struct iwl_mld *mld,
 	 */
 	keep_alive = DIV_ROUND_UP(ieee80211_tu_to_usec(3 * dtimper * bi),
 				  USEC_PER_SEC);
-	keep_alive = max(keep_alive, POWER_KEEP_ALIVE_PERIOD_SEC);
+	keep_alive = max(keep_alive,
+			 (typeof(keep_alive))POWER_KEEP_ALIVE_PERIOD_SEC);
 	cmd->keep_alive_seconds = cpu_to_le16(keep_alive);
 
 	if (iwlmld_mod_params.power_scheme != IWL_POWER_SCHEME_CAM)
