@@ -670,6 +670,7 @@ iwl_mld_set_key_rx_seq(struct ieee80211_key_conf *key,
 
 static void
 iwl_mld_d3_update_mcast_key(struct iwl_mld *mld,
+			    struct ieee80211_vif *vif,
 			    struct iwl_mld_wowlan_status *wowlan_status,
 			    struct ieee80211_key_conf *key,
 			    struct iwl_mld_mcast_key_data *key_data)
@@ -688,6 +689,23 @@ iwl_mld_d3_update_mcast_key(struct iwl_mld *mld,
 	 * a new key and a rekey has occurred during d3
 	 */
 	if (wowlan_status->num_of_gtk_rekeys && key_data->len) {
+		if (key->keyidx == 4 || key->keyidx == 5) {
+			struct iwl_mld_vif *mld_vif =
+				iwl_mld_vif_from_mac80211(vif);
+			struct iwl_mld_link *mld_link;
+			int link_id = vif->active_links ?
+				__ffs(vif->active_links) : 0;
+
+			mld_link = iwl_mld_link_dereference_check(mld_vif,
+								  link_id);
+			if (WARN_ON(!mld_link))
+				return;
+
+			if (mld_link->igtk == key)
+				mld_link->igtk = NULL;
+			mld->num_igtks--;
+		}
+
 		ieee80211_remove_key(key);
 		return;
 	}
@@ -754,7 +772,7 @@ iwl_mld_resume_keys_iter(struct ieee80211_hw *hw,
 
 		data->gtk_cipher = key->cipher;
 		status_idx = key->keyidx == wowlan_status->gtk[1].id;
-		iwl_mld_d3_update_mcast_key(data->mld, wowlan_status, key,
+		iwl_mld_d3_update_mcast_key(data->mld, vif, wowlan_status, key,
 					    &wowlan_status->gtk[status_idx]);
 		break;
 	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
@@ -767,7 +785,8 @@ iwl_mld_resume_keys_iter(struct ieee80211_hw *hw,
 				return;
 
 			data->igtk_cipher = key->cipher;
-			iwl_mld_d3_update_mcast_key(data->mld, wowlan_status,
+			iwl_mld_d3_update_mcast_key(data->mld, vif,
+						    wowlan_status,
 						    key, &wowlan_status->igtk);
 		}
 		if (key->keyidx == 6 || key->keyidx == 7) {
@@ -777,8 +796,8 @@ iwl_mld_resume_keys_iter(struct ieee80211_hw *hw,
 
 			data->bigtk_cipher = key->cipher;
 			status_idx = key->keyidx == wowlan_status->bigtk[1].id;
-			iwl_mld_d3_update_mcast_key(data->mld, wowlan_status,
-						    key,
+			iwl_mld_d3_update_mcast_key(data->mld, vif,
+						    wowlan_status, key,
 						    &wowlan_status->bigtk[status_idx]);
 		}
 		break;
@@ -791,7 +810,9 @@ iwl_mld_resume_keys_iter(struct ieee80211_hw *hw,
 
 static bool
 iwl_mld_add_mcast_rekey(struct ieee80211_vif *vif,
+			struct iwl_mld *mld,
 			struct iwl_mld_mcast_key_data *key_data,
+			struct ieee80211_bss_conf *link_conf,
 			u32 cipher)
 {
 	struct ieee80211_key_conf *key_config;
@@ -846,28 +867,40 @@ iwl_mld_add_mcast_rekey(struct ieee80211_vif *vif,
 
 	iwl_mld_set_key_rx_seq(key_config, key_data);
 
-	/* TODO: keep igtk key_config in the mld_link? (task=security)*/
+	/* The FW holds only one igtk so we keep track of the valid one */
+	if (key_config->keyidx == 4 || key_config->keyidx == 5) {
+		struct iwl_mld_link *mld_link =
+			iwl_mld_link_from_mac80211(link_conf);
+		mld_link->igtk = key_config;
+		mld->num_igtks++;
+	}
 	return true;
 }
 
 static bool
 iwl_mld_add_all_rekeys(struct ieee80211_vif *vif,
 		       struct iwl_mld_wowlan_status *wowlan_status,
-		       struct iwl_mld_resume_key_iter_data *key_iter_data)
+		       struct iwl_mld_resume_key_iter_data *key_iter_data,
+		       struct ieee80211_bss_conf *link_conf)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(wowlan_status->gtk); i++)
-		if (!iwl_mld_add_mcast_rekey(vif, &wowlan_status->gtk[i],
+		if (!iwl_mld_add_mcast_rekey(vif, key_iter_data->mld,
+					     &wowlan_status->gtk[i],
+					     link_conf,
 					     key_iter_data->gtk_cipher))
 			return false;
 
-	if (!iwl_mld_add_mcast_rekey(vif, &wowlan_status->igtk,
-				     key_iter_data->igtk_cipher))
+	if (!iwl_mld_add_mcast_rekey(vif, key_iter_data->mld,
+				     &wowlan_status->igtk,
+				     link_conf, key_iter_data->igtk_cipher))
 		return false;
 
 	for (i = 0; i < ARRAY_SIZE(wowlan_status->bigtk); i++)
-		if (!iwl_mld_add_mcast_rekey(vif, &wowlan_status->bigtk[i],
+		if (!iwl_mld_add_mcast_rekey(vif, key_iter_data->mld,
+					     &wowlan_status->bigtk[i],
+					     link_conf,
 					     key_iter_data->bigtk_cipher))
 			return false;
 
@@ -905,7 +938,8 @@ iwl_mld_update_sec_keys(struct iwl_mld *mld,
 	if (!key_iter_data.num_keys || !wowlan_status->num_of_gtk_rekeys)
 		return true;
 
-	iwl_mld_add_all_rekeys(vif, wowlan_status, &key_iter_data);
+	iwl_mld_add_all_rekeys(vif, wowlan_status, &key_iter_data,
+			       link_conf);
 
 	ieee80211_gtk_rekey_notify(vif, link_conf->bssid,
 				   (void *)&replay_ctr, GFP_KERNEL);
