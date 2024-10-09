@@ -299,8 +299,8 @@ static const struct drm_plane_helper_funcs mtk_plane_helper_funcs = {
 
 int mtk_plane_init(struct drm_device *dev, struct drm_plane *plane,
 		   unsigned long possible_crtcs, enum drm_plane_type type,
-		   unsigned int supported_rotations, const u32 *formats,
-		   size_t num_formats)
+		   unsigned int supported_rotations, const u32 blend_modes,
+		   const u32 *formats, size_t num_formats)
 {
 	int err;
 
@@ -323,6 +323,12 @@ int mtk_plane_init(struct drm_device *dev, struct drm_plane *plane,
 							 supported_rotations);
 		if (err)
 			DRM_INFO("Create rotation property failed\n");
+	}
+
+	if (blend_modes) {
+		err = drm_plane_create_blend_mode_property(plane, blend_modes);
+		if (err)
+			DRM_ERROR("failed to create property: blend_mode\n");
 	}
 
 	drm_plane_helper_add(plane, &mtk_plane_helper_funcs);
