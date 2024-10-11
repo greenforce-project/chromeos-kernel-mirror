@@ -60,6 +60,8 @@ void mtk_disp_exdma_config(struct device *dev, struct mtk_plane_state *state,
 			   struct cmdq_pkt *cmdq_pkt);
 const u32 *mtk_disp_exdma_get_formats(struct device *dev);
 size_t mtk_disp_exdma_get_num_formats(struct device *dev);
+void mtk_disp_exdma_set_hrt_bw(struct device *dev, unsigned int bw);
+void mtk_disp_exdma_set_srt_bw(struct device *dev, unsigned int bw);
 
 void mtk_dither_set_common(void __iomem *regs, struct cmdq_client_reg *cmdq_reg,
 			   unsigned int bpc, unsigned int cfg,
@@ -82,6 +84,7 @@ void mtk_disp_outproc_disable_vblank(struct device *dev);
 void mtk_dpi_start(struct device *dev);
 void mtk_dpi_stop(struct device *dev);
 unsigned int mtk_dpi_encoder_index(struct device *dev);
+void mtk_dpi_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base);
 
 int mtk_dsc_clk_enable(struct device *dev);
 void mtk_dsc_clk_disable(struct device *dev);
@@ -101,9 +104,11 @@ void mtk_dsi_ddp_start(struct device *dev);
 void mtk_dsi_ddp_stop(struct device *dev);
 unsigned int mtk_dsi_encoder_index(struct device *dev);
 void mtk_dsi_get_dsc_info(struct device *dev, struct dsc_info *dsc_info);
+void mtk_dsi_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base);
 
 void mtk_dvo_start(struct device *dev);
 void mtk_dvo_stop(struct device *dev);
+void mtk_dvo_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base);
 
 int mtk_gamma_clk_enable(struct device *dev);
 void mtk_gamma_clk_disable(struct device *dev);
@@ -224,6 +229,12 @@ size_t mtk_ovlsys_adaptor_get_num_formats(struct device *dev);
 size_t mtk_ovlsys_adaptor_crc_cnt(struct device *dev);
 u32 *mtk_ovlsys_adaptor_crc_entry(struct device *dev);
 void mtk_ovlsys_adaptor_crc_read(struct device *dev);
+void mtk_ovlsys_adaptor_fifo_sel(struct device *dev, struct device *mmsys_dev, unsigned int id);
+void mtk_ovlsys_adaptor_get_channel_id(struct device *dev, unsigned int idx,
+				       unsigned int *channel_id);
+void mtk_ovlsys_adaptor_set_hrt_bw(struct device *dev, unsigned int idx, unsigned int bw);
+void mtk_ovlsys_adaptor_set_srt_bw(struct device *dev, unsigned int idx, unsigned int bw);
+bool mtk_ovlsys_adaptor_ready(struct device *dev);
 
 void mtk_rdma_bypass_shadow(struct device *dev);
 int mtk_rdma_clk_enable(struct device *dev);

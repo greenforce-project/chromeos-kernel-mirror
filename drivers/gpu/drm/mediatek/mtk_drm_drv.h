@@ -10,6 +10,8 @@
 #include "mtk_ddp_comp.h"
 
 #define MAX_CONNECTOR	2
+#define MAX_PLANE	8
+#define BW_CHANNEL_NR	4
 #define DDP_COMPONENT_DRM_OVL_ADAPTOR (DDP_COMPONENT_ID_MAX + 1)
 #define DDP_COMPONENT_DRM_OVLSYS_ADAPTOR0 (DDP_COMPONENT_DRM_OVL_ADAPTOR + 1)
 #define DDP_COMPONENT_DRM_OVLSYS_ADAPTOR1 (DDP_COMPONENT_DRM_OVLSYS_ADAPTOR0 + 1)
@@ -80,6 +82,9 @@ struct mtk_drm_private {
 	struct device *mmsys_dev;
 	struct device_node *vdisp_ao_node;
 	struct device *vdisp_ao_dev;
+	struct device_node *dpc_node;
+	struct device *dpc_dev;
+	struct device *pmqos_dev;
 	struct device_node *comp_node[DDP_COMPONENT_DRM_ID_MAX];
 	struct mtk_ddp_comp ddp_comp[DDP_COMPONENT_DRM_ID_MAX];
 	const struct mtk_mmsys_driver_data *data;
@@ -108,6 +113,7 @@ extern struct platform_driver mtk_disp_outproc_driver;
 extern struct platform_driver mtk_disp_ovl_adaptor_driver;
 extern struct platform_driver mtk_disp_ovl_driver;
 extern struct platform_driver mtk_disp_ovlsys_adaptor_driver;
+extern struct platform_driver mtk_disp_pmqos_driver;
 extern struct platform_driver mtk_disp_rdma_driver;
 extern struct platform_driver mtk_dpi_driver;
 extern struct platform_driver mtk_dpi_driver_v2;

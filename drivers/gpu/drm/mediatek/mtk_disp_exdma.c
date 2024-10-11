@@ -16,6 +16,7 @@
 #include <linux/soc/mediatek/mtk-cmdq.h>
 
 #include "mtk_disp_drv.h"
+#include "mtk_disp_pmqos.h"
 #include "mtk_drm_drv.h"
 
 #define DISP_REG_OVL_EN_CON			0xc
@@ -120,6 +121,8 @@ struct mtk_disp_exdma {
 	struct clk		*clk;
 	struct cmdq_client_reg	cmdq_reg;
 	struct device		*larb;
+	struct icc_path		*qos_req;
+	struct icc_path		*hrt_qos_req;
 };
 
 static inline bool is_10bit_rgb(u32 fmt)
@@ -354,9 +357,35 @@ void mtk_disp_exdma_clk_disable(struct device *dev)
 	clk_disable_unprepare(exdma->clk);
 }
 
+void mtk_disp_exdma_set_hrt_bw(struct device *dev, unsigned int bw)
+{
+	struct mtk_disp_exdma *priv = dev_get_drvdata(dev);
+
+	if (IS_ERR(priv->hrt_qos_req))
+		return;
+
+	mtk_disp_pmqos_set_module_hrt(priv->hrt_qos_req, dev, bw);
+}
+
+void mtk_disp_exdma_set_srt_bw(struct device *dev, unsigned int bw)
+{
+	struct mtk_disp_exdma *priv = dev_get_drvdata(dev);
+
+	if (IS_ERR(priv->qos_req))
+		return;
+
+	mtk_disp_pmqos_set_module_srt(priv->qos_req, dev, bw);
+}
+
 static int mtk_disp_exdma_bind(struct device *dev, struct device *master,
 			       void *data)
 {
+#if IS_REACHABLE(CONFIG_INTERCONNECT_MTK_EXTENSION)
+	struct mtk_disp_exdma *priv = dev_get_drvdata(dev);
+
+	priv->hrt_qos_req = of_mtk_icc_get(dev, "hrt_qos");
+	priv->qos_req = of_mtk_icc_get(dev, "srt_qos");
+#endif
 	return 0;
 }
 

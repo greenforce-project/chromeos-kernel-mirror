@@ -15,6 +15,7 @@
 
 #include "mtk_crtc.h"
 #include "mtk_ddp_comp.h"
+#include "mtk_disp_pmqos.h"
 #include "mtk_drm_drv.h"
 #include "mtk_gem.h"
 #include "mtk_plane.h"
@@ -63,6 +64,7 @@ static struct drm_plane_state *mtk_plane_duplicate_state(struct drm_plane *plane
 	WARN_ON(state->base.plane != plane);
 
 	state->pending = old_state->pending;
+	state->pending.hrt_bw = NO_PENDING_HRT;
 
 	return &state->base;
 }

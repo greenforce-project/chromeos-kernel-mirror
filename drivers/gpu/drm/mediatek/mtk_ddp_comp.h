@@ -46,6 +46,7 @@ enum mtk_ddp_comp_type {
 	MTK_DISP_UFOE,
 	MTK_DISP_VIRTUAL,
 	MTK_DISP_WDMA,
+	MTK_DPC,
 	MTK_DPI,
 	MTK_DP_INTF,
 	MTK_DSI,
@@ -110,6 +111,11 @@ struct mtk_ddp_comp_funcs {
 	void (*crc_read)(struct device *dev);
 	void (*get_dsc_info)(struct device *dev, struct dsc_info *dsc_info);
 	void (*set_dsc_info)(struct device *dev, const struct dsc_info *dsc_info);
+	void (*fifo_sel)(struct device *dev, struct device *mmsys_dev, unsigned int id);
+	void (*get_hrt_bw_by_datarate)(struct device *dev, unsigned int *base_bw);
+	void (*get_smi_channel_id)(struct device *dev, unsigned int idx, unsigned int *channel_id);
+	void (*set_hrt_bw)(struct device *dev, unsigned int idx, unsigned int bw);
+	void (*set_srt_bw)(struct device *dev, unsigned int idx, unsigned int bw);
 };
 
 struct mtk_ddp_comp {
@@ -369,6 +375,43 @@ static inline void mtk_ddp_comp_set_dsc_info(struct mtk_ddp_comp *comp, const st
 {
 	if (comp->funcs && comp->funcs->set_dsc_info)
 		comp->funcs->set_dsc_info(comp->dev, dsc_info);
+}
+
+static inline bool mtk_ddp_comp_fifo_sel(struct mtk_ddp_comp *comp, struct device *mmsys_dev,
+					 unsigned int id)
+{
+	if (comp->funcs && comp->funcs->fifo_sel) {
+		comp->funcs->fifo_sel(comp->dev, mmsys_dev, id);
+		return true;
+	}
+	return false;
+}
+
+static inline void mtk_ddp_comp_hrt_bw_get(struct mtk_ddp_comp *comp, unsigned int *bw_base)
+{
+	if (comp->funcs && comp->funcs->get_hrt_bw_by_datarate)
+		comp->funcs->get_hrt_bw_by_datarate(comp->dev, bw_base);
+}
+
+static inline void mtk_ddp_comp_channel_id_get(struct mtk_ddp_comp *comp, unsigned int idx,
+					       unsigned int *channel_id)
+{
+	if (comp->funcs && comp->funcs->get_smi_channel_id)
+		comp->funcs->get_smi_channel_id(comp->dev, idx, channel_id);
+}
+
+static inline void mtk_ddp_comp_hrt_bw_set(struct mtk_ddp_comp *comp, unsigned int idx,
+					   unsigned int bw)
+{
+	if (comp->funcs && comp->funcs->set_hrt_bw)
+		comp->funcs->set_hrt_bw(comp->dev, idx, bw);
+}
+
+static inline void mtk_ddp_comp_srt_bw_set(struct mtk_ddp_comp *comp, unsigned int idx,
+					   unsigned int bw)
+{
+	if (comp->funcs && comp->funcs->set_srt_bw)
+		comp->funcs->set_srt_bw(comp->dev, idx, bw);
 }
 
 int mtk_ddp_comp_get_id(struct device_node *node,

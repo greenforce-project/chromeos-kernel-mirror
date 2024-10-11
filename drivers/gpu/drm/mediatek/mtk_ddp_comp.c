@@ -390,6 +390,7 @@ static const struct mtk_ddp_comp_funcs ddp_dpi_v2 = {
 	.stop = mtk_dpi_stop_v2,
 	.encoder_index = mtk_dpi_encoder_index_v2,
 	.get_dsc_info = mtk_dpi_get_dsc_info_v2,
+	.get_hrt_bw_by_datarate = mtk_dpi_get_hrt_bw_by_datarate,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_dsc = {
@@ -406,11 +407,13 @@ static const struct mtk_ddp_comp_funcs ddp_dsi = {
 	.stop = mtk_dsi_ddp_stop,
 	.encoder_index = mtk_dsi_encoder_index,
 	.get_dsc_info = mtk_dsi_get_dsc_info,
+	.get_hrt_bw_by_datarate = mtk_dsi_get_hrt_bw_by_datarate,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_dvo = {
 	.start = mtk_dvo_start,
 	.stop = mtk_dvo_stop,
+	.get_hrt_bw_by_datarate = mtk_dvo_get_hrt_bw_by_datarate,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_gamma = {
@@ -483,6 +486,10 @@ static const struct mtk_ddp_comp_funcs ddp_ovlsys_adaptor = {
 	.get_blend_modes = mtk_ovlsys_adaptor_get_blend_modes,
 	.get_formats = mtk_ovlsys_adaptor_get_formats,
 	.get_num_formats = mtk_ovlsys_adaptor_get_num_formats,
+	.fifo_sel = mtk_ovlsys_adaptor_fifo_sel,
+	.get_smi_channel_id = mtk_ovlsys_adaptor_get_channel_id,
+	.set_hrt_bw = mtk_ovlsys_adaptor_set_hrt_bw,
+	.set_srt_bw = mtk_ovlsys_adaptor_set_srt_bw,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_mdp_rsz = {

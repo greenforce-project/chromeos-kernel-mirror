@@ -53,6 +53,13 @@ config MTK_DEVAPC
 	  The violation information is logged for further analysis or
 	  countermeasures.
 
+config MTK_DPC
+	tristate "MediaTek DPC Support"
+	help
+	  Say yes here to add support for the MediaTek DPC driver.
+	  The DPC is used to report display bandwidth and set required
+	  display vcore voltage.
+
 config MTK_MBOX
     tristate "MediaTek Mbox Support"
     help

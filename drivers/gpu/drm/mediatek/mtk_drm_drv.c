@@ -29,6 +29,8 @@
 
 #include "mtk_crtc.h"
 #include "mtk_ddp_comp.h"
+#include "mtk_disp_drv.h"
+#include "mtk_disp_pmqos.h"
 #include "mtk_drm_drv.h"
 #include "mtk_gem.h"
 
@@ -815,6 +817,7 @@ static int mtk_drm_bind(struct device *dev)
 	struct mtk_drm_private *private = dev_get_drvdata(dev);
 	struct platform_device *pdev;
 	struct drm_device *drm;
+	struct platform_device *pdev_pmqos;
 	int ret, i;
 
 	if (!iommu_present(&platform_bus_type))
@@ -824,8 +827,8 @@ static int mtk_drm_bind(struct device *dev)
 	if (!pdev) {
 		dev_err(dev, "Waiting for disp-mutex device %pOF\n",
 			private->mutex_node);
-		of_node_put(private->mutex_node);
-		return -EPROBE_DEFER;
+		ret = -EPROBE_DEFER;
+		goto defer_node_put;
 	}
 
 	private->mutex_dev = &pdev->dev;
@@ -835,11 +838,21 @@ static int mtk_drm_bind(struct device *dev)
 		if (!pdev) {
 			dev_err(dev, "Waiting for vdisp_ao device %pOF\n",
 				private->vdisp_ao_node);
-			of_node_put(private->mutex_node);
-			of_node_put(private->vdisp_ao_node);
-			return -EPROBE_DEFER;
+			ret = -EPROBE_DEFER;
+			goto defer_node_put;
 		}
 		private->vdisp_ao_dev = &pdev->dev;
+	}
+
+	if (private->dpc_node) {
+		pdev = of_find_device_by_node(private->dpc_node);
+		if (!pdev) {
+			dev_err(dev, "Waiting for dpc device %pOF\n",
+				private->dpc_node);
+			ret = -EPROBE_DEFER;
+			goto defer_node_put;
+		}
+		private->dpc_dev = &pdev->dev;
 	}
 
 	private->mtk_drm_bound = true;
@@ -849,14 +862,26 @@ static int mtk_drm_bind(struct device *dev)
 		return 0;
 
 	drm = drm_dev_alloc(&mtk_drm_driver, dev);
-	if (IS_ERR(drm))
-		return PTR_ERR(drm);
+	if (IS_ERR(drm)) {
+		ret = PTR_ERR(drm);
+		goto defer_node_put;
+	}
 
 	private->drm_master = true;
 	drm->dev_private = private;
 	for (i = 0; i < MAX_MMSYS; i++)
 		if (private->all_drm_private[i])
 			private->all_drm_private[i]->drm = drm;
+
+	pdev_pmqos = platform_device_register_data(dev, "mediatek-disp-pmqos",
+						   PLATFORM_DEVID_AUTO, 0, 0);
+	if (!IS_ERR(pdev_pmqos)) {
+		for (i = 0; i < MAX_MMSYS; i++) {
+			if (private->all_drm_private[i])
+				private->all_drm_private[i]->pmqos_dev = &pdev_pmqos->dev;
+		}
+		mtk_disp_pmqos_mmdvfs_init(&pdev_pmqos->dev, private->dpc_dev);
+	}
 
 	ret = mtk_drm_kms_init(drm);
 	if (ret < 0)
@@ -877,6 +902,13 @@ err_free:
 	drm_dev_put(drm);
 	for (i = 0; i < private->data->mmsys_dev_num; i++)
 		private->all_drm_private[i]->drm = NULL;
+defer_node_put:
+	if (private->mutex_node)
+		of_node_put(private->mutex_node);
+	if (private->vdisp_ao_node)
+		of_node_put(private->vdisp_ao_node);
+	if (private->dpc_node)
+		of_node_put(private->dpc_node);
 	return ret;
 }
 
@@ -1005,6 +1037,8 @@ static const struct of_device_id mtk_ddp_comp_dt_ids[] = {
 	  .data = (void *)MTK_DISP_UFOE },
 	{ .compatible = "mediatek,mt8173-disp-wdma",
 	  .data = (void *)MTK_DISP_WDMA },
+	{ .compatible = "mediatek,mt8196-disp-dpc",
+	  .data = (void *)MTK_DPC },
 	{ .compatible = "mediatek,mt2701-dpi",
 	  .data = (void *)MTK_DPI },
 	{ .compatible = "mediatek,mt8167-dsi",
@@ -1100,6 +1134,11 @@ static int mtk_drm_probe(struct platform_device *pdev)
 						      (void *)&ovlsys_priv,
 						      sizeof(struct mtk_drm_ovlsys_private));
 		private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR0].dev = &ovl_adaptor->dev;
+		if (!mtk_ovlsys_adaptor_ready(&ovl_adaptor->dev)) {
+			dev_dbg(&ovl_adaptor->dev, "Wait comp ready");
+			platform_device_unregister(ovl_adaptor);
+			return -EPROBE_DEFER;
+		}
 		mtk_ddp_comp_init(NULL, &private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR0],
 				  DDP_COMPONENT_DRM_OVLSYS_ADAPTOR0);
 		component_match_add(dev, &match, compare_dev, &ovl_adaptor->dev);
@@ -1116,6 +1155,12 @@ static int mtk_drm_probe(struct platform_device *pdev)
 						      PLATFORM_DEVID_AUTO,
 						      (void *)&ovlsys_priv,
 						      sizeof(struct mtk_drm_ovlsys_private));
+		if (!mtk_ovlsys_adaptor_ready(&ovl_adaptor->dev)) {
+			dev_dbg(&ovl_adaptor->dev, "Wait comp ready");
+			platform_device_unregister(ovl_adaptor);
+			return -EPROBE_DEFER;
+		}
+
 		private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR1].dev = &ovl_adaptor->dev;
 		mtk_ddp_comp_init(NULL, &private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR1],
 				  DDP_COMPONENT_DRM_OVLSYS_ADAPTOR1);
@@ -1132,6 +1177,12 @@ static int mtk_drm_probe(struct platform_device *pdev)
 							    PLATFORM_DEVID_AUTO,
 							    (void *)&ovlsys_priv,
 							    sizeof(struct mtk_drm_ovlsys_private));
+		if (!mtk_ovlsys_adaptor_ready(&ovl_adaptor->dev)) {
+			dev_dbg(&ovl_adaptor->dev, "Wait comp ready");
+			platform_device_unregister(ovl_adaptor);
+			return -EPROBE_DEFER;
+		}
+
 		private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR2].dev = &ovl_adaptor->dev;
 		mtk_ddp_comp_init(NULL, &private->ddp_comp[DDP_COMPONENT_DRM_OVLSYS_ADAPTOR2],
 				  DDP_COMPONENT_DRM_OVLSYS_ADAPTOR2);
@@ -1170,6 +1221,12 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		if (comp_type == MTK_VDISP_AO) {
 			private->vdisp_ao_node = of_node_get(node);
 			dev_dbg(dev, "get vdisp_ao node");
+			continue;
+		}
+
+		if (comp_type == MTK_DPC) {
+			private->dpc_node = of_node_get(node);
+			dev_dbg(dev, "get dpc node");
 			continue;
 		}
 
@@ -1251,6 +1308,7 @@ static void mtk_drm_remove(struct platform_device *pdev)
 	pm_runtime_disable(&pdev->dev);
 	of_node_put(private->mutex_node);
 	of_node_put(private->vdisp_ao_node);
+	of_node_put(private->dpc_node);
 	for (i = 0; i < DDP_COMPONENT_DRM_ID_MAX; i++)
 		of_node_put(private->comp_node[i]);
 }
@@ -1312,6 +1370,7 @@ static struct platform_driver * const mtk_drm_drivers[] = {
 	&mtk_disp_ovl_adaptor_driver,
 	&mtk_disp_ovl_driver,
 	&mtk_disp_ovlsys_adaptor_driver,
+	&mtk_disp_pmqos_driver,
 	&mtk_disp_rdma_driver,
 	&mtk_dpi_driver,
 	&mtk_dpi_driver_v2,

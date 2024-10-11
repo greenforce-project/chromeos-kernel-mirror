@@ -620,6 +620,19 @@ void mtk_dvo_stop(struct device *dev)
 	mtk_dvo_power_off(dvo);
 }
 
+void mtk_dvo_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base)
+{
+	struct mtk_dvo *dvo = dev_get_drvdata(dev);
+	int htotal, vtotal, vrefresh;
+
+	htotal = dvo->mode.htotal;
+	vtotal = dvo->mode.vtotal;
+	vrefresh = drm_mode_vrefresh(&dvo->mode);
+
+	*bw_base = (unsigned int)div_u64((unsigned long long)vtotal * htotal * vrefresh * 4,
+					 1000000);
+}
+
 static int mtk_dvo_bind(struct device *dev, struct device *master, void *data)
 {
 	struct mtk_dvo *dvo = dev_get_drvdata(dev);

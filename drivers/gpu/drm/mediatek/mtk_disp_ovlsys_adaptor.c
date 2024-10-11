@@ -174,6 +174,25 @@ static const struct ovlsys_adaptor_comp_match comp_matches[OVLSYS_ADAPTOR_ID_MAX
 	[OVLSYS_ADAPTOR_OUTPROC11] = { OVLSYS_ADAPTOR_TYPE_OUTPROC, 11, DDP_COMPONENT_ID_MAX},
 };
 
+static const u8 chan_id[OVLSYS_ADAPTOR_ID_MAX] = {
+	[OVLSYS_ADAPTOR_EXDMA2]	  = 0,
+	[OVLSYS_ADAPTOR_EXDMA3]	  = 1,
+	[OVLSYS_ADAPTOR_EXDMA4]	  = 3,
+	[OVLSYS_ADAPTOR_EXDMA5]	  = 2,
+	[OVLSYS_ADAPTOR_EXDMA6]	  = 1,
+	[OVLSYS_ADAPTOR_EXDMA7]	  = 0,
+	[OVLSYS_ADAPTOR_EXDMA8]	  = 2,
+	[OVLSYS_ADAPTOR_EXDMA9]	  = 3,
+	[OVLSYS_ADAPTOR_EXDMA12]  = 2,
+	[OVLSYS_ADAPTOR_EXDMA13]  = 3,
+	[OVLSYS_ADAPTOR_EXDMA14]  = 1,
+	[OVLSYS_ADAPTOR_EXDMA15]  = 0,
+	[OVLSYS_ADAPTOR_EXDMA16]  = 3,
+	[OVLSYS_ADAPTOR_EXDMA17]  = 2,
+	[OVLSYS_ADAPTOR_EXDMA18]  = 0,
+	[OVLSYS_ADAPTOR_EXDMA19]  = 1,
+};
+
 static const unsigned int mt8196_mtk_ovl_main[] = {
 	OVLSYS_ADAPTOR_EXDMA2,
 	OVLSYS_ADAPTOR_BLENDER1,
@@ -236,6 +255,19 @@ static struct device *get_comp_by_type_idx(struct device *dev,
 		}
 	}
 	return NULL;
+}
+
+static enum mtk_ovlsys_adaptor_comp_id get_ovlsys_comp_id(struct device *dev,
+							  struct device *comp_dev)
+{
+	struct mtk_disp_ovlsys_adaptor *priv = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < OVLSYS_ADAPTOR_ID_MAX; i++)
+		if (priv->ovl_adaptor_comp[i] == comp_dev)
+			return i;
+
+	return i;
 }
 
 void mtk_ovlsys_adaptor_layer_config(struct device *dev, unsigned int idx,
@@ -564,6 +596,49 @@ size_t mtk_ovlsys_adaptor_get_num_formats(struct device *dev)
 	return mtk_disp_exdma_get_num_formats(priv->ovl_adaptor_comp[priv->path[0]]);
 }
 
+void mtk_ovlsys_adaptor_fifo_sel(struct device *dev, struct device *mmsys_dev, unsigned int id)
+{
+	struct mtk_disp_ovlsys_adaptor *priv = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < priv->path_size - 1; i++) {
+		if (get_type(priv->path[i]) == OVLSYS_ADAPTOR_TYPE_EXDMA)
+			mtk_mmsys_ddp_fifo_sel(mmsys_dev, get_ddp_comp_id(priv->path[i]), id);
+	}
+}
+
+void mtk_ovlsys_adaptor_get_channel_id(struct device *dev, unsigned int idx,
+				       unsigned int *channel_id)
+{
+	struct device *exdma;
+	enum mtk_ovlsys_adaptor_comp_id ovlsys_comp_id;
+
+	exdma = get_comp_by_type_idx(dev, OVLSYS_ADAPTOR_TYPE_EXDMA, idx);
+	ovlsys_comp_id = get_ovlsys_comp_id(dev, exdma);
+
+	if (ovlsys_comp_id == OVLSYS_ADAPTOR_ID_MAX)
+		return;
+
+	*channel_id = chan_id[ovlsys_comp_id];
+	dev_dbg(dev, "%s channel id %d", dev_name(exdma), *channel_id);
+}
+
+void mtk_ovlsys_adaptor_set_hrt_bw(struct device *dev, unsigned int idx, unsigned int bw)
+{
+	struct device *exdma;
+
+	exdma = get_comp_by_type_idx(dev, OVLSYS_ADAPTOR_TYPE_EXDMA, idx);
+	mtk_disp_exdma_set_hrt_bw(exdma, bw);
+}
+
+void mtk_ovlsys_adaptor_set_srt_bw(struct device *dev, unsigned int idx, unsigned int bw)
+{
+	struct device *exdma;
+
+	exdma = get_comp_by_type_idx(dev, OVLSYS_ADAPTOR_TYPE_EXDMA, idx);
+	mtk_disp_exdma_set_srt_bw(exdma, bw);
+}
+
 void mtk_ovlsys_adaptor_add_comp(struct device *dev, struct mtk_mutex *mutex)
 {
 	struct mtk_disp_ovlsys_adaptor *priv = dev_get_drvdata(dev);
@@ -604,6 +679,13 @@ void mtk_ovlsys_adaptor_disconnect(struct device *dev, struct device *mmsys_dev,
 					 get_ddp_comp_id(priv->path[i + 1]));
 
 	mtk_mmsys_ddp_disconnect(mmsys_dev, get_ddp_comp_id(priv->path[i]), next);
+}
+
+bool mtk_ovlsys_adaptor_ready(struct device *dev)
+{
+	struct mtk_disp_ovlsys_adaptor *priv = dev_get_drvdata(dev);
+
+	return priv->children_bound;
 }
 
 static int ovlsys_adaptor_comp_get_id(struct device *dev, struct device_node *node,

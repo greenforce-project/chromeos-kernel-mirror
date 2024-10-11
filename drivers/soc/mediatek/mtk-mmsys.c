@@ -370,6 +370,76 @@ void mtk_mmsys_ddp_disconnect(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(mtk_mmsys_ddp_disconnect);
 
+void mtk_mmsys_ddp_fifo_sel(struct device *dev,
+			    enum mtk_ddp_comp_id id,
+			    enum mtk_ddp_comp_id src_id)
+{
+	struct mtk_mmsys *mmsys = dev_get_drvdata(dev);
+	u32 val, shift, idx;
+
+	switch (src_id) {
+	case DDP_COMPONENT_DSI0:
+		val = MT8196_OVL_EXDMA_SEL_DSI0;
+		break;
+	case DDP_COMPONENT_DP_INTF0:
+		val = MT8196_OVL_EXDMA_SEL_DP_INTF0;
+		break;
+	case DDP_COMPONENT_DP_INTF1:
+		val = MT8196_OVL_EXDMA_SEL_DP_INTF1;
+		break;
+	case DDP_COMPONENT_DVO0:
+		val = MT8196_OVL_EXDMA_SEL_DVO0;
+		break;
+	default:
+		return;
+	}
+
+	switch (id) {
+	case DDP_COMPONENT_OVL0_EXDMA2:
+	case DDP_COMPONENT_OVL1_EXDMA2:
+		idx = 2;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA3:
+	case DDP_COMPONENT_OVL1_EXDMA3:
+		idx = 3;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA4:
+	case DDP_COMPONENT_OVL1_EXDMA4:
+		idx = 4;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA5:
+	case DDP_COMPONENT_OVL1_EXDMA5:
+		idx = 5;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA6:
+	case DDP_COMPONENT_OVL1_EXDMA6:
+		idx = 6;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA7:
+	case DDP_COMPONENT_OVL1_EXDMA7:
+		idx = 7;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA8:
+	case DDP_COMPONENT_OVL1_EXDMA8:
+		idx = 8;
+		break;
+	case DDP_COMPONENT_OVL0_EXDMA9:
+	case DDP_COMPONENT_OVL1_EXDMA9:
+		idx = 9;
+		break;
+	default:
+		return;
+	}
+
+	shift = (idx * 4) % 32;
+	idx = (idx * 4) / 32 * sizeof(u32);
+	mtk_mmsys_update_bits(mmsys, MT8196_OVL_EXDMA_ULTRA_SEL0 + idx, GENMASK(2, 0) << shift,
+			      val << shift, NULL);
+	mtk_mmsys_update_bits(mmsys, MT8196_OVL_EXDMA_PRE_ULTRA_SEL0 + idx, GENMASK(2, 0) << shift,
+			      val << shift, NULL);
+}
+EXPORT_SYMBOL_GPL(mtk_mmsys_ddp_fifo_sel);
+
 void mtk_mmsys_merge_async_config(struct device *dev, int idx, int width, int height,
 				  struct cmdq_pkt *cmdq_pkt)
 {

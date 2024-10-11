@@ -932,6 +932,19 @@ unsigned int mtk_dpi_encoder_index_v2(struct device *dev)
 	return encoder_index;
 }
 
+void mtk_dpi_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base)
+{
+	struct mtk_dpi *dpi = dev_get_drvdata(dev);
+	int htotal, vtotal, vrefresh;
+
+	htotal = dpi->mode.htotal;
+	vtotal = dpi->mode.vtotal;
+	vrefresh = drm_mode_vrefresh(&dpi->mode);
+
+	*bw_base = (unsigned int)div_u64((unsigned long long)vtotal * htotal * vrefresh * 4,
+					 1000000);
+}
+
 void mtk_dpi_get_dsc_info_v2(struct device *dev, struct dsc_info *dsc_info)
 {
 	struct mtk_dpi *dpi = dev_get_drvdata(dev);

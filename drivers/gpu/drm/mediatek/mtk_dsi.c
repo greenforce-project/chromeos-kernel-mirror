@@ -1020,6 +1020,21 @@ void mtk_dsi_get_dsc_info(struct device *dev, struct dsc_info *dsc_info)
 	memcpy(&dsc_info->dsc_config, dsi->dsc_config, sizeof(dsc_info->dsc_config));
 }
 
+void mtk_dsi_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base)
+{
+	struct mtk_dsi *dsi = dev_get_drvdata(dev);
+	int htotal, vtotal, vrefresh;
+	struct drm_display_mode mode;
+
+	drm_display_mode_from_videomode(&dsi->vm, &mode);
+	htotal = mode.htotal;
+	vtotal = mode.vtotal;
+	vrefresh = drm_mode_vrefresh(&mode);
+
+	*bw_base = (unsigned int)div_u64((unsigned long long)vtotal * htotal * vrefresh * 4,
+					 1000000);
+}
+
 static int mtk_dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	int ret;
