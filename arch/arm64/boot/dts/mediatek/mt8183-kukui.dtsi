@@ -946,7 +946,7 @@
 &scp {
 	status = "okay";
 
-	firmware-name = "mediatek/mt8183/scp.img";
+	firmware-name = "mediatek/mt8183/scp_legacy.img";
 	pinctrl-names = "default";
 	pinctrl-0 = <&scp_pins>;
 

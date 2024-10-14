@@ -2479,6 +2479,10 @@ out:
 	ra->prev_pos <<= PAGE_SHIFT;
 	ra->prev_pos |= prev_offset;
 
+
+	trace_mm_filemap_get_pages(mapping, (pgoff_t)(*ppos >> PAGE_SHIFT),
+				   last_index);
+
 	*ppos = ((loff_t)index << PAGE_SHIFT) + offset;
 	file_accessed(filp);
 	return written ? written : error;
@@ -2730,6 +2734,8 @@ vm_fault_t filemap_fault(struct vm_fault *vmf)
 	if (unlikely(offset >= max_off))
 		return VM_FAULT_SIGBUS;
 
+	trace_mm_filemap_fault(mapping, offset);
+
 	/*
 	 * Do we have something in the page cache already?
 	 */
@@ -2906,6 +2912,7 @@ next:
 	}
 	rcu_read_unlock();
 	WRITE_ONCE(file->f_ra.mmap_miss, mmap_miss);
+	trace_mm_filemap_map_pages(mapping, start_pgoff, end_pgoff);
 }
 EXPORT_SYMBOL(filemap_map_pages);
 
