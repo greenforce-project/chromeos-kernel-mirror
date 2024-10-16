@@ -82,7 +82,7 @@ WRAP_LOCKED(cfg80211_links_removed)(struct net_device *dev, u16 removed_links)
 static inline u32
 iwl7000_ieee80211_mandatory_rates(struct ieee80211_supported_band *sband)
 {
-	return ieee80211_mandatory_rates(sband, NL80211_BSS_CHAN_WIDTH_20);
+	return ieee80211_mandatory_rates(sband);
 }
 #define ieee80211_mandatory_rates iwl7000_ieee80211_mandatory_rates
 
