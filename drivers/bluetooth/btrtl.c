@@ -69,6 +69,7 @@ enum btrtl_chip_id {
 	CHIP_ID_8852B = 20,
 	CHIP_ID_8852C = 25,
 	CHIP_ID_8851B = 36,
+	CHIP_ID_8852BT = 47,
 };
 
 struct id_table {
@@ -289,6 +290,15 @@ static const struct id_table ic_id_table[] = {
 	  .fw_name  = "rtl_bt/rtl8851bu_fw.bin",
 	  .cfg_name = "rtl_bt/rtl8851bu_config",
 	  .hw_info  = "rtl8851bu" },
+
+	/* 8852BT/8852BE-VT */
+	{ IC_INFO(RTL_ROM_LMP_8852A, 0x87, 0xc, HCI_USB),
+	  .config_needed = false,
+	  .has_rom_version = true,
+	  .has_msft_ext = true,
+	  .fw_name  = "rtl_bt/rtl8852btu_fw.bin",
+	  .cfg_name = "rtl_bt/rtl8852btu_config",
+	  .hw_info  = "rtl8852btu" },
 	};
 
 static const struct id_table *btrtl_match_ic(u16 lmp_subver, u16 hci_rev,
@@ -627,6 +637,7 @@ static int rtlbt_parse_firmware(struct hci_dev *hdev,
 		{ RTL_ROM_LMP_8852A, 20 },	/* 8852B */
 		{ RTL_ROM_LMP_8852A, 25 },	/* 8852C */
 		{ RTL_ROM_LMP_8851B, 36 },	/* 8851B */
+		{ RTL_ROM_LMP_8852A, 47 },	/* 8852BT */
 	};
 
 	if (btrtl_dev->fw_len <= 8)
@@ -1240,15 +1251,11 @@ void btrtl_set_quirks(struct hci_dev *hdev, struct btrtl_device_info *btrtl_dev)
 	/* Enable WBS supported for the specific Realtek devices. */
 	switch (btrtl_dev->project_id) {
 	case CHIP_ID_8822C:
-		/* Disallow RTL8822 to remote wakeup, in order to enter
-		 * global suspend and save power.
-		 */
-		set_bit(HCI_QUIRK_DISABLE_REMOTE_WAKE, &hdev->quirks);
-		fallthrough;
 	case CHIP_ID_8852A:
 	case CHIP_ID_8852B:
 	case CHIP_ID_8852C:
 	case CHIP_ID_8851B:
+	case CHIP_ID_8852BT:
 		set_bit(HCI_QUIRK_VALID_LE_STATES, &hdev->quirks);
 		set_bit(HCI_QUIRK_WIDEBAND_SPEECH_SUPPORTED, &hdev->quirks);
 
@@ -1264,6 +1271,21 @@ void btrtl_set_quirks(struct hci_dev *hdev, struct btrtl_device_info *btrtl_dev)
 		rtl_dev_dbg(hdev, "WBS supported not enabled.");
 		break;
 	}
+
+	/* Disallow RTL8822 to remote wakeup, in order to enter
+	 * global suspend and save power.
+	 */
+	if (btrtl_dev->project_id == CHIP_ID_8822C)
+		set_bit(HCI_QUIRK_DISABLE_REMOTE_WAKE, &hdev->quirks);
+
+	/* Force RTL8852A/RTL8852B to enable remote wakeup in order to
+	 * prevent it from resetting itself and taking longer to resume
+	 * from suspend
+	 */
+	if (btrtl_dev->project_id == CHIP_ID_8852A ||
+	    btrtl_dev->project_id == CHIP_ID_8852B ||
+	    btrtl_dev->project_id == CHIP_ID_8852BT)
+		set_bit(HCI_QUIRK_FORCE_REMOTE_WAKE, &hdev->quirks);
 
 	if (!btrtl_dev->ic_info)
 		return;
@@ -1429,6 +1451,33 @@ int btrtl_get_uart_settings(struct hci_dev *hdev,
 }
 EXPORT_SYMBOL_GPL(btrtl_get_uart_settings);
 
+int btrtl_usb_recv_isoc(u16 pos, u8 *data, u8 *p, int len,
+			u16 wMaxPacketSize)
+{
+	u8 *prev;
+
+	if (pos >= HCI_SCO_HDR_SIZE && pos >= wMaxPacketSize &&
+	    len == wMaxPacketSize && !(pos % wMaxPacketSize) &&
+	    wMaxPacketSize >= 10 && p[0] == data[0] && p[1] == data[1]) {
+		prev = data + (pos - wMaxPacketSize);
+
+		/* Detect the sco data of usb isoc pkt duplication. */
+		if (!memcmp(p + 2, prev + 2, 8))
+			return -EILSEQ;
+
+		if (wMaxPacketSize >= 12 &&
+		    p[2] == prev[6] && p[3] == prev[7] &&
+		    p[4] == prev[4] && p[5] == prev[5] &&
+		    p[6] == prev[10] && p[7] == prev[11] &&
+		    p[8] == prev[8] && p[9] == prev[9]) {
+			return -EILSEQ;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(btrtl_usb_recv_isoc);
+
 MODULE_AUTHOR("Daniel Drake <drake@endlessm.com>");
 MODULE_DESCRIPTION("Bluetooth support for Realtek devices ver " VERSION);
 MODULE_VERSION(VERSION);
@@ -1472,5 +1521,7 @@ MODULE_FIRMWARE("rtl_bt/rtl8852au_fw.bin");
 MODULE_FIRMWARE("rtl_bt/rtl8852au_config.bin");
 MODULE_FIRMWARE("rtl_bt/rtl8852bu_fw.bin");
 MODULE_FIRMWARE("rtl_bt/rtl8852bu_config.bin");
+MODULE_FIRMWARE("rtl_bt/rtl8852btu_fw.bin");
+MODULE_FIRMWARE("rtl_bt/rtl8852btu_config.bin");
 MODULE_FIRMWARE("rtl_bt/rtl8852cu_fw.bin");
 MODULE_FIRMWARE("rtl_bt/rtl8852cu_config.bin");

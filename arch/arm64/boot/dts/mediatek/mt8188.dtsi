@@ -388,118 +388,86 @@
 
 		opp-390000000 {
 			opp-hz = /bits/ 64 <390000000>;
-			opp-hz-real = /bits/ 64 <390000000>,
-				      /bits/ 64 <390000000>;
-			opp-microvolt = <575000>, <750000>;
+			opp-microvolt = <575000>;
 		};
 
 		opp-431000000 {
 			opp-hz = /bits/ 64 <431000000>;
-			opp-hz-real = /bits/ 64 <431000000>,
-				      /bits/ 64 <431000000>;
-			opp-microvolt = <587500>, <750000>;
+			opp-microvolt = <587500>;
 		};
 
 		opp-473000000 {
 			opp-hz = /bits/ 64 <473000000>;
-			opp-hz-real = /bits/ 64 <473000000>,
-				      /bits/ 64 <473000000>;
-			opp-microvolt = <600000>, <750000>;
+			opp-microvolt = <600000>;
 		};
 
 		opp-515000000 {
 			opp-hz = /bits/ 64 <515000000>;
-			opp-hz-real = /bits/ 64 <515000000>,
-				      /bits/ 64 <515000000>;
-			opp-microvolt = <612500>, <750000>;
+			opp-microvolt = <612500>;
 		};
 
 		opp-556000000 {
 			opp-hz = /bits/ 64 <556000000>;
-			opp-hz-real = /bits/ 64 <556000000>,
-				      /bits/ 64 <556000000>;
-			opp-microvolt = <625000>, <750000>;
+			opp-microvolt = <625000>;
 		};
 
 		opp-598000000 {
 			opp-hz = /bits/ 64 <598000000>;
-			opp-hz-real = /bits/ 64 <598000000>,
-				      /bits/ 64 <598000000>;
-			opp-microvolt = <637500>, <750000>;
+			opp-microvolt = <637500>;
 		};
 
 		opp-640000000 {
 			opp-hz = /bits/ 64 <640000000>;
-			opp-hz-real = /bits/ 64 <640000000>,
-				      /bits/ 64 <640000000>;
-			opp-microvolt = <650000>, <750000>;
+			opp-microvolt = <650000>;
 		};
 
 		opp-670000000 {
 			opp-hz = /bits/ 64 <670000000>;
-			opp-hz-real = /bits/ 64 <670000000>,
-				      /bits/ 64 <670000000>;
-			opp-microvolt = <662500>, <750000>;
+			opp-microvolt = <662500>;
 		};
 
 		opp-700000000 {
 			opp-hz = /bits/ 64 <700000000>;
-			opp-hz-real = /bits/ 64 <700000000>,
-				      /bits/ 64 <700000000>;
-			opp-microvolt = <675000>, <750000>;
+			opp-microvolt = <675000>;
 		};
 
 		opp-730000000 {
 			opp-hz = /bits/ 64 <730000000>;
-			opp-hz-real = /bits/ 64 <730000000>,
-				      /bits/ 64 <730000000>;
-			opp-microvolt = <687500>, <750000>;
+			opp-microvolt = <687500>;
 		};
 
 		opp-760000000 {
 			opp-hz = /bits/ 64 <760000000>;
-			opp-hz-real = /bits/ 64 <760000000>,
-				      /bits/ 64 <760000000>;
-			opp-microvolt = <700000>, <750000>;
+			opp-microvolt = <700000>;
 		};
 
 		opp-790000000 {
 			opp-hz = /bits/ 64 <790000000>;
-			opp-hz-real = /bits/ 64 <790000000>,
-				      /bits/ 64 <790000000>;
-			opp-microvolt = <712500>, <750000>;
+			opp-microvolt = <712500>;
 		};
 
 		opp-835000000 {
 			opp-hz = /bits/ 64 <835000000>;
-			opp-hz-real = /bits/ 64 <835000000>,
-				      /bits/ 64 <835000000>;
-			opp-microvolt = <731250>, <750000>;
+			opp-microvolt = <731250>;
 		};
 
 		opp-880000000 {
 			opp-hz = /bits/ 64 <880000000>;
-			opp-hz-real = /bits/ 64 <880000000>,
-				      /bits/ 64 <880000000>;
-			opp-microvolt = <750000>, <750000>;
+			opp-microvolt = <750000>;
 		};
 
 		opp-915000000 {
 			opp-hz = /bits/ 64 <915000000>;
-			opp-hz-real = /bits/ 64 <915000000>,
-				      /bits/ 64 <915000000>;
-			opp-microvolt = <775000>, <775000>;
-			opp-microvolt-bin5 = <762500>, <762500>;
-			opp-microvolt-bin6 = <750000>, <750000>;
+			opp-microvolt = <775000>;
+			opp-microvolt-bin5 = <762500>;
+			opp-microvolt-bin6 = <750000>;
 		};
 
 		opp-950000000 {
 			opp-hz = /bits/ 64 <950000000>;
-			opp-hz-real = /bits/ 64 <950000000>,
-				      /bits/ 64 <950000000>;
-			opp-microvolt = <800000>, <800000>;
-			opp-microvolt-bin5 = <775000>, <775000>;
-			opp-microvolt-bin6 = <750000>, <750000>;
+			opp-microvolt = <800000>;
+			opp-microvolt-bin5 = <775000>;
+			opp-microvolt-bin6 = <750000>;
 		};
 	};
 
@@ -933,9 +901,9 @@
 					#size-cells = <0>;
 					#power-domain-cells = <1>;
 
-					power-domain@MT8188_POWER_DOMAIN_MFG1 {
+					mfg1: power-domain@MT8188_POWER_DOMAIN_MFG1 {
 						reg = <MT8188_POWER_DOMAIN_MFG1>;
-						clocks = <&topckgen CLK_TOP_MFG_CK_FAST_REF>,
+						clocks = <&apmixedsys CLK_APMIXED_MFGPLL>,
 							 <&topckgen CLK_TOP_MFG_CORE_TMP>;
 						clock-names= "mfg10", "mfg11";
 						#address-cells = <1>;
@@ -1340,9 +1308,6 @@
 			clock-names = "pmif_sys_ck",
 				      "pmif_tmr_ck",
 				      "spmimst_clk_mux";
-			interrupts = <GIC_SPI 244 IRQ_TYPE_LEVEL_HIGH 0>,
-				     <GIC_SPI 256 IRQ_TYPE_LEVEL_HIGH 0>;
-			irq_event_en = <0x18000000 0x0001c000 0x0 0x0 0x0>;
 		};
 
 		infra_iommu: iommu@10315000 {
@@ -1940,13 +1905,13 @@
 
 		u3phy0: t-phy@11e30000 {
 			compatible = "mediatek,mt8188-tphy", "mediatek,generic-tphy-v3";
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x0 0x11e30000 0x1000>;
 			status = "disabled";
 
-			u2port0: usb-phy@11e30000 {
-				reg = <0 0x11e30000 0 0x700>;
+			u2port0: usb-phy@0 {
+				reg = <0x0 0x700>;
 				clocks = <&topckgen CLK_TOP_SSUSB_PHY_P2_REF>,
 					 <&apmixedsys CLK_APMIXED_PLL_SSUSB26M_EN>;
 				clock-names = "ref", "da_ref";
@@ -1956,21 +1921,21 @@
 
 		u3phy1: t-phy@11e40000 {
 			compatible = "mediatek,mt8188-tphy", "mediatek,generic-tphy-v3";
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x0 0x11e40000 0x1000>;
 			status = "disabled";
 
-			u2port1: usb-phy@11e40000 {
-				reg = <0 0x11e40000 0 0x700>;
+			u2port1: usb-phy@0 {
+				reg = <0x0 0x700>;
 				clocks = <&topckgen CLK_TOP_SSUSB_PHY_REF>,
 					 <&apmixedsys CLK_APMIXED_PLL_SSUSB26M_EN>;
 				clock-names = "ref", "da_ref";
 				#phy-cells = <1>;
 			};
 
-			u3port1: usb-phy@11e40700 {
-				reg = <0 0x11e40700 0 0x700>;
+			u3port1: usb-phy@700 {
+				reg = <0x700 0x700>;
 				clocks = <&apmixedsys CLK_APMIXED_PLL_SSUSB26M_EN>,
 					 <&clk26m>;
 				clock-names = "ref", "da_ref";
@@ -1981,13 +1946,13 @@
 
 		u3phy2: t-phy@11e80000 {
 			compatible = "mediatek,mt8188-tphy", "mediatek,generic-tphy-v3";
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x0 0x11e80000 0x1000>;
 			status = "disabled";
 
-			u2port2: usb-phy@11e80000 {
-				reg = <0 0x11e80000 0 0x700>;
+			u2port2: usb-phy@0 {
+				reg = <0x0 0x700>;
 				clocks = <&topckgen CLK_TOP_SSUSB_PHY_P3_REF>,
 					 <&apmixedsys CLK_APMIXED_PLL_SSUSB26M_EN>;
 				clock-names = "ref", "da_ref";
@@ -2089,16 +2054,8 @@
 		gpu: gpu@13000000 {
 			compatible = "mediatek,mt8188-mali", "arm,mali-valhall";
 			reg = <0 0x13000000 0 0x4000>;
-			clocks = <&topckgen CLK_TOP_MFG_CK_FAST_REF>,
-				 <&apmixedsys CLK_APMIXED_MFGPLL>,
-				 <&apmixedsys CLK_APMIXED_MFGPLL>,
-				 <&topckgen CLK_TOP_MFG_CORE_TMP>,
-				 <&mfgcfg CLK_MFGCFG_BG3D>;
-			clock-names = "clk_mux",
-				      "clk_pll_src",
-				      "clk_main_parent",
-				      "clk_sub_parent",
-				      "subsys_bg3d";
+
+			clocks = <&mfgcfg CLK_MFGCFG_BG3D>;
 			interrupts = <GIC_SPI 383 IRQ_TYPE_LEVEL_HIGH 0>,
 				     <GIC_SPI 382 IRQ_TYPE_LEVEL_HIGH 0>,
 				     <GIC_SPI 381 IRQ_TYPE_LEVEL_HIGH 0>;
@@ -4230,7 +4187,7 @@
 
 		disp_dsi0: dsi@1c008000 {
 			compatible = "mediatek,mt8188-dsi";
-			reg = <0 0x1c008000 0 0x1000>, <0 0x1c01d000 0 0x1000>;
+			reg = <0 0x1c008000 0 0x1000>;
 			clocks = <&vdosys0 CLK_VDO0_DSI0>,
 				 <&vdosys0 CLK_VDO0_DSI0_DSI>,
 				 <&mipi_tx_config0>;

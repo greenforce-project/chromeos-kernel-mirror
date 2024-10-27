@@ -55,7 +55,6 @@
 	/* chosen */
 	chosen: chosen {
 		stdout-path = "serial0:115200n8";
-		kaslr-seed = <0 0>;
 	};
 
 	firmware {
@@ -68,7 +67,7 @@
 
 		mtk-svp-heap {
 			compatible = "mediatek,secure_heap";
-			memory-region = <&secure_cma_reserved>;
+			memory-region = <&restricted_region>;
 		};
 	};
 
@@ -245,10 +244,10 @@
 			reusable;
 		};
 
-		secure_cma_reserved: secure-cma-region {
+		restricted_region: secure-region {
 			compatible = "mediatek,dynamic-restricted-region";
 			reg = <0 0x7f000000 0 0x400000>;
-			reusable;
+			no-map;
 		};
 	};
 
@@ -415,9 +414,9 @@
 };
 
 &gpu {
-	supply-names = "mali","mali_sram";
+	/* supply-names property is non-standard */
+	supply-names = "mali";
 	mali-supply = <&mt6359_vproc2_buck_reg>;
-	mali_sram-supply = <&mt6359_vsram_others_ldo_reg>;
 	volt-bin-mapping = <3 4 5 6>;
 
 	power_model@0 {
@@ -599,6 +598,10 @@
 	domain-supply = <&mt6359_vproc2_buck_reg>;
 };
 
+&mfg1 {
+	domain-supply = <&mt6359_vsram_others_ldo_reg>;
+};
+
 &mipi_tx_config0 {
 	status = "okay";
 };
@@ -674,6 +677,18 @@
 	regulator-max-microvolt = <775000>;
 };
 
+&mt6359_vproc2_buck_reg {
+	/*
+	 * Called "ppvar_dvdd_gpu" in the schematic. Renamed to
+	 * "ppvar_dvdd_vgpu" here to match mtk-regulator-coupler requirements.
+	 */
+	regulator-name = "ppvar_dvdd_vgpu";
+	regulator-min-microvolt = <550000>;
+	regulator-max-microvolt = <800000>;
+	regulator-coupled-with = <&mt6359_vsram_others_ldo_reg>;
+	regulator-coupled-max-spread = <6250>;
+};
+
 &mt6359_vpu_buck_reg {
 	regulator-always-on;
 };
@@ -685,6 +700,14 @@
 &mt6359_vsram_md_ldo_reg {
 	regulator-min-microvolt = <800000>;
 	regulator-max-microvolt = <800000>;
+};
+
+&mt6359_vsram_others_ldo_reg {
+	regulator-name = "pp0850_dvdd_sram_gpu";
+	regulator-min-microvolt = <750000>;
+	regulator-max-microvolt = <800000>;
+	regulator-coupled-with = <&mt6359_vproc2_buck_reg>;
+	regulator-coupled-max-spread = <6250>;
 };
 
 &mt6359_vufs_ldo_reg {

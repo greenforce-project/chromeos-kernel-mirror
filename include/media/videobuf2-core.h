@@ -154,7 +154,7 @@ struct vb2_mem_ops {
  * @mem_priv:	private data with this plane.
  * @dbuf:	dma_buf - shared buffer object.
  * @dbuf_mapped:	flag to show whether dbuf is mapped or not
- * @duplicated_dbuf:	boolean to show whether dbuf is duplicated with a
+ * @dbuf_duplicated:	boolean to show whether dbuf is duplicated with a
  *		previous plane of the buffer.
  * @bytesused:	number of bytes occupied by data in the plane (payload).
  * @length:	size of this plane (NOT the payload) in bytes. The maximum
