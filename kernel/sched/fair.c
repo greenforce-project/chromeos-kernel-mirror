@@ -88,7 +88,11 @@ const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
  * The minimum load balance interval in jiffies that must pass before a
  * a periodic or nohz-idle balance happens.
  */
+#ifdef CONFIG_X86
+unsigned long __read_mostly sysctl_sched_min_load_balance_interval = 16UL;
+#else
 unsigned long __read_mostly sysctl_sched_min_load_balance_interval = 1UL;
+#endif
 
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
@@ -143,7 +147,11 @@ unsigned int sysctl_sched_cfs_bandwidth_slice		= 5000UL;
 #endif
 
 #ifdef CONFIG_SMP
+#ifdef CONFIG_X86
+DEFINE_STATIC_KEY_FALSE(sched_aggressive_next_balance);
+#else
 DEFINE_STATIC_KEY_TRUE(sched_aggressive_next_balance);
+#endif
 #endif
 
 static inline void update_load_add(struct load_weight *lw, unsigned long inc)
@@ -3091,15 +3099,14 @@ static void reweight_entity(struct cfs_rq *cfs_rq, struct sched_entity *se,
 
 }
 
-void reweight_task(struct task_struct *p, int prio)
+void reweight_task(struct task_struct *p, const struct load_weight *lw)
 {
 	struct sched_entity *se = &p->se;
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
 	struct load_weight *load = &se->load;
-	unsigned long weight = scale_load(sched_prio_to_weight[prio]);
 
-	reweight_entity(cfs_rq, se, weight);
-	load->inv_weight = sched_prio_to_wmult[prio];
+	reweight_entity(cfs_rq, se, lw->weight);
+	load->inv_weight = lw->inv_weight;
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -8033,7 +8040,7 @@ static int detach_tasks(struct lb_env *env)
 		case migrate_util:
 			util = task_util_est(p);
 
-			if (util > env->imbalance)
+			if (shr_bound(util, env->sd->nr_balance_failed) > env->imbalance)
 				goto next;
 
 			env->imbalance -= util;
