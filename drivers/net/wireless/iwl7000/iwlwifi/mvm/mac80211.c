@@ -5492,7 +5492,7 @@ out_reassign:
 
 out_restart:
 	/* things keep failing, better restart the hw */
-	iwl_force_nmi(mvm->trans);
+	iwl_mvm_nic_restart(mvm);
 	return ret;
 }
 
@@ -5528,7 +5528,7 @@ out_reassign:
 
 out_restart:
 	/* things keep failing, better restart the hw */
-	iwl_force_nmi(mvm->trans);
+	iwl_mvm_nic_restart(mvm);
 	return ret;
 }
 
