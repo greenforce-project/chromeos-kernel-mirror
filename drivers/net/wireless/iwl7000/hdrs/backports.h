@@ -363,3 +363,8 @@ cfg80211_mlo_reconf_add_done(struct net_device *dev,
 			     struct cfg80211_mlo_reconf_done_data *data)
 {
 }
+
+static inline void
+cfg80211_epcs_changed(struct net_device *netdev, bool enabled)
+{
+}
