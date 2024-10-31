@@ -360,9 +360,13 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 #define pm_sleep_ptr(_ptr) PTR_IF(IS_ENABLED(CONFIG_PM_SLEEP), (_ptr))
 #endif
 
+#include <linux/cleanup.h>
+
 #ifndef lockdep_assert
 #define lockdep_assert(x) do {} while (0)
 #endif
+
+DEFINE_FREE(kfree, void *, if (!IS_ERR_OR_NULL(_T)) kfree(_T))
 
 #define NL80211_BAND_LC	5
 
@@ -1099,5 +1103,10 @@ struct cfg80211_mlo_reconf_done_data {
 static inline void
 cfg80211_mlo_reconf_add_done(struct net_device *dev,
 			     struct cfg80211_mlo_reconf_done_data *data)
+{
+}
+
+static inline void
+cfg80211_epcs_changed(struct net_device *netdev, bool enabled)
 {
 }
