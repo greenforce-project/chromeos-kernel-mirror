@@ -32,6 +32,8 @@ struct mtk_mux {
 	u32 hwv_set_ofs;
 	u32 hwv_clr_ofs;
 	u32 hwv_sta_ofs;
+	u32 hwv_upd_ofs;
+	u32 hwv_upd_id;
 	u32 fenc_sta_mon_ofs;
 
 	u8 mux_shift;
@@ -87,6 +89,7 @@ extern const struct clk_ops mtk_mux_clr_set_upd_ops;
 extern const struct clk_ops mtk_mux_gate_clr_set_upd_ops;
 extern const struct clk_ops mtk_mux_gate_fenc_clr_set_upd_ops;
 extern const struct clk_ops mtk_hwv_mux_fenc_ops;
+extern const struct clk_ops mtk_hwv_dfs_mux_fenc_ops;
 
 #define MUX_GATE_CLR_SET_UPD_FLAGS(_id, _name, _parents, _mux_ofs,	\
 			_mux_set_ofs, _mux_clr_ofs, _shift, _width,	\
@@ -197,6 +200,50 @@ extern const struct clk_ops mtk_hwv_mux_fenc_ops;
 			_mux_ofs, _mux_set_ofs, _mux_clr_ofs,		\
 			_shift, _width, _gate, _upd_ofs, _upd,		\
 			_fenc_sta_mon_ofs, _fenc, 0)
+
+#define MUX_MULT_DFS_HWV_FENC_FLAGS(_id, _name, _parents,		\
+			_mux_ofs, _mux_set_ofs, _mux_clr_ofs, _hwv_comp,\
+			_hwv_sta_ofs, _hwv_set_ofs, _hwv_clr_ofs,	\
+			_hwv_upd_ofs,	_hwv_upd_id,			\
+			_shift, _width, _gate, _upd_ofs, _upd,		\
+			_fenc_sta_mon_ofs, _fenc, _flags) {		\
+		.id = _id,						\
+		.name = _name,						\
+		.mux_ofs = _mux_ofs,					\
+		.set_ofs = _mux_set_ofs,				\
+		.clr_ofs = _mux_clr_ofs,				\
+		.hwv_comp = _hwv_comp,					\
+		.hwv_sta_ofs = _hwv_sta_ofs,				\
+		.hwv_set_ofs = _hwv_set_ofs,				\
+		.hwv_clr_ofs = _hwv_clr_ofs,				\
+		.hwv_upd_ofs = _hwv_upd_ofs,				\
+		.hwv_upd_id = _hwv_upd_id,				\
+		.upd_ofs = _upd_ofs,					\
+		.fenc_sta_mon_ofs = _fenc_sta_mon_ofs,			\
+		.mux_shift = _shift,					\
+		.mux_width = _width,					\
+		.gate_shift = _gate,					\
+		.upd_shift = _upd,					\
+		.fenc_shift = _fenc,					\
+		.parent_names = _parents,				\
+		.num_parents = ARRAY_SIZE(_parents),			\
+		.flags =  CLK_USE_HW_VOTER | _flags,			\
+		.ops = &mtk_hwv_dfs_mux_fenc_ops,			\
+		.dma_ops = &mtk_mux_gate_fenc_clr_set_upd_ops,		\
+	}
+
+#define MUX_MULT_DFS_HWV_FENC(_id, _name, _parents,			\
+			_mux_ofs, _mux_set_ofs, _mux_clr_ofs, _hwv_comp,\
+			_hwv_sta_ofs, _hwv_set_ofs, _hwv_clr_ofs,	\
+			_hwv_upd_ofs,	_hwv_upd_id,			\
+			_shift, _width, _gate, _upd_ofs, _upd,		\
+			_fenc_sta_mon_ofs, _fenc)			\
+		MUX_MULT_DFS_HWV_FENC_FLAGS(_id, _name, _parents,	\
+			_mux_ofs,_mux_set_ofs, _mux_clr_ofs, _hwv_comp,	\
+			_hwv_sta_ofs, _hwv_set_ofs, _hwv_clr_ofs,	\
+			_hwv_upd_ofs,	_hwv_upd_id,			\
+			_shift, _width, _gate, _upd_ofs, _upd,		\
+			_fenc_sta_mon_ofs, _fenc,  0)
 
 int mtk_clk_register_muxes(struct device *dev,
 			   const struct mtk_mux *muxes,
