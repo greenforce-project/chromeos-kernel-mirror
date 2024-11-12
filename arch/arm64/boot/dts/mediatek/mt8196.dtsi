@@ -7,6 +7,7 @@
 #include <dt-bindings/clock/mmdvfs-clk.h>
 #include <dt-bindings/clock/mt8196-clk.h>
 #include <dt-bindings/interconnect/mtk,emi.h>
+#include <dt-bindings/interconnect/mtk,mmqos.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/mailbox/mediatek,mt8196-gce.h>
@@ -3589,6 +3590,28 @@
 					recv-opt = <1>;
 				};
 			};
+		};
+
+		mmqos: interconnect@30000000 {
+			compatible = "mediatek,mt8196-mmqos";
+			reg = <0  0x30000000 0 0x1000>,
+			      <0 0x31a90000 0 0x1000>;
+			clocks = <&cksys_gp2_clk CLK_CK2_MMINFRA_SEL>,
+				 <&cksys_gp2_clk CLK_CK2_MMINFRA_SEL>;
+			clock-names = "mm", "mdp";
+			interconnects = <&dvfsrc MT6873_MASTER_MMSYS &dvfsrc MT6873_SLAVE_DDR_EMI>,
+					<&dvfsrc MT6873_MASTER_HRT_MMSYS
+					 &dvfsrc MT6873_SLAVE_HRT_DDR_EMI>;
+			interconnect-names = "icc-bw", "icc-hrt-bw";
+			#mtk-interconnect-cells = <1>;
+			mediatek,larbs-supply = <&smi_larb0 &smi_larb1  &smi_larb2
+						 &smi_larb3  &smi_larb4  &smi_larb5  &smi_larb6
+						 &smi_larb7  &smi_larb8  &smi_larb20 &smi_larb21
+						 &smi_larb24 &smi_larb32 &smi_larb33 &smi_larb34
+						 &smi_larb35 &smi_larb36 &smi_larb37 &smi_larb41
+						 &smi_larb42 &smi_larb47>;
+			mediatek,commons-supply = <&smi_disp_common>, <&smi_mdp_common>;
+			mediatek,vcp = <&vcp>;
 		};
 
 		mminfra_hwv: syscon@31a80000 {
