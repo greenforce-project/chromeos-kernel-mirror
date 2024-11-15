@@ -2691,15 +2691,6 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 		}
 	}
 
-	if (in_reconfig) {
-		list_for_each_entry(sdata, &local->interfaces, list) {
-			if (!ieee80211_sdata_running(sdata))
-				continue;
-			if (sdata->vif.type == NL80211_IFTYPE_STATION)
-				ieee80211_sta_restart(sdata);
-		}
-	}
-
 	if (!suspended)
 		return 0;
 
