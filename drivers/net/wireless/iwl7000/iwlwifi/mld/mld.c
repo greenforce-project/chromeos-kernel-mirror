@@ -349,7 +349,7 @@ iwl_op_mode_mld_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	ret = iwl_mld_leds_init(mld);
 	if (ret)
-		goto free_hw;
+		goto free_nvm;
 
 	ret = iwl_mld_alloc_scan_cmd(mld);
 	if (ret)
@@ -370,6 +370,8 @@ free_scan_cmd:
 	kfree(mld->scan.cmd);
 leds_exit:
 	iwl_mld_leds_exit(mld);
+free_nvm:
+	kfree(mld->nvm_data);
 free_hw:
 	ieee80211_free_hw(mld->hw);
 	return ERR_PTR(ret);
