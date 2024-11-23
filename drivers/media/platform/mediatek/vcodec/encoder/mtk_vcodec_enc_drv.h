@@ -11,6 +11,7 @@
 #include "../common/mtk_vcodec_dbgfs.h"
 #include "../common/mtk_vcodec_fw_priv.h"
 #include "../common/mtk_vcodec_util.h"
+#include "mtk_vcodec_enc_dvfs.h"
 
 #define MTK_VCODEC_ENC_NAME	"mtk-vcodec-enc"
 
@@ -31,6 +32,7 @@
  * @core_id: stand for h264 or vp8 encode index
  * @uses_34bit: whether the encoder uses 34-bit iova
  * @uses_comm: whether the encoder uses common driver interface
+ * @dvfs_cfg: encoder dvfs configurations
  */
 struct mtk_vcodec_enc_pdata {
 	bool uses_ext;
@@ -43,6 +45,7 @@ struct mtk_vcodec_enc_pdata {
 	u8 core_id;
 	bool uses_34bit;
 	bool uses_comm;
+	const struct venc_dvfs_config dvfs_cfg;
 };
 
 /*
@@ -190,6 +193,10 @@ struct mtk_vcodec_enc_ctx {
  * @pm: power management control
  * @enc_capability: used to identify encode capability
  * @dbgfs: debug log related information
+ *
+ * @vencsys: encoder syscon
+ * @dvfs_mux: encoder dvfs lock
+ * @venc_dvfs: encoder dvfs parameters
  */
 struct mtk_vcodec_enc_dev {
 	struct v4l2_device v4l2_dev;
@@ -218,6 +225,10 @@ struct mtk_vcodec_enc_dev {
 	struct mtk_vcodec_pm pm;
 	unsigned int enc_capability;
 	struct mtk_vcodec_dbgfs dbgfs;
+
+	struct regmap *vencsys;
+	struct mutex dvfs_mux;
+	struct mtk_vcodec_enc_dvfs venc_dvfs;
 };
 
 static inline struct mtk_vcodec_enc_ctx *fh_to_enc_ctx(struct v4l2_fh *fh)

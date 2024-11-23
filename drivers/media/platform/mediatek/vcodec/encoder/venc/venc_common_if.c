@@ -5,6 +5,7 @@
 
 #include "../mtk_vcodec_enc.h"
 #include "../mtk_vcodec_enc_drv.h"
+#include "../mtk_vcodec_enc_dvfs.h"
 #include "../venc_drv_base.h"
 #include "../venc_drv_if.h"
 #include "../venc_vpu_if.h"
@@ -188,6 +189,10 @@ static int venc_init(struct mtk_vcodec_enc_ctx *ctx)
 		kfree(inst);
 	else
 		ctx->drv_handle = inst;
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mtk_venc_fill_dvfs_config(inst->ctx->dev, inst->vsi->data.config_data, VENC_CONFIG_DATA);
+#endif
 
 	return ret;
 }

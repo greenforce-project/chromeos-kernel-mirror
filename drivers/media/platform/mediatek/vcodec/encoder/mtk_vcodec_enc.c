@@ -909,6 +909,13 @@ static int vb2ops_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 		ctx->state = MTK_STATE_HEADER;
 	}
 
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mutex_lock(&ctx->dev->dvfs_mux);
+	mtk_venc_dvfs_begin_inst(ctx);
+	mtk_venc_pmqos_begin_inst(ctx);
+	mutex_unlock(&ctx->dev->dvfs_mux);
+#endif
+
 	return 0;
 
 err_start_stream:
@@ -992,6 +999,13 @@ static void vb2ops_venc_stop_streaming(struct vb2_queue *q)
 	ret = venc_if_deinit(ctx);
 	if (ret)
 		mtk_v4l2_venc_err(ctx, "venc_if_deinit failed=%d", ret);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mutex_lock(&ctx->dev->dvfs_mux);
+	mtk_venc_dvfs_end_inst(ctx);
+	mtk_venc_pmqos_end_inst(ctx);
+	mutex_unlock(&ctx->dev->dvfs_mux);
+#endif
 
 	ctx->state = MTK_STATE_FREE;
 }

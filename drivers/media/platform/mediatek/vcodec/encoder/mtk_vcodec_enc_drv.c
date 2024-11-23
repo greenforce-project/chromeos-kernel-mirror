@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -305,6 +306,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	mutex_init(&dev->enc_mutex);
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->dev_ctx_lock);
+	mutex_init(&dev->dvfs_mux);
 	spin_lock_init(&dev->irqlock);
 
 	snprintf(dev->v4l2_dev.name, sizeof(dev->v4l2_dev.name), "%s",
@@ -362,6 +364,15 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 	}
 
 	mtk_vcodec_dbgfs_init(dev, true);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	dev->vencsys = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "mediatek,vencsys");
+	if (IS_ERR(dev->vencsys))
+		dev->vencsys = NULL;
+
+	mtk_venc_prepare_dvfs(dev);
+	mtk_venc_prepare_emi_bw(dev);
+#endif
 	dev_dbg(&pdev->dev,  "[MTK VCODEC] encoder %d registered as /dev/video%d",
 		dev->venc_pdata->core_id, vfd_enc->num);
 
@@ -456,6 +467,7 @@ static const struct mtk_vcodec_enc_pdata mt8196_pdata = {
 	.max_bitrate = 100000000,
 	.core_id = VENC_SYS,
 	.uses_comm = true,
+	.dvfs_cfg = {6, 1, 2},
 };
 
 static const struct of_device_id mtk_vcodec_enc_match[] = {
@@ -475,6 +487,10 @@ MODULE_DEVICE_TABLE(of, mtk_vcodec_enc_match);
 static void mtk_vcodec_enc_remove(struct platform_device *pdev)
 {
 	struct mtk_vcodec_enc_dev *dev = platform_get_drvdata(pdev);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mtk_venc_unprepare_dvfs(dev);
+#endif
 
 	destroy_workqueue(dev->encode_workqueue);
 	if (dev->m2m_dev_enc)

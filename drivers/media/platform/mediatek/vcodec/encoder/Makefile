@@ -10,3 +10,7 @@ mtk-vcodec-enc-y := venc/venc_vp8_if.o \
 		mtk_vcodec_enc_pm.o \
 		venc_drv_if.o \
 		venc_vpu_if.o \
+
+mtk-vcodec-enc-$(CONFIG_MTK_MMDVFS) += mtk_vcodec_enc_pm_plat.o \
+		    mtk_vcodec_enc_dvfs.o
+

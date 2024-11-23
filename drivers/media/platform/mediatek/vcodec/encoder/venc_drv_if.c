@@ -66,20 +66,19 @@ int venc_if_encode(struct mtk_vcodec_enc_ctx *ctx,
 	ctx->dev->curr_ctx = ctx;
 	spin_unlock_irqrestore(&ctx->dev->irqlock, flags);
 
-	ret = mtk_vcodec_enc_pw_on(&ctx->dev->pm);
+	ret = mtk_vcodec_enc_enable_hardware(ctx);
 	if (ret)
-		goto venc_if_encode_pw_on_err;
-	mtk_vcodec_enc_clock_on(&ctx->dev->pm);
+		goto venc_enable_hw_err;
+	mtk_vcodec_enc_pm_frame_req(ctx);
 	ret = ctx->enc_if->encode(ctx->drv_handle, opt, frm_buf,
 				  bs_buf, result);
-	mtk_vcodec_enc_clock_off(&ctx->dev->pm);
-	mtk_vcodec_enc_pw_off(&ctx->dev->pm);
+	mtk_vcodec_enc_disable_hardware(ctx);
 
 	spin_lock_irqsave(&ctx->dev->irqlock, flags);
 	ctx->dev->curr_ctx = NULL;
 	spin_unlock_irqrestore(&ctx->dev->irqlock, flags);
 
-venc_if_encode_pw_on_err:
+venc_enable_hw_err:
 	mtk_venc_unlock(ctx);
 	return ret;
 }
