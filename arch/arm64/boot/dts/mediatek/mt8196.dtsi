@@ -4577,9 +4577,15 @@
 			mediatek,vcp = <&vcp>;
 			iommus = <&mm_smmu 176>;
 			interrupts = <GIC_SPI 487 IRQ_TYPE_LEVEL_HIGH 0>;
-			clocks = <&venc_gcon_clk CLK_VEN1_CKE1_VENC>;
-			clock-names = "venc_sel";
+			clocks = <&venc_gcon_clk CLK_VEN1_CKE1_VENC>,
+				 <&mmdvfs_mux MMDVFS_USER_VENC>;
+			clock-names = "venc_sel", "mmdvfs_clk";
 			power-domains = <&hfrpsys MT8196_POWER_DOMAIN_VEN0>;
+			operating-points-v2 = <&opp_table_venc>;
+			interconnects = <&mmqos SLAVE_LARB(7) &mmqos SLAVE_COMMON(0)>,
+					<&mmqos SLAVE_LARB(53) &mmqos SLAVE_COMMON(0)>;
+			interconnect-names = "path_larb7_r", "path_larb53_w";
+			mediatek,vencsys = <&venc_gcon_clk>;
 		};
 
 		smi_disp_venc_sub_comm0: smi-sub-comm@38070000 {
