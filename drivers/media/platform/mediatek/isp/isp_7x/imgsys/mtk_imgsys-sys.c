@@ -168,9 +168,9 @@ static void mtk_imgsys_notify(struct mtk_imgsys_request *req, uint64_t frm_owner
 
 	mtk_imgsys_hw_working_buf_free(imgsys_dev, req->working_buf);
 	req->working_buf = NULL;
+	mtk_imgsys_pipe_remove_job(req);
 	if (vbf_state == VB2_BUF_STATE_DONE)
 		mtk_imgsys_pipe_job_finish(req, vbf_state);
-	mtk_imgsys_pipe_remove_job(req);
 
 	wake_up(&imgsys_dev->flushing_waitq);
 	dev_dbg(imgsys_dev->dev,
