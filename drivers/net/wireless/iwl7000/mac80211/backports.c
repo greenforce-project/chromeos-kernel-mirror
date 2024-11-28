@@ -268,6 +268,9 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 	lockdep_assert_wiphy(wiphy);
 
 	spin_lock_irqsave(&local->wiphy_work_lock, flags);
+	if (end && list_empty(&end->entry))
+		goto out;
+
 	while (!list_empty(&local->wiphy_work_list)) {
 		struct wiphy_work *wk;
 
@@ -286,6 +289,7 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 		if (WARN_ON(--runaway_limit == 0))
 			INIT_LIST_HEAD(&local->wiphy_work_list);
 	}
+out:
 	spin_unlock_irqrestore(&local->wiphy_work_lock, flags);
 }
 EXPORT_SYMBOL(wiphy_work_flush);
