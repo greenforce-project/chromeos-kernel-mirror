@@ -30,7 +30,8 @@ struct v4l2_ext_plane {
 	__u32			data_offset;
 	__u32			reserved[11];
 #else
-	__u64			reserved[2];
+	__u64			isp_addr;
+	__u64			size;
 #endif
 };
 
