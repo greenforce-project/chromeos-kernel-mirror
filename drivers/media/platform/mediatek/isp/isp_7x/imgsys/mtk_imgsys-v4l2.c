@@ -27,6 +27,7 @@
 #include "modules/mtk_imgsys-pqdip.h"
 #include "modules/mtk_imgsys-wpe.h"
 #include "modules/mtk_imgsys-adl.h"
+#include "modules/mtk_imgsys-me.h"
 
 #include "mtk_imgsys-cmdq.h"
 #include "mtk_imgsys-dev.h"
@@ -34,7 +35,6 @@
 #include "mtk_imgsys-vnode_id.h"
 #include "mtk_imgsys-of.h"
 #include "mtk_imgsys-module.h"
-#include "mtk-ipesys-me.h"
 #include "mtk_imgsys-debug.h"
 #include "mtk_imgsys_v4l2_vnode.h"
 #include "mtk_imgsys-debug.h"
@@ -1843,7 +1843,16 @@ static struct clk_bulk_data imgsys_isp7_clks[] = {
 		.id = "WPE3_CG_DIP1_WPE",
 	},
 	{
-		.id = "ME_CG_IPE"
+		.id = "ME_CG_IPE",
+	},
+	{
+		.id = "ME_CG_IPE_TOP",
+	},
+	{
+		.id = "ME_CG",
+	},
+	{
+		.id = "ME_CG_LARB12"
 	}
 };
 
@@ -1874,11 +1883,11 @@ static const struct module_ops imgsys_isp7_modules[] = {
 	},
 	[IMGSYS_MOD_ME] = {
 		.module_id = IMGSYS_MOD_ME,
-		.init = ipesys_me_set_initial_value,
+		.init = imgsys_me_set_initial_value,
 		.set = NULL,
-		.dump = ipesys_me_debug_dump,
-		.ndddump = ipesys_me_ndd_dump,
-		.uninit = ipesys_me_uninit,
+		.dump = imgsys_me_debug_dump,
+		.ndddump = imgsys_me_ndd_dump,
+		.uninit = imgsys_me_uninit,
 	},
 	[IMGSYS_MOD_WPE] = {
 		.module_id = IMGSYS_MOD_WPE,
