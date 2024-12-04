@@ -2279,8 +2279,8 @@
 			regulator-max-microvolt = <725000>;
 		};
 
-		hcp: hcp@0 {
-			compatible = "mediatek,hcp";
+		imgsys-l11b {
+			compatible = "mediatek,imgsys-larb";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			dma-ranges = <0x2 0x0 0x0 0x40000000 0x1 0x0>;
@@ -2314,10 +2314,9 @@
 				 <&vpp_iommu M4U_PORT_L11B_SMTO_T4_C>,
 				 <&vpp_iommu M4U_PORT_L11B_SMTO_T6_C>,
 				 <&vpp_iommu M4U_PORT_L11B_DBGO_T1_C>;
-			mediatek,scp = <&scp_c1>;
 		};
 
-		hcp-l15 {
+		imgsys-l15 {
 			compatible = "mediatek,imgsys-larb";
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -2372,7 +2371,6 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 			mediatek,scp = <&scp_c1>;
-			mediatek,hcp = <&hcp>;
 			mediatek,larbs = <&larb9>,
 					 <&larb10>,
 					 <&larb11a>,
