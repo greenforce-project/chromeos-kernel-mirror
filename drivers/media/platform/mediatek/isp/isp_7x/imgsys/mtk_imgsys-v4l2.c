@@ -14,6 +14,7 @@
 #include "linux/mtkisp_imgsys.h"
 #include <linux/pm_runtime.h>
 #include <linux/remoteproc.h>
+#include <linux/remoteproc/mtk_scp.h>
 #include <linux/videodev2.h>
 
 #include <media/videobuf2-dma-contig.h>
@@ -27,7 +28,6 @@
 #include "modules/mtk_imgsys-wpe.h"
 #include "modules/mtk_imgsys-adl.h"
 
-#include "mtk-hcp.h"
 #include "mtk_imgsys-cmdq.h"
 #include "mtk_imgsys-dev.h"
 #include "mtk_imgsys-hw.h"
@@ -1650,14 +1650,6 @@ static int mtk_imgsys_probe(struct platform_device *pdev)
 
 	if (mtk_imgsys_of_rproc(imgsys_dev, pdev)) {
 		ret = -EFAULT;
-		goto err_free_dev_alloc;
-	}
-
-	imgsys_dev->scp_pdev = mtk_hcp_get_plat_device(pdev);
-	if (!imgsys_dev->scp_pdev) {
-		dev_info(imgsys_dev->dev,
-			 "failed to get hcp device\n");
-		ret = -EINVAL;
 		goto err_free_dev_alloc;
 	}
 

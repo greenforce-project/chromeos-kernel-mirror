@@ -192,8 +192,6 @@ struct mtk_imgsys_dev {
 	/* MDP/GCE callback workqueue */
 	struct workqueue_struct *mdpcb_wq;
 	/* for SCP driver  */
-	struct platform_device *scp_pdev;
-
 	struct mtk_scp *scp;
 	struct rproc *rproc_handle;
 	struct device *smem_dev;
