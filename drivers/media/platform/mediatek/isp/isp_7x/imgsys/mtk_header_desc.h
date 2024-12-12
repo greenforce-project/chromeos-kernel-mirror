@@ -11,49 +11,23 @@
 
 #define COMPACT_USE
 struct v4l2_ext_plane {
-#ifndef COMPACT_USE
-	__u32			bytesused;
-	__u32			length;
-#endif
 	union {
-#ifndef COMPACT_USE
-		__u32		mem_offset;
-		__u64		userptr;
-#endif
 		struct {
 			__s32		fd;
 			__u32		offset;
 			__u64		phyaddr;
 		} dma_buf;
 	} m;
-#ifndef COMPACT_USE
-	__u32			data_offset;
-	__u32			reserved[11];
-#else
 	__u64			isp_addr;
 	__u64			size;
-#endif
 };
 
 #define IMGBUF_MAX_PLANES (3)
 
 struct v4l2_ext_buffer {
-#ifndef COMPACT_USE
-	__u32			index;
-	__u32			type;
-	__u32			flags;
-	__u32			field;
-	__u64			timestamp;
-	__u32			sequence;
-	__u32			memory;
-#endif
 	struct v4l2_ext_plane	planes[IMGBUF_MAX_PLANES];
 	__u32			num_planes;
-#ifndef COMPACT_USE
-	__u32			reserved[11];
-#else
 	__u64			reserved[2];
-#endif
 };
 
 struct mtk_imgsys_crop {
@@ -91,7 +65,6 @@ struct buf_info {
 	__u32 hflip;
 	__u32 vflip;
 	__u8  resizeratio;
-	__u32  secu;
 };
 
 #define FRAME_BUF_MAX (1)
