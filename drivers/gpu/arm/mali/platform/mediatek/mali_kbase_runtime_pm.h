@@ -113,6 +113,7 @@ struct mtk_platform_context {
 };
 
 void mtk_voltage_range_check(struct kbase_device *kbdev, unsigned long *volts);
+void mtk_voltage_range_check_v2(struct kbase_device *kbdev, unsigned long *volts);
 int mtk_set_frequency(struct kbase_device *kbdev, unsigned long freq);
 int mtk_set_voltages(struct kbase_device *kbdev, unsigned long *target_volts, bool inc);
 

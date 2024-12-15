@@ -16,6 +16,24 @@ void mtk_voltage_range_check(struct kbase_device *kbdev, unsigned long *volts)
 			   cfg->vsram_gpu_max_microvolt);
 }
 
+void mtk_voltage_range_check_v2(struct kbase_device *kbdev, unsigned long *volts)
+{
+	struct mtk_platform_context *ctx = kbdev->platform_context;
+	const struct mtk_hw_config *cfg = ctx->config;
+
+	volts[0] = clamp_t(unsigned long, volts[0],
+			   cfg->vgpu_min_microvolt,
+			   cfg->vgpu_max_microvolt);
+
+	if (kbdev->nr_regulators == 1)
+		return;
+
+	volts[1] = max(volts[0], cfg->vsram_gpu_min_microvolt);
+	volts[1] = clamp_t(unsigned long, volts[1],
+			   cfg->vsram_gpu_min_microvolt,
+			   cfg->vsram_gpu_max_microvolt);
+}
+
 int mtk_set_frequency(struct kbase_device *kbdev, unsigned long freq)
 {
 	int err;
