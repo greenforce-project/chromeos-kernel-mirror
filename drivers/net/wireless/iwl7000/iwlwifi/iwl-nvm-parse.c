@@ -812,7 +812,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 		break;
 	case NL80211_BAND_6GHZ:
-		if (!trans->reduced_cap_sku) {
+		if (!trans->reduced_cap_sku &&
+		    trans->bw_limit >= 320) {
 		}
 		fallthrough;
 	case NL80211_BAND_5GHZ:
@@ -906,6 +907,9 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 	if (trans->bw_limit < 160)
 		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
 			~IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G;
+
+	if (trans->bw_limit < 320 || trans->reduced_cap_sku) {
+	}
 
 	if (trans->reduced_cap_sku) {
 	}
