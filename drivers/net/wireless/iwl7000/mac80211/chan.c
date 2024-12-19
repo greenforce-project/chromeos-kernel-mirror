@@ -354,6 +354,10 @@ ieee80211_get_chanctx_max_required_bw(struct ieee80211_local *local,
 		case NL80211_IFTYPE_P2P_DEVICE:
 		case NL80211_IFTYPE_NAN:
 			continue;
+		case NL80211_IFTYPE_MONITOR:
+			WARN_ON_ONCE(!ieee80211_hw_check(&local->hw,
+							 NO_VIRTUAL_MONITOR));
+			fallthrough;
 		case NL80211_IFTYPE_ADHOC:
 		case NL80211_IFTYPE_MESH_POINT:
 		case NL80211_IFTYPE_OCB:
@@ -362,7 +366,6 @@ ieee80211_get_chanctx_max_required_bw(struct ieee80211_local *local,
 		case NL80211_IFTYPE_WDS:
 		case NL80211_IFTYPE_UNSPECIFIED:
 		case NUM_NL80211_IFTYPES:
-		case NL80211_IFTYPE_MONITOR:
 		case NL80211_IFTYPE_P2P_CLIENT:
 		case NL80211_IFTYPE_P2P_GO:
 			WARN_ON_ONCE(1);
@@ -477,7 +480,7 @@ static void ieee80211_chan_bw_change(struct ieee80211_local *local,
 				continue;
 
 			/* vif changed to narrow BW and narrow BW for station wasn't
-			 * requested or vise versa */
+			 * requested or vice versa */
 			if ((new_sta_bw < link_sta->pub->bandwidth) == !narrowed)
 				continue;
 
@@ -971,6 +974,10 @@ void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
 			if (!link->sdata->u.mgd.associated)
 				continue;
 			break;
+		case NL80211_IFTYPE_MONITOR:
+			if (!ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR))
+				continue;
+			break;
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_ADHOC:
 		case NL80211_IFTYPE_MESH_POINT:
@@ -982,6 +989,11 @@ void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
 
 		if (rcu_access_pointer(link->conf->chanctx_conf) != &chanctx->conf)
 			continue;
+
+		if (link->sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+			rx_chains_dynamic = rx_chains_static = local->rx_chains;
+			break;
+		}
 
 		switch (link->smps_mode) {
 		default:
@@ -1133,7 +1145,7 @@ ieee80211_replace_chanctx(struct ieee80211_local *local,
 		 *
 		 * Consider ctx1..3, link1..6, each ctx has 2 links. link1 and
 		 * link2 from ctx1 request new different chandefs starting 2
-		 * in-place reserations with ctx4 and ctx5 replacing ctx1 and
+		 * in-place reservations with ctx4 and ctx5 replacing ctx1 and
 		 * ctx2 respectively. Next link5 and link6 from ctx3 reserve
 		 * ctx4. If link3 and link4 remain on ctx2 as they are then this
 		 * fails unless `replace_ctx` from ctx5 is replaced with ctx3.
