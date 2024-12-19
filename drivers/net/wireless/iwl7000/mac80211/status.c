@@ -1099,7 +1099,7 @@ static void __ieee80211_tx_status(struct ieee80211_hw *hw,
 	 * This is a bit racy but we can avoid a lot of work
 	 * with this test...
 	 */
-	if (!local->monitors && (!send_to_cooked || !local->cooked_mntrs)) {
+	if (!local->tx_mntrs && (!send_to_cooked || !local->cooked_mntrs)) {
 		if (status->free_list)
 #if LINUX_VERSION_IS_GEQ(4,19,0)
 			list_add_tail(&skb->list, status->free_list);
