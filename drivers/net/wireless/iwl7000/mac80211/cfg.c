@@ -105,8 +105,11 @@ static int ieee80211_set_mon_options(struct ieee80211_sub_if_data *sdata,
 	}
 
 	/* also validate MU-MIMO change */
-	monitor_sdata = wiphy_dereference(local->hw.wiphy,
-					  local->monitor_sdata);
+	if (ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR))
+		monitor_sdata = sdata;
+	else
+		monitor_sdata = wiphy_dereference(local->hw.wiphy,
+						  local->monitor_sdata);
 
 	if (!monitor_sdata &&
 	    (params->vht_mumimo_groups || params->vht_mumimo_follow_addr))
@@ -114,7 +117,9 @@ static int ieee80211_set_mon_options(struct ieee80211_sub_if_data *sdata,
 
 	/* apply all changes now - no failures allowed */
 
-	if (monitor_sdata && ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF))
+	if (monitor_sdata &&
+		(ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF) ||
+		 ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)))
 		ieee80211_set_mu_mimo_follow(monitor_sdata, params);
 
 	if (params->flags) {
@@ -886,21 +891,21 @@ static int ieee80211_set_monitor_channel(struct wiphy *wiphy,
 	lockdep_assert_wiphy(local->hw.wiphy);
 
 	if (cfg80211_chandef_identical(&local->monitor_chanreq.oper,
-				       &chanreq.oper))
+					   &chanreq.oper))
 		return 0;
 
-	sdata = wiphy_dereference(local->hw.wiphy,
-				  local->monitor_sdata);
+	sdata = wiphy_dereference(wiphy, local->monitor_sdata);
 	if (!sdata)
 		goto done;
 
-	if (cfg80211_chandef_identical(&sdata->vif.bss_conf.chanreq.oper,
+	if (rcu_access_pointer(sdata->deflink.conf->chanctx_conf) &&
+		cfg80211_chandef_identical(&sdata->vif.bss_conf.chanreq.oper,
 				       &chanreq.oper))
 		return 0;
 
 	ieee80211_link_release_channel(&sdata->deflink);
 	ret = ieee80211_link_use_channel(&sdata->deflink, &chanreq,
-					 IEEE80211_CHANCTX_EXCLUSIVE);
+					 IEEE80211_CHANCTX_SHARED);
 	if (ret)
 		return ret;
 done:
@@ -1740,6 +1745,8 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 						  (void *) NULL,
 						  link_sta);
 
+	ieee80211_sta_init_nss(link_sta);
+
 	if (params->opmode_notif_used) {
 		/* returned value is only needed for rc update, but the
 		 * rc isn't initialized here yet, so ignore it
@@ -1748,8 +1755,6 @@ static int sta_link_apply_parameters(struct ieee80211_local *local,
 					      params->opmode_notif,
 					      sband->band);
 	}
-
-	ieee80211_sta_init_nss(link_sta);
 
 	return 0;
 }
@@ -2880,6 +2885,7 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
 	bool update_txp_type = false;
 	bool has_monitor = false;
 	int user_power_level;
+	int old_power = local->user_power_level;
 
 	lockdep_assert_wiphy(local->hw.wiphy);
 
@@ -2901,7 +2907,8 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
 	if (wdev) {
 		sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
 
-		if (sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+		if (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+		    !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
 			if (!ieee80211_hw_check(&local->hw, WANT_MONITOR_VIF))
 				return -EOPNOTSUPP;
 
@@ -2935,7 +2942,8 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
 	local->user_power_level = user_power_level;
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
-		if (sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+		if (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+		    !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR)) {
 			has_monitor = true;
 			continue;
 		}
@@ -2956,7 +2964,8 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
 		}
 	}
 	list_for_each_entry(sdata, &local->interfaces, list) {
-		if (sdata->vif.type == NL80211_IFTYPE_MONITOR)
+		if (sdata->vif.type == NL80211_IFTYPE_MONITOR &&
+		    !ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR))
 			continue;
 
 		for (int link_id = 0;
@@ -2986,6 +2995,10 @@ static int ieee80211_set_tx_power(struct wiphy *wiphy,
 		}
 	}
 
+	if (local->emulate_chanctx &&
+	    (old_power != local->user_power_level))
+		ieee80211_hw_conf_chan(local);
+
 	return 0;
 }
 
@@ -2996,7 +3009,8 @@ static int ieee80211_get_tx_power(struct wiphy *wiphy,
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
 
-	if (local->ops->get_txpower)
+	if (local->ops->get_txpower &&
+	    (sdata->flags & IEEE80211_SDATA_IN_DRIVER))
 		return drv_get_txpower(local, sdata, dbm);
 
 	if (local->emulate_chanctx)
@@ -4124,7 +4138,8 @@ static int ieee80211_cfg_get_channel(struct wiphy *wiphy,
 	if (chanctx_conf) {
 		*chandef = link->conf->chanreq.oper;
 		ret = 0;
-	} else if (local->open_count > 0 &&
+	} else if (!ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR) &&
+		   local->open_count > 0 &&
 		   local->open_count == local->monitors &&
 		   sdata->vif.type == NL80211_IFTYPE_MONITOR) {
 		*chandef = local->monitor_chanreq.oper;
@@ -4656,12 +4671,12 @@ void ieee80211_color_change_finalize_work(struct wiphy *wiphy,
 	ieee80211_color_change_finalize(link);
 }
 
-void ieee80211_color_collision_detection_work(struct work_struct *work)
+void ieee80211_color_collision_detection_work(struct wiphy *wiphy,
+					      struct wiphy_work *work)
 {
-	struct delayed_work *delayed_work = to_delayed_work(work);
 	struct ieee80211_link_data *link =
-		container_of(delayed_work, struct ieee80211_link_data,
-			     color_collision_detect_work);
+		container_of(work, struct ieee80211_link_data,
+			     color_collision_detect_work.work);
 	struct ieee80211_sub_if_data *sdata = link->sdata;
 
 	cfg80211_obss_color_collision_notify(sdata->dev, link->color_bitmap);
@@ -4713,7 +4728,8 @@ ieee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 		return;
 	}
 
-	if (delayed_work_pending(&link->color_collision_detect_work)) {
+	if (wiphy_delayed_work_pending(sdata->local->hw.wiphy,
+				       &link->color_collision_detect_work)) {
 		rcu_read_unlock();
 		return;
 	}
@@ -4722,9 +4738,9 @@ ieee80211_obss_color_collision_notify(struct ieee80211_vif *vif,
 	/* queue the color collision detection event every 500 ms in order to
 	 * avoid sending too much netlink messages to userspace.
 	 */
-	ieee80211_queue_delayed_work(&sdata->local->hw,
-				     &link->color_collision_detect_work,
-				     msecs_to_jiffies(500));
+	wiphy_delayed_work_queue(sdata->local->hw.wiphy,
+				 &link->color_collision_detect_work,
+				 msecs_to_jiffies(500));
 
 	rcu_read_unlock();
 }
