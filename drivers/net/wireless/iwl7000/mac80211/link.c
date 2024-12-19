@@ -42,8 +42,8 @@ void ieee80211_link_init(struct ieee80211_sub_if_data *sdata,
 
 	wiphy_work_init(&link->csa.finalize_work,
 			ieee80211_csa_finalize_work);
-	INIT_DELAYED_WORK(&link->color_collision_detect_work,
-			  ieee80211_color_collision_detection_work);
+	wiphy_delayed_work_init(&link->color_collision_detect_work,
+				ieee80211_color_collision_detection_work);
 	INIT_LIST_HEAD(&link->assigned_chanctx_list);
 	INIT_LIST_HEAD(&link->reserved_chanctx_list);
 	wiphy_delayed_work_init(&link->dfs_cac_timer_work,
@@ -64,7 +64,8 @@ void ieee80211_link_stop(struct ieee80211_link_data *link)
 	if (link->sdata->vif.type == NL80211_IFTYPE_STATION)
 		ieee80211_mgd_stop_link(link);
 
-	cancel_delayed_work_sync(&link->color_collision_detect_work);
+	wiphy_delayed_work_cancel(link->sdata->local->hw.wiphy,
+				  &link->color_collision_detect_work);
 	wiphy_work_cancel(link->sdata->local->hw.wiphy,
 			  &link->csa.finalize_work);
 

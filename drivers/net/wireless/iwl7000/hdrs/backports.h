@@ -905,6 +905,12 @@ struct cfg80211_iface_usage {
 	u32 types_mask;
 };
 
+static inline bool wiphy_delayed_work_pending(struct wiphy *wiphy,
+				              struct wiphy_delayed_work *dwork)
+{
+	return timer_pending(&dwork->timer);
+}
+
 
 struct cfg80211_mlo_reconf_done_data {
 	const u8 *buf;
