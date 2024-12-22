@@ -149,7 +149,7 @@ ssize_t wiphy_locked_debugfs_write(struct wiphy *wiphy, struct file *file,
 #else
 	rtnl_lock();
 #endif
-	ret = handler(wiphy, file, buf, bufsize, data);
+	ret = handler(wiphy, file, buf, count, data);
 #if LINUX_VERSION_IS_GEQ(5,12,0)
 	wiphy_unlock(wiphy);
 #else
