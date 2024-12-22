@@ -317,6 +317,9 @@ bool cfg80211_valid_disable_subchannel_bitmap(u16 *bitmap,
 #define ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da, mesh) \
 	ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da)
 
+#include <linux/cleanup.h>
+DEFINE_FREE(kfree, void *, if (!IS_ERR_OR_NULL(_T)) kfree(_T))
+
 #define SKB_CONSUMED (SKB_DROP_REASON_MAX + 1)
 #define VISIBLE_IF_KUNIT static
 #define EXPORT_SYMBOL_IF_KUNIT(...)
