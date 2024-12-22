@@ -360,13 +360,11 @@ static inline bool cfg80211_any_usable_channels(struct wiphy *wiphy,
 #define pm_sleep_ptr(_ptr) PTR_IF(IS_ENABLED(CONFIG_PM_SLEEP), (_ptr))
 #endif
 
-#include <linux/cleanup.h>
 
 #ifndef lockdep_assert
 #define lockdep_assert(x) do {} while (0)
 #endif
 
-DEFINE_FREE(kfree, void *, if (!IS_ERR_OR_NULL(_T)) kfree(_T))
 
 #define NL80211_BAND_LC	5
 
@@ -657,6 +655,9 @@ bool cfg80211_valid_disable_subchannel_bitmap(u16 *bitmap,
 					      struct cfg80211_chan_def *chandef);
 #define ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da, mesh) \
 	ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da)
+
+#include <linux/cleanup.h>
+DEFINE_FREE(kfree, void *, if (!IS_ERR_OR_NULL(_T)) kfree(_T))
 
 #define SKB_CONSUMED (SKB_DROP_REASON_MAX + 1)
 #define VISIBLE_IF_KUNIT static
