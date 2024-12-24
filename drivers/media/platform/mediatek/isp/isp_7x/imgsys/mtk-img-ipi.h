@@ -103,12 +103,12 @@ struct img_sw_addr {
 #endif
 } __packed;
 
-#define TIME_MAX (12)
+#define TMAX (16)
 struct img_ipi_frameparam {
-	u8		dmas_enable[IMG_MAX_HW_DMAS][TIME_MAX];
-	struct header_desc	dmas[IMG_MAX_HW_DMAS];
-	struct header_desc	tuning_meta;
-	struct header_desc	ctrl_meta;
+	u8		dmas_enable[IMG_MAX_HW_DMAS][TMAX];
+	struct header_desc_norm	dmas[IMG_MAX_HW_DMAS];
+	struct header_desc_norm	tuning_meta;
+	struct header_desc_norm	ctrl_meta;
 };
 
 struct img_sw_buffer {

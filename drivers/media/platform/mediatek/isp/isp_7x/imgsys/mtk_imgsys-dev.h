@@ -419,7 +419,7 @@ struct swfrm_info_t {
 	u64 req_vaddr;
 	int sync_id;
 	int total_frmnum;
-	struct img_swfrm_info user_info[TIME_MAX];
+	struct img_swfrm_info user_info[TMAX];
 	u8 is_earlycb;
 	int earlycb_sidx;
 	u8 is_lastfrm;

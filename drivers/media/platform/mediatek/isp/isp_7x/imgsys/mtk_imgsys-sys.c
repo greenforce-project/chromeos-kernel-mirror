@@ -339,13 +339,13 @@ static void imgsys_scp_handler(void *data, unsigned int len, void *priv)
 	swfrm_info->hw_hang = -1;
 	total_framenum = swfrm_info->total_frmnum;
 
-	if (total_framenum < 0 || total_framenum > TIME_MAX) {
+	if (total_framenum < 0 || total_framenum > TMAX) {
 		dev_info(imgsys_dev->dev,
 			 "%s:unexpected total_framenum (%d -> %d), batchnum(%d) MAX (%d/%d)\n",
 			 __func__, swfrm_info->total_frmnum,
 			 total_framenum,
 			 swfrm_info->batchnum,
-			 TMAX, TIME_MAX);
+			 TMAX, TMAX);
 		return;
 	}
 
