@@ -13,7 +13,6 @@
 struct v4l2_ext_plane {
 	union {
 		struct {
-			__s32		fd;
 			__u32		offset;
 			__u64		phyaddr;
 		} dma_buf;
