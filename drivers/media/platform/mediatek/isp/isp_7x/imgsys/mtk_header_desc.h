@@ -49,15 +49,9 @@ struct pix_format_mplane {
 	struct plane_pix_format	plane_fmt[IMGBUF_MAX_PLANES];
 } __packed;
 
-struct buf_format {
-	union {
-		struct pix_format_mplane	pix_mp;  /* V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE */
-	} fmt;
-};
-
-struct buf_info {
+struct frameparams {
 	struct v4l2_ext_buffer buf;
-	struct buf_format fmt;
+	struct pix_format_mplane fmt;
 	struct mtk_imgsys_crop crop;
 	/* struct v4l2_rect compose; */
 	__u32 rotation;
@@ -66,16 +60,10 @@ struct buf_info {
 	__u8  resizeratio;
 };
 
-#define FRAME_BUF_MAX (1)
-struct frameparams {
-	struct buf_info bufs[FRAME_BUF_MAX];
-};
-
-#define SCALE_MAX (1)
 #define TMAX (16)
 struct header_desc_norm {
 	__u32 fparams_tnum;
-	struct frameparams fparams[TMAX][SCALE_MAX];
+	struct frameparams fparams[TMAX];
 };
 
 #define IMG_MAX_HW_DMAS     72

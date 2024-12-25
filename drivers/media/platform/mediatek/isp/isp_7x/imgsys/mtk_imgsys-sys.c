@@ -591,15 +591,15 @@ static void imgsys_fill_img_buf(struct mtk_imgsys_dev_buffer *dev_buf,
 				struct header_desc_norm *desc_norm,
 				struct mtk_imgsys_request *req)
 {
-	struct buf_info *buf_info = &desc_norm->fparams[0][0].bufs[0];
+	struct frameparams *buf_info = &desc_norm->fparams[0];
 	int i;
 
 	desc_norm->fparams_tnum = 1;
 
 	buf_info->buf.num_planes = dev_buf->fmt.fmt.pix_mp.num_planes;
-	buf_info->fmt.fmt.pix_mp.width = dev_buf->fmt.fmt.pix_mp.width;
-	buf_info->fmt.fmt.pix_mp.height = dev_buf->fmt.fmt.pix_mp.height;
-	buf_info->fmt.fmt.pix_mp.pixelformat = dev_buf->fmt.fmt.pix_mp.pixelformat;
+	buf_info->fmt.width = dev_buf->fmt.fmt.pix_mp.width;
+	buf_info->fmt.height = dev_buf->fmt.fmt.pix_mp.height;
+	buf_info->fmt.pixelformat = dev_buf->fmt.fmt.pix_mp.pixelformat;
 	buf_info->crop = dev_buf->crop;
 	buf_info->rotation = dev_buf->rotation;
 	buf_info->hflip = dev_buf->hflip;
@@ -610,9 +610,9 @@ static void imgsys_fill_img_buf(struct mtk_imgsys_dev_buffer *dev_buf,
 		buf_info->buf.planes[i].m.dma_buf.offset = dev_buf->vbb.planes[i].data_offset;
 		buf_info->buf.planes[i].isp_addr = dev_buf->isp_daddr[i];
 		buf_info->buf.planes[i].size = dev_buf->vbb.vb2_buf.planes[i].length;
-		buf_info->fmt.fmt.pix_mp.plane_fmt[i].sizeimage =
+		buf_info->fmt.plane_fmt[i].sizeimage =
 			dev_buf->vbb.vb2_buf.planes[i].min_length;
-		buf_info->fmt.fmt.pix_mp.plane_fmt[i].bytesperline =
+		buf_info->fmt.plane_fmt[i].bytesperline =
 			dev_buf->fmt.fmt.pix_mp.plane_fmt[i].bytesperline;
 	}
 }
@@ -621,7 +621,7 @@ static void imgsys_fill_meta_buf(struct mtk_imgsys_dev_buffer *dev_buf,
 				 struct header_desc_norm *desc_norm,
 				 struct mtk_imgsys_request *req)
 {
-	struct buf_info *buf_info = &desc_norm->fparams[0][0].bufs[0];
+	struct frameparams *buf_info = &desc_norm->fparams[0];
 
 	memset(&buf_info->buf, 0, sizeof(buf_info->buf));
 
@@ -629,11 +629,11 @@ static void imgsys_fill_meta_buf(struct mtk_imgsys_dev_buffer *dev_buf,
 
 	buf_info->buf.num_planes = 1;
 
-	buf_info->fmt.fmt.pix_mp.width = dev_buf->fmt.fmt.meta.buffersize;
-	buf_info->fmt.fmt.pix_mp.height = 1;
-	buf_info->fmt.fmt.pix_mp.pixelformat = dev_buf->fmt.fmt.meta.dataformat;
-	buf_info->fmt.fmt.pix_mp.plane_fmt[0].sizeimage = dev_buf->fmt.fmt.meta.buffersize;
-	buf_info->fmt.fmt.pix_mp.plane_fmt[0].bytesperline = dev_buf->fmt.fmt.meta.buffersize;
+	buf_info->fmt.width = dev_buf->fmt.fmt.meta.buffersize;
+	buf_info->fmt.height = 1;
+	buf_info->fmt.pixelformat = dev_buf->fmt.fmt.meta.dataformat;
+	buf_info->fmt.plane_fmt[0].sizeimage = dev_buf->fmt.fmt.meta.buffersize;
+	buf_info->fmt.plane_fmt[0].bytesperline = dev_buf->fmt.fmt.meta.buffersize;
 	buf_info->buf.planes[0].isp_addr = dev_buf->isp_daddr[0];
 	buf_info->buf.planes[0].size = dev_buf->vbb.vb2_buf.planes[0].length;
 	buf_info->buf.planes[0].m.dma_buf.phyaddr = dev_buf->scp_daddr[0];
