@@ -348,11 +348,14 @@ struct cfg80211_iface_usage {
 	u32 types_mask;
 };
 
+#if LINUX_VERSION_IS_LESS(6,11,11)
+
 static inline bool wiphy_delayed_work_pending(struct wiphy *wiphy,
 				              struct wiphy_delayed_work *dwork)
 {
 	return timer_pending(&dwork->timer);
 }
+#endif
 
 
 struct cfg80211_mlo_reconf_done_data {
