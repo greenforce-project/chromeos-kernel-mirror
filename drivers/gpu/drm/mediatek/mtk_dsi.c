@@ -8,6 +8,7 @@
 #include <linux/component.h>
 #include <linux/iopoll.h>
 #include <linux/irq.h>
+#include <linux/minmax.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/phy/phy.h>
@@ -49,6 +50,7 @@
 #define DSI_RESET			BIT(0)
 #define DSI_EN				BIT(1)
 #define DPHY_RESET			BIT(2)
+#define DSI_CM_MODE_WAIT_DATA_EVERY_LINE_EN	BIT(24)
 
 #define DSI_MODE_CTRL(data)		(0x14 + (data)->reg_20_ofs)
 #define MODE				(3)
@@ -162,6 +164,27 @@
 #define DATA_0				GENMASK(23, 16)
 #define DATA_1				GENMASK(31, 24)
 
+#define DSI_BUF_CON0			0x300
+#define BUF_BUF_EN			BIT(0)
+#define DSI_BUF_CON1			0x304
+#define DSI_TX_BUF_RW_TIMES		(DSI_BUF_CON0 + 0x10)
+#define DSI_BUF_SODI_HIGH		(DSI_BUF_CON0 + 0x14)
+#define DSI_BUF_SODI_LOW		(DSI_BUF_CON0 + 0x18)
+#define DSI_BUF_PREULTRA_HIGH		(DSI_BUF_CON0 + 0x24)
+#define DSI_BUF_PREULTRA_LOW		(DSI_BUF_CON0 + 0x28)
+#define DSI_BUF_ULTRA_HIGH		(DSI_BUF_CON0 + 0x2c)
+#define DSI_BUF_ULTRA_LOW		(DSI_BUF_CON0 + 0x30)
+#define DSI_BUF_URGENT_HIGH		(DSI_BUF_CON0 + 0x34)
+#define DSI_BUF_URGENT_LOW		(DSI_BUF_CON0 + 0x38)
+#define DSI_BUF_PREURGENT_HIGH		(DSI_BUF_CON0 + 0x3c)
+#define DSI_BUF_MASK			GENMASK(14, 0)
+#define DSI_DEBUG_SEL			0x274
+#define MM_RST_SEL			BIT(10)
+#define DSI_RESERVED			0x3F8
+#define DSI_VDE_BLOCK_ULTRA 		BIT(29)
+
+#define MMSYS_CLK_RATE_DEFAULT 208
+
 #define NS_TO_CYCLE(n, c)    ((n) / (c) + (((n) % (c)) ? 1 : 0))
 
 #define MTK_DSI_HOST_IS_READ(type) \
@@ -197,6 +220,7 @@ struct mtk_dsi_driver_data {
 	bool has_size_ctl;
 	bool cmdq_long_packet_ctl;
 	bool support_per_frame_lp;
+	bool support_dsi_buffer;
 	const u32 reg_phy_base;
 	const u32 reg_20_ofs;
 	const u32 reg_30_ofs;
@@ -216,6 +240,11 @@ struct mtk_dsi_driver_data {
 	const u32 dsi_shadow_dbg;
 	const u32 dsi_vm_cmd_con;
 	const u32 max_linkrate_kbps;
+	const u32 buffer_unit;
+	const u32 sram_unit;
+	const u32 urgent_lo_fifo_us;
+	const u32 urgent_hi_fifo_us;
+	const u32 output_valid_fifo_us;
 };
 
 struct mtk_dsi {
@@ -265,6 +294,17 @@ static void mtk_dsi_mask(struct mtk_dsi *dsi, u32 offset, u32 mask, u32 data)
 	u32 temp = readl(dsi->regs + offset);
 
 	writel((temp & ~mask) | (data & mask), dsi->regs + offset);
+}
+
+static int mtk_get_dsi_buffer_bpp(int format) {
+	switch (format) {
+	case MIPI_DSI_FMT_RGB565:
+		return 2;
+	case MIPI_DSI_FMT_RGB888:
+		return 3;
+	default:
+		return 0;
+	}
 }
 
 static void mtk_dsi_phy_timconfig(struct mtk_dsi *dsi)
@@ -665,6 +705,103 @@ static s32 mtk_dsi_wait_for_irq_done(struct mtk_dsi *dsi, u32 irq_flag,
 	return ret;
 }
 
+static int mtk_dsi_calculate_rw_times(struct mtk_dsi *dsi, u32 width, u32 height)
+{
+	u32 rw_times = 0;
+	u32 ps_wc = 0, in_width = 16;
+	u32 dsi_buf_bpp;
+
+	dsi_buf_bpp = mtk_get_dsi_buffer_bpp(dsi->format);
+	ps_wc = width * dsi_buf_bpp;
+
+	rw_times = DIV_ROUND_UP(ps_wc * height, in_width);
+
+	return rw_times;
+}
+
+static void mtk_dsi_tx_buf_rw(struct mtk_dsi *dsi)
+{
+	struct device *dev = dsi->host.dev;
+	u32 mmsys_clk_rate;
+	u32 tmp = 0, rw_times;
+	u32 preultra_hi, preultra_lo, ultra_hi, ultra_lo, urgent_hi, urgent_lo;
+	u32 fill_rate;
+	u32 sodi_hi, sodi_lo;
+	u32 sram_unit, buffer_unit;
+	u32 urgent_lo_fifo_us, urgent_hi_fifo_us, output_valid_us;
+	u32 dsi_buf_bpp;
+	/* line counter mode for vdo mode */
+	int dli_relay_1tnp = 2;
+	u32 buf_con = 1554;
+	u32 data_rate_per_buf;
+
+	dsi_buf_bpp = mtk_get_dsi_buffer_bpp(dsi->format);
+	mmsys_clk_rate = dsi->vm.pixelclock / 1000000;
+	if (!mmsys_clk_rate) {
+		dev_err(dev, "mmclk is zero\n");
+		mmsys_clk_rate = MMSYS_CLK_RATE_DEFAULT;
+	}
+
+	buffer_unit = dsi->driver_data->buffer_unit;
+	sram_unit = dsi->driver_data->sram_unit;
+	urgent_lo_fifo_us = dsi->driver_data->urgent_lo_fifo_us ?
+				dsi->driver_data->urgent_lo_fifo_us : 11;
+	urgent_hi_fifo_us = dsi->driver_data->urgent_hi_fifo_us ?
+				dsi->driver_data->urgent_hi_fifo_us : 12;
+	output_valid_us = dsi->driver_data->output_valid_fifo_us ?
+				dsi->driver_data->output_valid_fifo_us : 25;
+	data_rate_per_buf = dsi->data_rate * dsi->lanes / 8 / buffer_unit;
+
+	if (dsi->driver_data->support_per_frame_lp)
+		mtk_dsi_mask(dsi, DSI_CON_CTRL(dsi->driver_data),
+			     DSI_CM_MODE_WAIT_DATA_EVERY_LINE_EN,
+			     DSI_CM_MODE_WAIT_DATA_EVERY_LINE_EN);
+	else
+		mtk_dsi_mask(dsi, DSI_CON_CTRL(dsi->driver_data),
+		             DSI_CM_MODE_WAIT_DATA_EVERY_LINE_EN, 0);
+
+	tmp = output_valid_us * data_rate_per_buf;
+
+	/* check output valid threshold exceed FIFO size if FIFO size is pre-defined */
+	if (buf_con)
+		tmp = min(tmp, buf_con - 1);
+
+	rw_times = mtk_dsi_calculate_rw_times(dsi, dsi->vm.vactive, dsi->vm.hactive);
+	mtk_dsi_mask(dsi, DSI_BUF_CON1,  GENMASK(14, 0), tmp);
+	mtk_dsi_mask(dsi, DSI_DEBUG_SEL, MM_RST_SEL, MM_RST_SEL);
+
+	/* enable ultra signal between SOF to VACT */
+	mtk_dsi_mask(dsi, DSI_RESERVED, DSI_VDE_BLOCK_ULTRA, 0);
+	/* 1TNP */
+	fill_rate = mmsys_clk_rate * dli_relay_1tnp * dsi_buf_bpp / buffer_unit;
+
+	if (buf_con)
+		tmp = buf_con * sram_unit / buffer_unit;
+	else
+		tmp = (readl(dsi->regs + DSI_BUF_CON1) >> 16) * sram_unit / buffer_unit;
+
+	sodi_hi = tmp - (12 * (fill_rate - data_rate_per_buf) / 10);
+	/*dsi->driver_data*/
+	sodi_lo = (23 + 5) * data_rate_per_buf;
+	preultra_hi = 36 * data_rate_per_buf;
+	preultra_lo = 35 * data_rate_per_buf;
+	ultra_hi = 26 * data_rate_per_buf;
+	ultra_lo = 25 * data_rate_per_buf;
+	urgent_hi = urgent_hi_fifo_us * data_rate_per_buf;
+	urgent_lo = urgent_lo_fifo_us * data_rate_per_buf;
+
+	writel((sodi_hi & DSI_BUF_MASK), dsi->regs + DSI_BUF_SODI_HIGH);
+	writel((sodi_lo & DSI_BUF_MASK), dsi->regs + DSI_BUF_SODI_LOW);
+	writel((preultra_hi & DSI_BUF_MASK), dsi->regs + DSI_BUF_PREULTRA_HIGH);
+	writel((preultra_lo & DSI_BUF_MASK), dsi->regs + DSI_BUF_PREULTRA_LOW);
+	writel((ultra_hi & DSI_BUF_MASK), dsi->regs + DSI_BUF_ULTRA_HIGH);
+	writel((ultra_lo & DSI_BUF_MASK), dsi->regs + DSI_BUF_ULTRA_LOW);
+	writel((urgent_hi & DSI_BUF_MASK), dsi->regs + DSI_BUF_URGENT_HIGH);
+	writel((urgent_lo & DSI_BUF_MASK), dsi->regs + DSI_BUF_URGENT_LOW);
+	writel(rw_times, dsi->regs + DSI_TX_BUF_RW_TIMES);
+	mtk_dsi_mask(dsi, DSI_BUF_CON0, BUF_BUF_EN, BUF_BUF_EN);
+}
+
 static irqreturn_t mtk_dsi_irq(int irq, void *dev_id)
 {
 	struct mtk_dsi *dsi = dev_id;
@@ -760,6 +897,8 @@ static int mtk_dsi_poweron(struct mtk_dsi *dsi)
 
 	mtk_dsi_reset_engine(dsi);
 	mtk_dsi_phy_timconfig(dsi);
+	if (dsi->driver_data->support_dsi_buffer)
+		mtk_dsi_tx_buf_rw(dsi);
 
 	mtk_dsi_ps_control(dsi, true);
 	mtk_dsi_set_vm_cmd(dsi);
@@ -1402,6 +1541,12 @@ static const struct mtk_dsi_driver_data mt8196_dsi_driver_data = {
 	.dsi_shadow_dbg = 0x0d0,
 	.dsi_vm_cmd_con = 0x110,
 	.max_linkrate_kbps = 2000000,
+	.buffer_unit = 32,
+	.sram_unit = 32,
+	.urgent_lo_fifo_us = 11,
+	.urgent_hi_fifo_us = 12,
+	.output_valid_fifo_us = 35,
+	.support_dsi_buffer = true,
 };
 
 static const struct of_device_id mtk_dsi_of_match[] = {
