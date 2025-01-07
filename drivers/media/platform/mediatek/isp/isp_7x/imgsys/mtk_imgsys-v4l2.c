@@ -1204,14 +1204,33 @@ err_mutex_destroy:
 	return ret;
 }
 
+/******************************************************************************
+ * @array img_resize_ratio_menu
+ * @brief IMGSYS hardware supports multiple resizers.
+ *        - Any Ratio: Allows for any resize ratio, including
+ *          down 2, down 4, and down 42.
+ *        - Down 4: Specifically for downscaling by a factor of 4.
+ *        - Down 2: Specifically for downscaling by a factor of 2.
+ *        - Down42: Used for downscaling by a factor of 4 on the
+ *          first use, and by a factor of 2 on subsequent uses.
+ *        - NULL: Indicates the end of the menu options
+ ******************************************************************************/
+static const char *img_resize_ratio_menu[] = {
+	"Any Ratio",
+	"Down 4",
+	"Down 2",
+	"Down 42",
+	NULL,
+};
+
 static const struct v4l2_ctrl_config cfg_mtk_resize_ratio = {
 	.ops = &mtk_imgsys_video_device_ctrl_ops,
 	.id = V4L2_CID_MTK_IMG_RESIZE_RATIO,
-	.name = "MTK resize ratio",
-	.type = V4L2_CTRL_TYPE_INTEGER,
+	.name = "Image resize ratio",
+	.type = V4L2_CTRL_TYPE_MENU,
 	.max = 3,
-	.min = 0,
-	.step = 1,
+	.def = 0,
+	.qmenu = img_resize_ratio_menu,
 };
 
 static int mtk_imgsys_pipe_v4l2_ctrl_init(struct mtk_imgsys_pipe *imgsys_pipe)
