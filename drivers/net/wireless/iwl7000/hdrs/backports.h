@@ -49,6 +49,10 @@ static inline void debugfs_create_xul(const char *name, umode_t mode,
 		debugfs_create_x64(name, mode, parent, (u64 *)value);
 }
 
+#ifndef PCI_STD_NUM_BARS
+#define PCI_STD_NUM_BARS 6
+#endif
+
 int ieee80211_get_vht_max_nss(struct ieee80211_vht_cap *cap,
 			      enum ieee80211_vht_chanwidth bw,
 			      int mcs, bool ext_nss_bw_capable,
@@ -1099,6 +1103,22 @@ static inline bool wiphy_delayed_work_pending(struct wiphy *wiphy,
 	return timer_pending(&dwork->timer);
 }
 #endif
+
+static inline int pcim_request_all_regions(struct pci_dev *pdev, const char *name)
+{
+	/* NOTE: this only works with pcim_enable_device() on older kernels */
+	int mask = 0;
+
+	for (int i = 0; i < PCI_STD_NUM_BARS; i++) {
+		if (!pci_resource_start(pdev, i))
+			continue;
+		if (!pci_resource_len(pdev, i))
+			continue;
+		mask |= BIT(i);
+	}
+
+	return pci_request_selected_regions(pdev, mask, name);
+}
 
 
 struct cfg80211_mlo_reconf_done_data {
