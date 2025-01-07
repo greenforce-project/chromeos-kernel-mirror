@@ -447,7 +447,6 @@ static void task_non_contending(struct sched_dl_entity *dl_se)
 			sub_running_bw(dl_se, dl_rq);
 		} else {
 			struct task_struct *p = dl_task_of(dl_se);
-
 			if (dl_task(p))
 				sub_running_bw(dl_se, dl_rq);
 
@@ -2045,7 +2044,8 @@ enqueue_dl_entity(struct sched_dl_entity *dl_se, int flags)
 	} else if (flags & ENQUEUE_REPLENISH) {
 		replenish_dl_entity(dl_se);
 	} else if ((flags & ENQUEUE_RESTORE) &&
-		   dl_time_before(dl_se->deadline, rq_clock(rq_of_dl_se(dl_se)))) {
+		  !is_dl_boosted(dl_se) &&
+		  dl_time_before(dl_se->deadline, rq_clock(rq_of_dl_se(dl_se)))) {
 		setup_new_dl_entity(dl_se);
 	}
 
