@@ -312,8 +312,6 @@ static inline void backport_netif_napi_add(struct net_device *dev,
 }
 #define netif_napi_add LINUX_BACKPORT(netif_napi_add)
 
-bool cfg80211_valid_disable_subchannel_bitmap(u16 *bitmap,
-					      struct cfg80211_chan_def *chandef);
 #define ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da, mesh) \
 	ieee80211_amsdu_to_8023s(skb, list, addr, type, headroom, check_sa, check_da)
 
