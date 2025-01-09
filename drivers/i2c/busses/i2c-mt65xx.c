@@ -1586,7 +1586,7 @@ static int mtk_i2c_resume_noirq(struct device *dev)
 	mtk_i2c_init_hw(i2c);
 
 	if (pm_runtime_status_suspended(dev))
-		mtk_i2c_runtime_resume(dev);
+		mtk_i2c_runtime_suspend(dev);
 
 	i2c_mark_adapter_resumed(&i2c->adap);
 
