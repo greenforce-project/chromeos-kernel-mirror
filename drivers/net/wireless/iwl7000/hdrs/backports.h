@@ -277,23 +277,19 @@ int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
 static inline void cfg80211_schedule_channels_check(struct wireless_dev *wdev)
 {
 }
-#define NL80211_EXT_FEATURE_DFS_CONCURRENT -1
-#define NL80211_RRF_DFS_CONCURRENT 0
+
 
 struct cfg80211_ttlm_params {
 	u16 dlink[8];
 	u16 ulink[8];
 };
 
+#define NL80211_EXT_FEATURE_DFS_CONCURRENT -1
+#define NL80211_RRF_DFS_CONCURRENT 0
+
 bool
 ieee80211_uhb_power_type_valid(struct ieee80211_mgmt *mgmt, size_t len,
 			       struct ieee80211_channel *channel);
-
-#define IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT BIT(21)
-#define IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT BIT(22)
-
-#define NL80211_RRF_NO_6GHZ_VLP_CLIENT BIT(22)
-#define NL80211_RRF_NO_6GHZ_AFC_CLIENT BIT(23)
 
 ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies,
 				    size_t ieslen, u8 *data, size_t data_len,
@@ -413,6 +409,13 @@ int for_each_thermal_trip(struct thermal_zone_device *tz,
 }
 #endif /* >= 6,0,0 */
 #endif /* CONFIG_THERMAL */
+
+
+#define IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT BIT(21)
+#define IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT BIT(22)
+
+#define NL80211_RRF_NO_6GHZ_VLP_CLIENT BIT(22)
+#define NL80211_RRF_NO_6GHZ_AFC_CLIENT BIT(23)
 
 static inline struct net_device *alloc_netdev_dummy(int sizeof_priv)
 {
