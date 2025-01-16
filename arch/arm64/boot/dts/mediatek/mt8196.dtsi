@@ -3252,6 +3252,28 @@
 			dvfsrc_freq_opp0: opp0 {
 				opp-peak-KBps = <61400000>;
 			};
+
+			dvfsrc_helper: dvfsrc-helper {
+				compatible = "mediatek,mt8196-dvfsrc-helper";
+				vcore-supply = <&mt6316_8_vbuck1>;
+				rc-vcore-supply = <&dvfsrc_vcore>;
+				interconnects = <&dvfsrc MT6873_MASTER_DBGIF
+						 &dvfsrc MT6873_SLAVE_DDR_EMI>,
+						<&dvfsrc MT6873_MASTER_DBGIF
+						 &dvfsrc MT6873_SLAVE_DDR_EMI>,
+						<&dvfsrc MT6873_MASTER_HRT_DBGIF
+						 &dvfsrc MT6873_SLAVE_HRT_DDR_EMI>;
+				interconnect-names = "icc-bw", "icc-perf-bw", "icc-hrt-bw";
+				required-opps = <&dvfsrc_freq_opp0>,
+						<&dvfsrc_freq_opp1>,
+						<&dvfsrc_freq_opp2>,
+						<&dvfsrc_freq_opp3>,
+						<&dvfsrc_freq_opp4>,
+						<&dvfsrc_freq_opp5>,
+						<&dvfsrc_freq_opp6>,
+						<&dvfsrc_freq_opp7>,
+						<&dvfsrc_freq_opp8>;
+			};
 		};
 
 		vlp_cksys_clk: syscon@1c016000 {
