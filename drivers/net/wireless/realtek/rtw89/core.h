@@ -5413,7 +5413,6 @@ struct rtw89_dev {
 	struct rtw89_power_trim_info pwr_trim;
 
 	struct rtw89_cfo_tracking_info cfo_tracking;
-	struct rtw89_env_monitor_info env_monitor;
 	struct rtw89_dig_info dig;
 	struct rtw89_phy_ch_info ch_info;
 	union {
@@ -5426,6 +5425,7 @@ struct rtw89_dev {
 
 	struct rtw89_bb_ctx {
 		enum rtw89_phy_idx phy_idx;
+		struct rtw89_env_monitor_info env_monitor;
 	} bbs[RTW89_PHY_NUM];
 
 	struct delayed_work track_work;
