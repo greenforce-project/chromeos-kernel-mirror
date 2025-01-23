@@ -542,6 +542,7 @@
 				reg = <0x80>;
 				scmi-cm = <9>;
 				scmi-slbc = <10>;
+				scmi-qos = <1>;
 			};
 		};
 	};
@@ -646,9 +647,22 @@
 		method = "smc";
 	};
 
+	qos: qos {
+		compatible = "mediatek,mt8196-qos";
+		mediatek,enable;
+		scmi-tinysys-supply = <&scmi_tinysys>;
+	};
+
 	ged: ged {
 		compatible = "mediatek,ged";
 		gpufreq-supply = <&gpufreq>;
+
+		/*
+		 * QoS is actually not a supply component, but by describing it this way,
+		 * it informs Kernel about the dependency relationship between modules,
+		 * meaning that the QoS probe must be called before the GED probe.
+		 */
+		qos-supply = <&qos>;
 	};
 
 	gpu_dcs: gpu-dcs {
@@ -1239,16 +1253,6 @@
 			reg = <0 0x00117800 0 0x400>;
 		};
 
-		qos: qos@11bb00 {
-			compatible = "mediatek,mt8196-qos";
-			reg = <0 0x0011bb00 0 0x100>,
-			      <0 0x0011b9c0 0 0x140>,
-			      <0 0x0011b920 0 0xa0>;
-			reg-names = "sram", "share_sram", "share_sram_ext";
-			mediatek,enable;
-			scmi-tinysys-supply = <&scmi_tinysys>;
-		};
-
 		csram_sys: csram-sysram@11bc00 {
 			reg = <0 0x11bc00 0 0x1400>; /* 5KB */
 		};
@@ -1257,6 +1261,22 @@
 			compatible = "mediatek,gpu-fdvfs";
 			reg = <0 0x13f800 0 0x800>;
 			gpu-freq-notify-support;
+		};
+
+		gpu_qos: gpu-qos@13f800 {
+			compatible = "mediatek,gpu-qos";
+			/*
+			 * Although gpu_fdvfs and gpu_qos appear to use the same register base,
+			 * the actual offsets they use are different. This is because gpu_fdvfs
+			 * corresponds to the processor GPUEB, while gpu_qos corresponds to the
+			 * processor SSPM. Therefore, different device tree nodes correspond to
+			 * different functions and hardware, and there won't be any unexpected
+			 * race conditions.
+			 */
+			reg = <0 0x13f800 0 0x20>;
+			qos-mode = <1>;
+			qos-sysram-support;
+			qos-value = <0>;
 		};
 
 		cpu_mcucfg: mcusys-ao-cfg@c000000 {
