@@ -155,6 +155,7 @@ unsigned int g_ged_pre_fence_chk;
 unsigned int g_default_log_level;
 //Bring up flag
 u32 g_is_bringup;
+struct device *g_ged_device;
 
 /******************************************************************************
  * GED File operations
@@ -553,6 +554,11 @@ unsigned int ged_is_fdvfs_support(void)
 }
 EXPORT_SYMBOL(ged_is_fdvfs_support);
 
+struct device *ged_get_device(void)
+{
+	return g_ged_device;
+}
+EXPORT_SYMBOL(ged_get_device);
 
 GED_ERROR check_eb_config(void)
 {
@@ -692,6 +698,8 @@ static int ged_pdrv_probe(struct platform_device *pdev)
 	GED_ERROR err = GED_OK;
 
 	GED_LOGI("@%s: start to probe ged driver\n", __func__);
+
+	g_ged_device = &pdev->dev;
 
 	if (proc_create(GED_DRIVER_DEVICE_NAME, 0644, NULL, &ged_proc_fops)
 		== NULL) {

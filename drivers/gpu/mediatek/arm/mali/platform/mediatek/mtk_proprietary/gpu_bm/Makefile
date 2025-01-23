@@ -11,16 +11,13 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ged/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sspm/v2/
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/qos/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ged/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/
 
-ifeq ($(CONFIG_MTK_TINYSYS_SSPM_V3),y)
-ccflags-y += -DMTK_SCMI
-#$(info *GPU BM QoS 2.0 SCMI defined)
-endif
+#ccflags-y += -DDEBUG
 
 obj-$(CONFIG_MALI_MTK) += mtk_gpu_qos.o
 mtk_gpu_qos-y := gpu_bm.o

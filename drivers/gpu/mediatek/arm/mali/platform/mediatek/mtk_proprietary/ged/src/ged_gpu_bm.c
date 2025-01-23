@@ -3,36 +3,27 @@
  * Copyright (c) 2021 MediaTek Inc.
  */
 
-#include <linux/module.h>
-#include <linux/init.h>
 #include <linux/of.h>
-#include <linux/of_device.h>
 #include <linux/of_address.h>
-
-#include <ged_gpu_bm.h>
-#include <ged_base.h>
-#include <ged_type.h>
+#include <linux/device.h>
+#include "ged_base.h"
+#include "ged_global.h"
+#include "ged_gpu_bm.h"
+#include "ged_type.h"
 
 #if defined(MTK_GPU_BM_2)
-#include <gpu_bm.h>
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
-#include <sspm_reservedmem_define.h>
+#include "gpu_bm.h"
+
 static bool g_qos_sysram_support;
 static phys_addr_t rec_phys_addr, rec_virt_addr;
 static void __iomem *mtk_sspm_bm_sysram_base_addr;
 static unsigned long long rec_size;
 struct v1_data *gpu_info_ref;
-#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
-
 static struct job_status_qos addr;
 static struct v1_data *v1;
 static int sf_pid;
 static int is_gpu_bm_inited;
-
 static unsigned int qos_frame_nr;
-#endif /* MTK_GPU_BM_2 */
-
-#if defined(MTK_GPU_BM_2)
 
 static int add_check_ovf(int v1, int v2)
 {
@@ -53,19 +44,22 @@ static void __iomem *_gpu_bm_of_ioremap(void)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,gpu-qos");
 
 	if (unlikely(!node))
-		GED_LOGE("[GPU_QOS]Cannot find [gpu-qos] of_node");
+		dev_err(ged_get_device(),
+			"[GPU_QOS] Cannot find [gpu-qos] of_node");
 	else {
 		mapped_addr = of_iomap(node, 0);
-		GED_LOGI("[GPU_QOS]mapped_addr: %p", mapped_addr);
+		dev_info(ged_get_device(), "[GPU_QOS] mapped_addr: %p",
+			 mapped_addr);
 		of_node_put(node);
 		/* get sysram address from "reg" property then translate into a resource */
 		ret = of_address_to_resource(node, 0, &res);
 		if (ret)
-			GED_LOGE("[GPU_QOS]Cannot get physical memory addr");
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
+			dev_err(ged_get_device(),
+				"[GPU_QOS] Cannot get physical memory addr");
 		rec_phys_addr = res.start;
-		GED_LOGI("[GPU_QOS] get physical memory addr: %x", (unsigned int)rec_phys_addr);
-#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+		dev_info(ged_get_device(),
+			 "[GPU_QOS] get physical memory addr: %#x",
+			 (unsigned int)rec_phys_addr);
 	}
 
 	return mapped_addr;
@@ -73,48 +67,43 @@ static void __iomem *_gpu_bm_of_ioremap(void)
 
 static void check_sysram_support(void)
 {
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 	struct device_node *gpu_qos_node = NULL;
 	int ret = 0;
 
 	gpu_qos_node = of_find_compatible_node(NULL, NULL, "mediatek,gpu-qos");
 	if (unlikely(!gpu_qos_node))
-		GED_LOGE("[GPU_QOS]Failed to find gpu_qos node");
+		dev_err(ged_get_device(),
+			"[GPU_QOS] Failed to find gpu_qos node");
 	else {
 		/* check if sysram support by getting qos-sysram-support property */
-		g_qos_sysram_support = of_property_read_bool(gpu_qos_node, "qos-sysram-support");
+		g_qos_sysram_support = of_property_read_bool(
+			gpu_qos_node, "qos-sysram-support");
 		if (!g_qos_sysram_support)
 			GED_LOGI("[GPU_QOS] sysram not support");
 	}
-	GED_LOGI("[GPU_QOS] sysram support: %d", g_qos_sysram_support);
-#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
+	dev_info(ged_get_device(), "[GPU_QOS] sysram support: %d",
+		 g_qos_sysram_support);
 }
 
 static void get_rec_addr(void)
 {
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 	int i;
 	unsigned char *ptr;
 
 	check_sysram_support();
 	if (!g_qos_sysram_support) {
-		/* get physical addr, virtual addr and size from sspm reserved mem */
-		rec_phys_addr = sspm_reserve_mem_get_phys(GPU_MEM_ID);
-		rec_virt_addr = sspm_reserve_mem_get_virt(GPU_MEM_ID);
-		rec_size = sspm_reserve_mem_get_size(GPU_MEM_ID);
-		GED_LOGI("[GPU_QOS] DRAM physical memory addr= %x\n",
-			(unsigned int)rec_phys_addr);
-		GED_LOGI("[GPU_QOS] DRAM virtual memory addr= %x size= %llu\n",
-			(unsigned int)rec_virt_addr, rec_size);
-	} else {
-		/* get sysram address (with gpu-qos and power_model) */
-		mtk_sspm_bm_sysram_base_addr = _gpu_bm_of_ioremap();
-		/* Transfer physical addr to virtual addr */
-		rec_virt_addr = (phys_addr_t)mtk_sspm_bm_sysram_base_addr;
-		rec_size = NR_BM_COUNTER;
-		GED_LOGI("[GPU_QOS] SYSRAM virtual memory addr= %x size= %llu\n",
-			(unsigned int)rec_virt_addr, rec_size);
+		dev_err(ged_get_device(), "[GPU_QOS] sysram not support");
+		return;
 	}
+
+	/* get sysram address (with gpu-qos and power_model) */
+	mtk_sspm_bm_sysram_base_addr = _gpu_bm_of_ioremap();
+	/* Transfer physical addr to virtual addr */
+	rec_virt_addr = (phys_addr_t)mtk_sspm_bm_sysram_base_addr;
+	rec_size = NR_BM_COUNTER;
+	dev_info(ged_get_device(),
+		 "[GPU_QOS] SYSRAM virtual memory addr: %#x size: %llu\n",
+		 (unsigned int)rec_virt_addr, rec_size);
 
 	if (rec_virt_addr) {
 		/* clear */
@@ -124,8 +113,6 @@ static void get_rec_addr(void)
 
 		gpu_info_ref = (struct v1_data *)(uintptr_t)rec_virt_addr;
 	}
-
-#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
 }
 
 int mtk_bandwidth_resource_init(void)
@@ -133,10 +120,10 @@ int mtk_bandwidth_resource_init(void)
 	int err = 0;
 
 	get_rec_addr();
-#if IS_ENABLED(CONFIG_MTK_TINYSYS_SSPM_SUPPORT)
 	if (gpu_info_ref == NULL) {
 		err = -1;
-		pr_info("%s: get sspm reserved memory fail\n", __func__);
+		dev_info(ged_get_device(),
+			 "@%s: get sspm reserved memory fail\n", __func__);
 		return err;
 	}
 	v1 = gpu_info_ref;
@@ -146,12 +133,10 @@ int mtk_bandwidth_resource_init(void)
 	v1->job = 0;
 	addr.phyaddr = rec_phys_addr;
 
-	MTKGPUQoS_setup(v1, addr.phyaddr, rec_size);
+	MTKGPUQoS_setup(ged_get_device(), v1, addr.phyaddr, rec_size);
 	is_gpu_bm_inited = 1;
 
 	return err;
-#endif /* CONFIG_MTK_TINYSYS_SSPM_SUPPORT */
-	return -1;
 }
 EXPORT_SYMBOL(mtk_bandwidth_resource_init);
 
@@ -168,6 +153,17 @@ void mtk_bandwidth_update_info(int pid, int frame_nr, int job_id)
 		MTKGPUQoS_mode(1);
 	else
 		MTKGPUQoS_mode(0);
+}
+
+void mtk_bandwidth_update(int frame_nr, int job_id)
+{
+	if (!is_gpu_bm_inited)
+		return;
+
+	v1->frame = (u32)frame_nr;
+	v1->job = (u32)job_id;
+
+	MTKGPUQoS_mode(0);
 }
 
 void mtk_bandwidth_check_SF(int pid, int isSF)

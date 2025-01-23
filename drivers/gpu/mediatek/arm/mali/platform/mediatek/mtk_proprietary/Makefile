@@ -6,6 +6,7 @@
 obj-y += hal/
 obj-y += gpueb/
 obj-y += gpufreq/
+obj-y += gpu_bm/
 obj-y += ged/
 obj-y += gpu_pdma/
-obj-y += gpu_bm/
+obj-$(CONFIG_MTK_GPU_QOS_FRAMEWORK) += qos/

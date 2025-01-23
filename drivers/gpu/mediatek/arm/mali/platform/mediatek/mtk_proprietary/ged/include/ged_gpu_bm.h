@@ -57,9 +57,9 @@ enum gpu_bm_counter {
 
 int mtk_bandwidth_resource_init(void);
 void mtk_bandwidth_update_info(int pid, int frame_nr, int job_id);
+void mtk_bandwidth_update(int frame_nr, int job_id);
 void mtk_bandwidth_check_SF(int pid, int isSF);
 u32 qos_inc_frame_nr(void);
 u32 qos_get_frame_nr(void);
 
 #endif /* __GED_GPU_BM_H__ */
-

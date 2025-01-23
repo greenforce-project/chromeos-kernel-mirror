@@ -9,6 +9,7 @@
 #include <linux/sysfs.h>
 #include "ged_dvfs.h"
 #include "ged_base.h"
+#include "ged_gpu_bm.h"
 #include "ged_type.h"
 #include "mali_kbase.h"
 #include "mali_kbase_hwaccess_gpuprops.h"
@@ -321,6 +322,7 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 
 	mtk_dump_gpu_register_debugfs_init(kbdev);
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
+	mtk_bandwidth_resource_init();
 }
 EXPORT_SYMBOL(mtk_common_debugfs_init);
 #endif /* MALI_MTK_DEBUG_FS */

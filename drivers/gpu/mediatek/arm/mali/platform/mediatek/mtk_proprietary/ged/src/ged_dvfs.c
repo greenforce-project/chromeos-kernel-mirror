@@ -34,6 +34,7 @@
 #include "ged_dcs.h"
 #include "ged_async.h"
 #include "ged_clk_rate_trace.h"
+#include "ged_gpu_bm.h"
 
 #if defined(MTK_GPU_BM_2)
 #include <gpu_bm.h>
@@ -3700,6 +3701,9 @@ void ged_dvfs_run(
 		ged_dvfs_cal_gpu_utilization_ex(&gpu_loading,
 			&gpu_block, &gpu_idle, &g_Util_Ex);
 
+		/* apply bandwidth based on the current utilization before DVFS changing */
+		mtk_bandwidth_update(qos_inc_frame_nr(), qos_get_frame_nr());
+
 		ged_log_buf_print(ghLogBuf_DVFS,
 			"[GED_K][FB_DVFS] fallback mode");
 		spin_unlock_irqrestore(&gsGpuUtilLock, ui32IRQFlags);
@@ -4086,6 +4090,7 @@ int ged_dvfs_get_fallback_tuning(void)
 
 void ged_dvfs_notify_power_off(void)
 {
+	atomic_set(&g_gpu_loading_log, 0);
 	if (g_last_commit_type == GED_DVFS_FALLBACK_COMMIT)
 		g_fallback_idle++;
 }
@@ -4341,4 +4346,3 @@ module_param(g_gpu_timer_based_emu, uint, 0644);
 
 module_param(gpu_opp_logs_enable, uint, 0644);
 #endif /* ENABLE_COMMON_DVFS */
-

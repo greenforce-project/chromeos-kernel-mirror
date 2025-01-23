@@ -38,7 +38,7 @@ struct setupfw_t {
 
 void MTKGPUQoS_mode(int seg_flag);
 void MTKGPUQoS_mode_ratio(int mode);
-void MTKGPUQoS_setup(struct v1_data *v1, phys_addr_t phyaddr, size_t size);
+void MTKGPUQoS_setup(struct device * dev, struct v1_data *v1, phys_addr_t phyaddr, size_t size);
 int MTKGPUQoS_is_inited(void);
 
 #endif
