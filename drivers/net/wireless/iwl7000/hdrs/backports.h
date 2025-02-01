@@ -472,6 +472,20 @@ static inline void backport_netif_napi_add(struct net_device *dev,
 #include <linux/cleanup.h>
 DEFINE_FREE(kfree, void *, if (!IS_ERR_OR_NULL(_T)) kfree(_T))
 
+DEFINE_LOCK_GUARD_0(rcu,
+	do {
+		rcu_read_lock();
+		/*
+		 * sparse doesn't call the cleanup function,
+		 * so just release immediately and don't track
+		 * the context. We don't need to anyway, since
+		 * the whole point of the guard is to not need
+		 * the explicit unlock.
+		 */
+		__release(RCU);
+	} while (0),
+	rcu_read_unlock())
+
 #define SKB_CONSUMED (SKB_DROP_REASON_MAX + 1)
 #define VISIBLE_IF_KUNIT static
 #define EXPORT_SYMBOL_IF_KUNIT(...)
