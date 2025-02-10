@@ -146,6 +146,8 @@ static int ipu6_isys_vidioc_querycap(struct file *file, void *fh,
 
 	strscpy(cap->driver, IPU6_ISYS_NAME, sizeof(cap->driver));
 	strscpy(cap->card, av->isys->media_dev.model, sizeof(cap->card));
+	strscpy(cap->bus_info, av->isys->media_dev.bus_info,
+		sizeof(cap->bus_info));
 
 	return 0;
 }
