@@ -891,6 +891,19 @@ static const struct mtk_dvo_conf mt8196_conf = {
 	.hvsize_mask = PIC_HSIZE_MASK,
 };
 
+static const struct mtk_dvo_conf mt8189_conf = {
+	.cal_factor = mt8196_calculate_factor,
+	.out_np_sel = 0x2,
+	.reg_h_fre_con = 0xb0,
+	.max_clock_khz = 640000,
+	.output_fmts = mt8196_output_fmts,
+	.num_output_fmts = ARRAY_SIZE(mt8196_output_fmts),
+	.pixels_per_iter = 4,
+	.has_commit = true,
+	.dimension_mask = HFP_MASK,
+	.hvsize_mask = PIC_HSIZE_MASK,
+};
+
 static int mtk_dvo_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -984,6 +997,7 @@ static void mtk_dvo_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id mtk_dvo_of_ids[] = {
+	{ .compatible = "mediatek,mt8189-edp-dvo", .data = &mt8189_conf },
 	{ .compatible = "mediatek,mt8196-edp-dvo", .data = &mt8196_conf },
 	{ /* sentinel */ },
 };

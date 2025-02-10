@@ -70,6 +70,12 @@ enum {
 	MTK_DP_CAL_MAX,
 };
 
+enum {
+	MTK_EDP_SOC_TYPE_NONE  = 0,
+	MTK_EDP_SOC_TYPE_MT8196,
+	MTK_EDP_SOC_TYPE_MT8189,
+};
+
 struct mtk_dp_train_info {
 	bool sink_ssc;
 	bool cable_plugged_in;
@@ -100,6 +106,11 @@ struct mtk_dp_efuse_fmt {
 	unsigned short min_val;
 	unsigned short max_val;
 	unsigned short default_val;
+};
+
+struct mtk_edp_phy_data  {
+	struct regmap *phy_regs;
+	u32 edp_ver;
 };
 
 struct mtk_dp {
@@ -1045,12 +1056,27 @@ static void mtk_dp_set_swing_pre_emphasis(struct mtk_dp *mtk_dp, int lane_num,
 		case 1:
 		case 2:
 		case 3:
-			regmap_update_bits(mtk_dp->phy_regs,
+			if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8196) {
+				regmap_update_bits(mtk_dp->phy_regs,
 					   PHYD_DIG_DRV_FORCE_LANE(lane_num),
 					   EDP_TX_LN_VOLT_SWING_VAL_FLDMASK |
 					   EDP_TX_LN_PRE_EMPH_VAL_FLDMASK,
 					   swing_val << 1 |
 					   preemphasis << 3);
+			} else if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8189) {
+				regmap_update_bits(mtk_dp->phy_regs,
+					   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
+					   EDP_TX_LN_VOLT_SWING_VAL_8189_FLDMASK |
+					   EDP_TX_LN_PRE_EMPH_VAL_8189_FLDMASK,
+					   swing_val << 1 |
+					   preemphasis << 5);
+				regmap_update_bits(mtk_dp->phy_regs,
+					   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
+					   EDP_TX_LN_VOLT_SWING_EN_8189 |
+					   EDP_TX_LN_PRE_EMPH_EN_8189,
+					   EDP_TX_LN_VOLT_SWING_EN_8189 |
+					   EDP_TX_LN_PRE_EMPH_EN_8189);
+			}
 			break;
 		default:
 			break;
@@ -2987,13 +3013,17 @@ static int mtk_dp_register_audio_driver(struct device *dev)
 static int mtk_dp_register_phy(struct mtk_dp *mtk_dp)
 {
 	struct device *dev = mtk_dp->dev;
+	struct mtk_edp_phy_data phy_data = {
+		.phy_regs = mtk_dp->phy_regs,
+		.edp_ver = mtk_dp->data->edp_ver,
+	};
 
 	if (mtk_dp->phy_regs)
 		mtk_dp->phy_dev = platform_device_register_data(dev,
 					"mediatek-edp-phy",
 					PLATFORM_DEVID_AUTO,
-					&mtk_dp->phy_regs,
-					sizeof(struct regmap *));
+					&phy_data,
+					sizeof(struct mtk_edp_phy_data));
 	else
 		mtk_dp->phy_dev = platform_device_register_data(dev,
 					"mediatek-dp-phy",
@@ -3294,7 +3324,16 @@ static const struct mtk_dp_data mt8196_edp_data = {
 	.efuse_fmt = mt8195_edp_efuse_fmt,
 	.audio_supported = false,
 	.audio_m_div2_bit = MT8195_AUDIO_M_CODE_MULT_DIV_SEL_DP_ENC0_P0_DIV_2,
-	.edp_ver = 1,
+	.edp_ver = MTK_EDP_SOC_TYPE_MT8196,
+};
+
+static const struct mtk_dp_data mt8189_edp_data = {
+	.bridge_type = DRM_MODE_CONNECTOR_eDP,
+	.smc_cmd = MTK_DP_SIP_ATF_EDP_VIDEO_UNMUTE,
+	.efuse_fmt = mt8195_edp_efuse_fmt,
+	.audio_supported = false,
+	.audio_m_div2_bit = MT8195_AUDIO_M_CODE_MULT_DIV_SEL_DP_ENC0_P0_DIV_2,
+	.edp_ver = MTK_EDP_SOC_TYPE_MT8189,
 };
 
 static const struct of_device_id mtk_dp_of_match[] = {
@@ -3305,6 +3344,10 @@ static const struct of_device_id mtk_dp_of_match[] = {
 	{
 		.compatible = "mediatek,mt8188-dp-tx",
 		.data = &mt8188_dp_data,
+	},
+	{
+		.compatible = "mediatek,mt8189-edp-tx",
+		.data = &mt8189_edp_data,
 	},
 	{
 		.compatible = "mediatek,mt8195-edp-tx",
