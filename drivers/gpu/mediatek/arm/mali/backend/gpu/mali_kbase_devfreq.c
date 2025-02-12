@@ -708,8 +708,8 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	}
 
 #if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
-	kbdev->devfreq_cooling = of_devfreq_cooling_register_power(
-		kbdev->dev->of_node, kbdev->devfreq,
+	kbdev->devfreq_cooling = devfreq_cooling_em_register(
+		kbdev->devfreq,
 #ifdef MALI_MTK_DEVFREQ_THERMAL
 		&mtk_devfreq_cooling_power_ops);
 #else
