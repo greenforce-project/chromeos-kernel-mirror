@@ -33,14 +33,6 @@
 	compatible = "mediatek,mt8196-nau8825-sound";
 	model = "mt8196_nau8318_8825";
 	mediatek,adsp = <&adsp>;
-	/*
-	 * TODO: Remove deprecated mediatek,dai-link, use audio-routing and
-	 * update UCM config.
-	 **/
-	mediatek,dai-link = "AFE_SOF_DL_24CH", "AFE_SOF_DL1", "AFE_SOF_UL0",
-			"AFE_SOF_UL1", "AFE_SOF_UL2", "HDMI_FE", "I2SIN6_BE",
-			"I2SOUT4_BE", "I2SOUT6_BE", "AP_DMIC_BE", "AP_DMIC_CH34_BE",
-			"TDM_DPTX_BE";
 	status = "okay";
 
 	dai-link-0 {
