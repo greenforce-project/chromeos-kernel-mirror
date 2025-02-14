@@ -221,7 +221,7 @@ static void hv_machine_crash_shutdown(struct pt_regs *regs)
 	/* Disable the hypercall page when there is only 1 active CPU. */
 	hyperv_cleanup();
 }
-#endif /* CONFIG_CRASH_DUMP */
+#endif /* CONFIG_KEXEC_CORE */
 
 static u64 hv_ref_counter_at_suspend;
 static void (*old_save_sched_clock_state)(void);
