@@ -183,11 +183,8 @@ iwl_mld_get_regdomain(struct iwl_mld *mld,
 
 	mld->mcc_src = resp->source_id;
 
-	/* Some kind of regulatory mess means we need to currently disallow
-	 * puncturing in the US and Canada. Do that here.
-	 */
-	if (resp->mcc == cpu_to_le16(IWL_MCC_US) ||
-	    resp->mcc == cpu_to_le16(IWL_MCC_CANADA))
+	if (!iwl_puncturing_is_allowed_in_bios(mld->bios_enable_puncturing,
+					       le16_to_cpu(resp->mcc)))
 		ieee80211_hw_set(mld->hw, DISALLOW_PUNCTURING);
 	else
 		__clear_bit(IEEE80211_HW_DISALLOW_PUNCTURING, mld->hw->flags);
@@ -206,6 +203,21 @@ iwl_mld_get_current_regdomain(struct iwl_mld *mld,
 {
 	return iwl_mld_get_regdomain(mld, "ZZ",
 				     MCC_SOURCE_GET_CURRENT, changed);
+}
+
+void iwl_mld_update_changed_regdomain(struct iwl_mld *mld)
+{
+	struct ieee80211_regdomain *regd;
+	bool changed;
+
+	regd = iwl_mld_get_current_regdomain(mld, &changed);
+
+	if (IS_ERR_OR_NULL(regd))
+		return;
+
+	if (changed)
+		regulatory_set_wiphy_regd(mld->wiphy, regd);
+	kfree(regd);
 }
 
 static int iwl_mld_apply_last_mcc(struct iwl_mld *mld,
@@ -244,6 +256,7 @@ int iwl_mld_init_mcc(struct iwl_mld *mld)
 {
 	const struct ieee80211_regdomain *r;
 	struct ieee80211_regdomain *regd;
+	char mcc[3];
 	int retval;
 
 	/* try to replay the last set MCC to FW */
@@ -256,7 +269,12 @@ int iwl_mld_init_mcc(struct iwl_mld *mld)
 	if (IS_ERR_OR_NULL(regd))
 		return -EIO;
 
-	/* TODO: task BIOS UEFI ACPI iwl_bios_get_mcc */
+	if (!iwl_bios_get_mcc(&mld->fwrt, mcc)) {
+		kfree(regd);
+		regd = iwl_mld_get_regdomain(mld, mcc, MCC_SOURCE_BIOS, NULL);
+		if (IS_ERR_OR_NULL(regd))
+			return -EIO;
+	}
 
 	retval = regulatory_set_wiphy_regd_sync(mld->wiphy, regd);
 
@@ -312,8 +330,6 @@ void iwl_mld_handle_update_mcc(struct iwl_mld *mld, struct iwl_rx_packet *pkt)
 	regd = iwl_mld_get_regdomain(mld, mcc, src, &changed);
 	if (IS_ERR_OR_NULL(regd))
 		return;
-
-	/* TODO: SAR iwl_mvm_get_sar_geo_profile */
 
 	if (changed)
 		regulatory_set_wiphy_regd(mld->hw->wiphy, regd);
