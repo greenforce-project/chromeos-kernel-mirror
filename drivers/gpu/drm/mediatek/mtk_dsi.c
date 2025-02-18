@@ -1516,6 +1516,16 @@ static const struct mtk_dsi_driver_data mt8188_dsi_driver_data = {
 	.max_linkrate_kbps = 1500000,
 };
 
+static const struct mtk_dsi_driver_data mt8189_dsi_driver_data = {
+	.reg_cmdq_off = 0xd00,
+	.has_shadow_ctl = true,
+	.has_size_ctl = true,
+	.cmdq_long_packet_ctl = true,
+	.support_per_frame_lp = true,
+	.dsi_vm_cmd_con = 0x200,
+	.max_linkrate_kbps = 2500000,
+};
+
 static const struct mtk_dsi_driver_data mt8196_dsi_driver_data = {
 	.reg_cmdq_off = 0x400,
 	.has_shadow_ctl = true,
@@ -1555,6 +1565,7 @@ static const struct of_device_id mtk_dsi_of_match[] = {
 	{ .compatible = "mediatek,mt8183-dsi", .data = &mt8183_dsi_driver_data },
 	{ .compatible = "mediatek,mt8186-dsi", .data = &mt8186_dsi_driver_data },
 	{ .compatible = "mediatek,mt8188-dsi", .data = &mt8188_dsi_driver_data },
+	{ .compatible = "mediatek,mt8189-dsi", .data = &mt8189_dsi_driver_data },
 	{ .compatible = "mediatek,mt8196-dsi", .data = &mt8196_dsi_driver_data },
 	{ /* sentinel */ }
 };
