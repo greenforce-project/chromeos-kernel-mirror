@@ -32,3 +32,12 @@ config DRM_MEDIATEK_HDMI
 	select SND_SOC_HDMI_CODEC if SND_SOC
 	help
 	  DRM/KMS HDMI driver for Mediatek SoCs
+
+config DRM_MEDIATEK_DEBUG
+	bool "Enable debug build"
+	depends on DRM_MEDIATEK_DP
+	help
+	  Enables verbose debug logs within the Mediatek DisplayPort driver.
+          This option should be enabled only for debugging purposes to
+	  diagnose driver issues.  It increases log output, which may
+	  negatively impact system performance.
