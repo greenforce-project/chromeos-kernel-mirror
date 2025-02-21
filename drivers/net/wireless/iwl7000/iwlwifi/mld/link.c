@@ -146,7 +146,7 @@ static void iwl_mld_fill_rates(struct iwl_mld *mld,
 	*ofdm_rates = cpu_to_le32((u32)ofdm);
 }
 
-static void iwl_mld_fill_pretection_flags(struct iwl_mld *mld,
+static void iwl_mld_fill_protection_flags(struct iwl_mld *mld,
 					  struct ieee80211_bss_conf *link,
 					  __le32 *protection_flags)
 {
@@ -173,10 +173,6 @@ static void iwl_mld_fill_pretection_flags(struct iwl_mld *mld,
 		/* Protect when channel wider than 20MHz */
 		if (link->chanreq.oper.width > NL80211_CHAN_WIDTH_20)
 			*protection_flags |= cpu_to_le32(ht_flag);
-		break;
-	default:
-		IWL_ERR(mld, "Illegal protection mode %d\n",
-			protection_mode);
 		break;
 	}
 }
@@ -286,7 +282,7 @@ iwl_mld_change_link_in_fw(struct iwl_mld *mld, struct ieee80211_bss_conf *link,
 	cmd.cck_short_preamble = cpu_to_le32(link->use_short_preamble);
 	cmd.short_slot = cpu_to_le32(link->use_short_slot);
 
-	iwl_mld_fill_pretection_flags(mld, link, &cmd.protection_flags);
+	iwl_mld_fill_protection_flags(mld, link, &cmd.protection_flags);
 
 	iwl_mld_fill_qos_params(link, cmd.ac, &cmd.qos_flags);
 
@@ -376,30 +372,21 @@ int iwl_mld_activate_link(struct iwl_mld *mld,
 	return ret;
 }
 
-int iwl_mld_deactivate_link(struct iwl_mld *mld,
-			    struct ieee80211_bss_conf *link)
+void iwl_mld_deactivate_link(struct iwl_mld *mld,
+			     struct ieee80211_bss_conf *link)
 {
 	struct iwl_mld_link *mld_link = iwl_mld_link_from_mac80211(link);
-	int ret;
 
 	lockdep_assert_wiphy(mld->wiphy);
 
 	if (WARN_ON(!mld_link))
-		return -EINVAL;
+		return;
 
-	ret = iwl_mld_cancel_session_protection(mld, link->vif, link->link_id);
-	if (ret)
-		return ret;
+	iwl_mld_cancel_session_protection(mld, link->vif, link->link_id);
 
 	mld_link->active = false;
 
-	ret = iwl_mld_change_link_in_fw(mld, link,
-					LINK_CONTEXT_MODIFY_ACTIVE);
-
-	if (ret)
-		mld_link->active = true;
-
-	return ret;
+	iwl_mld_change_link_in_fw(mld, link, LINK_CONTEXT_MODIFY_ACTIVE);
 }
 
 static int
@@ -427,6 +414,11 @@ static int
 iwl_mld_init_link(struct iwl_mld *mld, struct ieee80211_bss_conf *link,
 		  struct iwl_mld_link *mld_link)
 {
+	iwl_mld_init_internal_sta(&mld_link->bcast_sta);
+	iwl_mld_init_internal_sta(&mld_link->mcast_sta);
+
+	mld_link->mld = mld;
+
 	return iwl_mld_allocate_link_fw_id(mld, &mld_link->fw_id, link);
 }
 
@@ -457,11 +449,8 @@ int iwl_mld_remove_link(struct iwl_mld *mld,
 	struct iwl_mld_link *link = iwl_mld_link_from_mac80211(bss_conf);
 	int ret;
 
-	if (link->active) {
-		ret = iwl_mld_deactivate_link(mld, bss_conf);
-		if (ret)
-			return ret;
-	}
+	if (WARN_ON(link->active))
+		return -EINVAL;
 
 	ret = iwl_mld_rm_link_from_fw(mld, bss_conf);
 	if (ret)
@@ -553,6 +542,7 @@ void iwl_mld_handle_missed_beacon_notif(struct iwl_mld *mld,
 		IWL_ERR(mld, "Not implemented, exist EMLSR\n");
 	}
 }
+EXPORT_SYMBOL_IF_IWLWIFI_KUNIT(iwl_mld_handle_missed_beacon_notif);
 
 int iwl_mld_link_set_associated(struct iwl_mld *mld, struct ieee80211_vif *vif,
 				struct ieee80211_bss_conf *link)
