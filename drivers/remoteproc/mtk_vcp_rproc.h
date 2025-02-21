@@ -97,6 +97,7 @@ struct mtk_vcp_of_cluster {
 	u32 msg_vcp_ready1;
 	u32 slp_ipi_ack_data;
 	u32 twohart[VCP_CORE_TOTAL];
+	u32 sram_offset[VCP_CORE_TOTAL];
 	int pwclkcnt;
 	bool is_suspending;
 	struct vcp_work_struct vcp_ready_notify_wk[VCP_CORE_TOTAL];

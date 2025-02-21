@@ -14,13 +14,8 @@
 #define VCM_IMAGE_NAME_MAXSZ        (32)
 #define VCP_IMAGE_HEADER_SIZE       (0x200)
 
-#define VCP_LOADER_OFFSET           (0x0)
-#define VCP_LOADER_SIZE             (0x2000)
-#define VCP_FW_OFFSET               (0x2000)
-#define VCP_DRAM_OFFSET             (0x200000)
-#define VCP_DRAM_IMG_OFFSET         (VCP_DRAM_OFFSET)
+#define VCP_DRAM_IMG_OFFSET         (0x200000)
 #define MMUP_DRAM_IMG_OFFSET        (0x1200000)
-#define MMUP_SRAM_OFFSET            (0x31000)
 
 #define REGION_OFFSET               (0x4)
 #define ALIGN_1024                  (1024)
@@ -42,13 +37,14 @@ static size_t loader_partition(void __iomem *image_buf,
 			       const char *section_name)
 {
 	const u8 *fw_ptr = fw_src;
-	u32 offset = 0;
-	u32 align_size = 0;
+	u32 offset;
+	u32 align_size;
 	const struct mkimg_hdr *img_hdr_info;
 
 	if (!fw_src || !image_buf || size < VCP_IMAGE_HEADER_SIZE)
 		return 0;
 
+	offset = 0;
 	while (offset < size) {
 		img_hdr_info = (const struct mkimg_hdr *)(fw_ptr + offset);
 		align_size = round_up(img_hdr_info->dsz, ALIGN_16);
@@ -74,88 +70,57 @@ static int load_vcp_bin(const u8 *fw_src,
 			dma_addr_t img_buf_iova,
 			struct mtk_vcp_device *vcp)
 {
-	void __iomem *ld_ptr;
-	void __iomem *dram_img_ptr;
-	void __iomem *dram_img_backup_ptr;
-	phys_addr_t ld_ptr_phy;
-	phys_addr_t dram_img_ptr_phy;
 	u32 fw_size;
-	u32 ld_size;
 	u32 dram_img_size;
-	u32 dram_img_offset = 0;
-	u32 dram_backup_img_offset = 0;
+	u32 dram_backup_img_offset;
 	struct vcp_region_info_st vcp_region_info = {};
 	struct arm_smccc_res res;
 
-	/*
-	 * Layout of VCP reserved DRAM memory.
-	 ************************
-	 * +------------------+ *
-	 * |  VCP Loader      | *
-	 * +------------------+ *
-	 * |  VCP Firmware    | *
-	 * +------------------+ *
-	 ************************
-	 * +------------------+ *
-	 * |  VCP DRAM        | *
-	 * +------------------+ *
-	 * |  VCP DRAM backup | *
-	 * +------------------+ *
-	 ************************
-	 */
-
 	/* step 2: load/verify firmware */
-	ld_ptr = img_buf_va;
-	ld_ptr_phy = img_buf_pa;
-	ld_size = VCP_LOADER_SIZE;
-	fw_size = loader_partition(img_buf_va, fw_src, size, VCP_HFRP_SECTION_NAME);
+	fw_size = loader_partition(vcp->vcp_cluster->sram_base +
+				   vcp->vcp_cluster->sram_offset[VCP_ID],
+				   fw_src, size, VCP_HFRP_SECTION_NAME);
 	if (!fw_size) {
 		dev_err(vcp->dev, "load %s failed\n", VCP_HFRP_SECTION_NAME);
 		return -EINVAL;
 	}
 
 	/* step 3: load/verify vcp dram section binary */
-	dram_img_size = loader_partition(img_buf_va + VCP_DRAM_OFFSET,
+	dram_img_size = loader_partition(img_buf_va + VCP_DRAM_IMG_OFFSET,
 					 fw_src, size, VCP_HFRP_DRAM_SECTION_NAME);
 	if (!dram_img_size) {
 		dev_err(vcp->dev, "load %s failed\n", VCP_HFRP_DRAM_SECTION_NAME);
 		return -EINVAL;
 	}
 
-	dram_img_ptr = img_buf_va + VCP_DRAM_OFFSET;
-	dram_img_ptr_phy = img_buf_pa + VCP_DRAM_OFFSET;
-	dram_img_backup_ptr = dram_img_ptr + round_up(dram_img_size, ALIGN_1024);
-
-	/* copy loader and fw to sram */
-	memcpy_toio(vcp->vcp_cluster->sram_base, (void *)img_buf_va, fw_size);
-
 	/* Let vcp check if the struct matches the one in tinysys */
 	vcp_region_info.struct_size = sizeof(struct vcp_region_info_st);
 
-	/* keep *_addr[35:4] in region info for region info accommodate 32 bits data only */
-	vcp_region_info.ap_loader_start_pa = (u32)img_buf_pa;
-	vcp_region_info.ap_loader_start   = VCP_PACK_IOVA(img_buf_iova);
-	vcp_region_info.ap_firmware_start = VCP_PACK_IOVA(img_buf_iova + ld_size);
+	/* optional: setting vcp mcu loader code to copy firmware to sram */
+	vcp_region_info.ap_loader_start_pa = 0;
+	vcp_region_info.ap_loader_start   = 0;
+	vcp_region_info.ap_firmware_start = 0;
 
-	/* set size to 0 to prevent vcp loader load fw, because fw already load-in SRAM */
+	/* optional: set size to 0 to prevent vcp loader load fw */
 	vcp_region_info.ap_loader_size = 0;
 	vcp_region_info.ap_firmware_size = 0;
 
-	dram_img_offset = dram_img_ptr - img_buf_va;
-	dram_backup_img_offset = dram_img_offset + round_up(dram_img_size, ALIGN_1024);
+	dram_backup_img_offset = VCP_DRAM_IMG_OFFSET + round_up(dram_img_size, ALIGN_1024);
 
-	vcp_region_info.ap_dram_start = VCP_PACK_IOVA(img_buf_iova + dram_img_offset);
+	vcp_region_info.ap_dram_start = VCP_PACK_IOVA(img_buf_iova + VCP_DRAM_IMG_OFFSET);
 	vcp_region_info.ap_dram_backup_start = VCP_PACK_IOVA(img_buf_iova + dram_backup_img_offset);
 	vcp_region_info.ap_dram_size  = (u32)dram_img_size;
 
-	vcp_region_info.l2tcm_offset = (u32)MMUP_SRAM_OFFSET;
+	vcp_region_info.l2tcm_offset = (u32)vcp->vcp_cluster->sram_offset[MMUP_ID];
 
-	memcpy_toio(vcp->vcp_cluster->sram_base + REGION_OFFSET,
+	memcpy_toio(vcp->vcp_cluster->sram_base +
+		    vcp->vcp_cluster->sram_offset[VCP_ID] + REGION_OFFSET,
 		    &vcp_region_info, sizeof(vcp_region_info));
 
 	arm_smccc_smc(MTK_SIP_TINYSYS_VCP_CONTROL,
 		      MTK_TINYSYS_MMUP_KERNEL_OP_SET_L2TCM_OFFSET,
-		      MMUP_SRAM_OFFSET, 0, 0, 0, 0, 0, &res);
+		      vcp->vcp_cluster->sram_offset[MMUP_ID],
+		      0, 0, 0, 0, 0, &res);
 
 	return 0;
 }
@@ -167,42 +132,16 @@ static int load_mmup_bin(const u8 *fw_src,
 			 dma_addr_t img_buf_iova,
 			 struct mtk_vcp_device *vcp)
 {
-	void __iomem *ld_ptr;
-	void __iomem *dram_img_ptr;
-	void __iomem *dram_img_backup_ptr;
-	phys_addr_t ld_ptr_phy;
-	phys_addr_t dram_img_ptr_phy;
 	u32 fw_size;
-	u32 ld_size;
 	u32 dram_img_size;
-	u32 dram_img_offset = 0;
-	u32 dram_backup_img_offset = 0;
+	u32 dram_backup_img_offset;
 	struct vcp_region_info_st vcp_region_info = {};
 	struct arm_smccc_res res;
 
-	/*
-	 * Layout of MMUP reserved DRAM memory.
-	 ************************
-	 * +------------------+ *
-	 * |  MMUP Loader     | *
-	 * +------------------+ *
-	 * |  MMUP Firmware   | *
-	 * +------------------+ *
-	 ************************
-	 * +------------------+ *
-	 * |  MMUP DRAM       | *
-	 * +------------------+ *
-	 * |  MMUP DRAM backup| *
-	 * +------------------+ *
-	 ************************
-	 */
-
 	/* step 2: load/verify firmware */
-	ld_ptr = img_buf_va;
-	ld_ptr_phy = img_buf_pa + MMUP_SRAM_OFFSET;
-	ld_size = VCP_LOADER_SIZE;
-	fw_size = loader_partition(img_buf_va + MMUP_SRAM_OFFSET, fw_src, size,
-				   VCP_MMUP_SECTION_NAME);
+	fw_size = loader_partition(vcp->vcp_cluster->sram_base +
+				   vcp->vcp_cluster->sram_offset[MMUP_ID],
+				   fw_src, size, VCP_MMUP_SECTION_NAME);
 	if (!fw_size) {
 		dev_err(vcp->dev, "load %s failed\n", VCP_MMUP_SECTION_NAME);
 		return -EINVAL;
@@ -215,32 +154,25 @@ static int load_mmup_bin(const u8 *fw_src,
 		dev_err(vcp->dev, "load %s failed\n", VCP_MMUP_DRAM_SECTION_NAME);
 		return -EINVAL;
 	}
-	dram_img_ptr = img_buf_va + MMUP_DRAM_IMG_OFFSET;
-	dram_img_ptr_phy = img_buf_pa + MMUP_DRAM_IMG_OFFSET;
-	dram_img_backup_ptr = dram_img_ptr + round_up(dram_img_size, ALIGN_1024);
-
-	/* copy loader and fw to sram */
-	memcpy_toio(vcp->vcp_cluster->sram_base + MMUP_SRAM_OFFSET,
-		    img_buf_va + MMUP_SRAM_OFFSET, fw_size);
 
 	/* Let vcp check if the struct matches the one in tinysys */
 	vcp_region_info.struct_size = sizeof(struct vcp_region_info_st);
-	/* keep *_addr[35:4] in region info for region info accommodate 32 bits data only */
-	vcp_region_info.ap_loader_start_pa = (u32)(img_buf_pa + MMUP_SRAM_OFFSET);
-	vcp_region_info.ap_loader_start   = VCP_PACK_IOVA(img_buf_iova + MMUP_SRAM_OFFSET);
-	vcp_region_info.ap_firmware_start = VCP_PACK_IOVA(img_buf_iova + MMUP_SRAM_OFFSET + ld_size);
+	/* optional: config vcp bootloader to copy firmware to sram */
+	vcp_region_info.ap_loader_start_pa = 0;
+	vcp_region_info.ap_loader_start   = 0;
+	vcp_region_info.ap_firmware_start = 0;
 
-	/* set size to 0 to prevent vcp loader load fw, because fw already load-in SRAM */
+	/* optional: set size to 0 to prevent vcp loader load fw */
 	vcp_region_info.ap_loader_size = 0;
 	vcp_region_info.ap_firmware_size = 0;
 
-	dram_img_offset = dram_img_ptr - img_buf_va;
-	dram_backup_img_offset = dram_img_offset + round_up(dram_img_size, ALIGN_1024);
-	vcp_region_info.ap_dram_start = VCP_PACK_IOVA(img_buf_iova + dram_img_offset);
+	dram_backup_img_offset = MMUP_DRAM_IMG_OFFSET + round_up(dram_img_size, ALIGN_1024);
+	vcp_region_info.ap_dram_start = VCP_PACK_IOVA(img_buf_iova + MMUP_DRAM_IMG_OFFSET);
 	vcp_region_info.ap_dram_backup_start = VCP_PACK_IOVA(img_buf_iova + dram_backup_img_offset);
 	vcp_region_info.ap_dram_size  = (u32)dram_img_size;
 
-	memcpy_toio(vcp->vcp_cluster->sram_base + MMUP_SRAM_OFFSET + REGION_OFFSET,
+	memcpy_toio(vcp->vcp_cluster->sram_base +
+		    vcp->vcp_cluster->sram_offset[MMUP_ID] + REGION_OFFSET,
 		    &vcp_region_info, sizeof(vcp_region_info));
 
 	arm_smccc_smc(MTK_SIP_TINYSYS_VCP_CONTROL,
@@ -257,8 +189,7 @@ int mtk_vcp_load(struct rproc *rproc, const struct firmware *fw)
 	dma_addr_t img_buf_iova;
 	phys_addr_t img_buf_phys;
 	void __iomem *img_buf_va;
-	u32 img_buf_size;
-	int ret = 0;
+	int ret;
 
 	if (!vcp) {
 		dev_err(vcp->dev, "vcp device is no exist!\n");
@@ -283,7 +214,6 @@ int mtk_vcp_load(struct rproc *rproc, const struct firmware *fw)
 	img_buf_iova = vcp->data->vcp_get_mem_iova(VCP_RTOS_MEM_ID);
 	img_buf_phys = vcp->data->vcp_get_mem_phys(VCP_RTOS_MEM_ID);
 	img_buf_va = vcp->data->vcp_get_mem_virt(VCP_RTOS_MEM_ID);
-	img_buf_size = vcp->data->vcp_get_mem_size(VCP_RTOS_MEM_ID);
 
 	arm_smccc_smc(MTK_SIP_TINYSYS_VCP_CONTROL,
 		      MTK_TINYSYS_VCP_KERNEL_OP_COLD_BOOT_VCP,
@@ -305,5 +235,5 @@ int mtk_vcp_load(struct rproc *rproc, const struct firmware *fw)
 		return -EINVAL;
 	}
 
-	return 0;
+	return ret;
 }

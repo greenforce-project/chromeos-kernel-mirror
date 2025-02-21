@@ -51,9 +51,7 @@ static DEFINE_SPINLOCK(vcp_awake_spinlock);
 static int vcp_awake_counts[VCP_CORE_TOTAL];
 
 static dma_addr_t vcp_mem_base_iova;
-static dma_addr_t vcp_mem_logger_iova;
 static size_t vcp_mem_size;
-static size_t vcp_mem_logger_size;
 
 static struct workqueue_struct *vcp_workqueue;
 static BLOCKING_NOTIFIER_HEAD(mmup_notifier_list);
@@ -77,14 +75,14 @@ struct mtk_ipi_device vcp_ipidev = {
 	.prdata = 0,
 };
 
-static const int vcp_reserve_mblock_remap[] = {
-	VCP_RTOS_MEM_ID,
-	VDEC_MEM_ID,
-	VENC_MEM_ID,
-	VCP_A_LOGGER_MEM_ID,
+static const struct mtk_vcp_ipi_ops mt8196_vcp_ipi_ops = {
+	.ipi_send = vcp_ipi_send,
+	.ipi_send_compl = vcp_ipi_send_compl,
+	.ipi_register = vcp_mbox_ipi_register,
+	.ipi_unregister = vcp_mbox_ipi_unregister,
 };
 
-static struct vcp_reserve_mblock vcp_reserve_mblock[] = {
+static struct vcp_reserve_mblock vcp_reserve_mblock[NUMS_MEM_ID] = {
 	{
 		.num = VCP_RTOS_MEM_ID,
 		.start_phys = 0x0,
@@ -107,7 +105,21 @@ static struct vcp_reserve_mblock vcp_reserve_mblock[] = {
 		.size = 0x0,
 	},
 	{
-		.num = VCP_A_LOGGER_MEM_ID,
+		.num = MMDVFS_VCP_MEM_ID,
+		.start_phys = 0x0,
+		.start_iova = 0x0,
+		.start_virt = 0x0,
+		.size = 0x0,
+	},
+	{
+		.num = MMDVFS_MMUP_MEM_ID,
+		.start_phys = 0x0,
+		.start_iova = 0x0,
+		.start_virt = 0x0,
+		.size = 0x0,
+	},
+	{
+		.num = MMQOS_MEM_ID,
 		.start_phys = 0x0,
 		.start_iova = 0x0,
 		.start_virt = 0x0,
@@ -143,6 +155,11 @@ struct vcp_feature_tb feature_table[NUM_FEATURE_ID] = {
 		.enable	    = 0,
 	},
 	{
+		.feature    = MMDEBUG_FEATURE_ID,
+		.core_id    = MMUP_ID,
+		.enable	    = 0,
+	},
+	{
 		.feature    = VMM_FEATURE_ID,
 		.core_id    = MMUP_ID,
 		.enable	    = 0,
@@ -150,6 +167,11 @@ struct vcp_feature_tb feature_table[NUM_FEATURE_ID] = {
 	{
 		.feature    = VDISP_FEATURE_ID,
 		.core_id    = MMUP_ID,
+		.enable	    = 0,
+	},
+	{
+		.feature    = MMQOS_FEATURE_ID,
+		.core_id    = VCP_ID,
 		.enable	    = 0,
 	},
 };
@@ -404,10 +426,8 @@ static void vcp_A_notify_ws(struct work_struct *ws)
 static void vcp_A_set_ready(struct mtk_vcp_device *vcp,
 			    enum vcp_core_id core_id)
 {
-	if (core_id < VCP_CORE_TOTAL) {
-		vcp->vcp_cluster->vcp_ready_notify_wk[core_id].flags = core_id;
+	if (core_id < VCP_CORE_TOTAL)
 		vcp_schedule_work(&vcp->vcp_cluster->vcp_ready_notify_wk[core_id]);
-	}
 }
 
 /*
@@ -613,8 +633,6 @@ static int reset_vcp(struct mtk_vcp_device *vcp)
 			vcp->vcp_cluster->cfg + VCP_C1_GPR1_DRAM_RESV_ADDR);
 		writel((u32)vcp_mem_size,
 			vcp->vcp_cluster->cfg + VCP_C1_GPR2_DRAM_RESV_SIZE);
-		writel((u32)VCP_PACK_IOVA(vcp_mem_logger_iova),
-			vcp->vcp_cluster->cfg + VCP_C1_GPR3_DRAM_RESV_LOGGER);
 
 		arm_smccc_smc(MTK_SIP_TINYSYS_VCP_CONTROL,
 			      MTK_TINYSYS_MMUP_KERNEL_OP_RESET_RELEASE,
@@ -638,8 +656,6 @@ static int reset_vcp(struct mtk_vcp_device *vcp)
 		vcp->vcp_cluster->cfg + VCP_C0_GPR1_DRAM_RESV_ADDR);
 	writel((u32)vcp_mem_size,
 		vcp->vcp_cluster->cfg + VCP_C0_GPR2_DRAM_RESV_SIZE);
-	writel((u32)VCP_PACK_IOVA(vcp_mem_logger_iova + vcp_mem_logger_size),
-		vcp->vcp_cluster->cfg + VCP_C0_GPR3_DRAM_RESV_LOGGER);
 
 	arm_smccc_smc(MTK_SIP_TINYSYS_VCP_CONTROL,
 		      MTK_TINYSYS_VCP_KERNEL_OP_RESET_RELEASE,
@@ -871,6 +887,11 @@ static u32 vcp_get_reserve_mem_size(enum vcp_reserve_mem_id_t id)
 	return 0;
 }
 
+static void __iomem *vcp_get_internal_sram_virt(struct mtk_vcp_device *vcp)
+{
+	return vcp->vcp_cluster->sram_base;
+}
+
 #if IS_ENABLED(CONFIG_OF_RESERVED_MEM)
 static int vcp_reserve_memory_ioremap(struct mtk_vcp_device *vcp)
 {
@@ -1010,8 +1031,6 @@ static int vcp_reserve_memory_ioremap(struct mtk_vcp_device *vcp)
 
 	vcp_mem_base_iova = share_memory_iova;
 	vcp_mem_size = share_memory_size;
-	vcp_mem_logger_iova = vcp_reserve_mblock[VCP_A_LOGGER_MEM_ID].start_iova;
-	vcp_mem_logger_size = vcp_reserve_mblock[VCP_A_LOGGER_MEM_ID].size;
 
 	return 0;
 }
@@ -1274,11 +1293,22 @@ static int vcp_multi_core_init(struct platform_device *pdev,
 			       struct mtk_vcp_of_cluster *vcp_cluster,
 			       enum vcp_core_id core_id)
 {
-	int ret = 0;
+	int ret;
 
-	of_property_read_u32(pdev->dev.of_node, "twohart", &vcp_cluster->twohart[core_id]);
-	if (!vcp_cluster->twohart[core_id])
-		dev_info(&pdev->dev, "%s, twohart not found\n", __func__);
+	ret = of_property_read_u32(pdev->dev.of_node, "twohart",
+				   &vcp_cluster->twohart[core_id]);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to read twohart property\n");
+		return ret;
+	}
+	ret = of_property_read_u32(pdev->dev.of_node, "sram-offset",
+				   &vcp_cluster->sram_offset[core_id]);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to read sram-offset property\n");
+		return ret;
+	}
+
+	vcp_cluster->vcp_ready_notify_wk[core_id].flags = core_id;
 
 	return ret;
 }
@@ -1331,6 +1361,7 @@ static int vcp_add_multi_core(struct platform_device *pdev,
 	vcp->dev = dev;
 	vcp->data = vcp_of_data;
 	vcp->ipi_dev = &vcp_ipidev;
+	vcp->ipi_ops = &mt8196_vcp_ipi_ops;
 	vcp->vcp_cluster = vcp_cluster;
 
 	rproc->auto_boot = true;
@@ -1372,24 +1403,24 @@ static int vcp_add_multi_core(struct platform_device *pdev,
 		goto remove_subdev;
 	}
 
-	ret = vcp_mbox_ipi_register(vcp->ipi_dev, IPI_OUT_C_SLEEP_0,
-				    NULL, NULL, &vcp->vcp_cluster->slp_ipi_ack_data);
+	ret = vcp->ipi_ops->ipi_register(vcp->ipi_dev, IPI_OUT_C_SLEEP_0,
+					 NULL, NULL, &vcp->vcp_cluster->slp_ipi_ack_data);
 	if (ret) {
 		dev_err(dev, "Failed to register IPI_OUT_C_SLEEP_0\n");
 		goto slp_ipi_unregister;
 	}
 
-	ret = vcp_mbox_ipi_register(vcp->ipi_dev, IPI_IN_VCP_READY_0,
-				    (void *)vcp_A_ready_ipi_handler,
-				    vcp, &vcp->vcp_cluster->msg_vcp_ready0);
+	ret = vcp->ipi_ops->ipi_register(vcp->ipi_dev, IPI_IN_VCP_READY_0,
+					 (void *)vcp_A_ready_ipi_handler,
+					 vcp, &vcp->vcp_cluster->msg_vcp_ready0);
 	if (ret) {
 		dev_err(dev, "Failed to register IPI_IN_VCP_READY_0\n");
 		goto vcp0_ready_ipi_unregister;
 	}
 
-	ret = vcp_mbox_ipi_register(vcp->ipi_dev, IPI_IN_VCP_READY_1,
-				   (void *)vcp_A_ready_ipi_handler,
-				   vcp, &vcp->vcp_cluster->msg_vcp_ready1);
+	ret = vcp->ipi_ops->ipi_register(vcp->ipi_dev, IPI_IN_VCP_READY_1,
+					 (void *)vcp_A_ready_ipi_handler,
+					 vcp, &vcp->vcp_cluster->msg_vcp_ready1);
 	if (ret) {
 		dev_err(dev, "Failed to register IPI_IN_VCP_READY_1\n");
 		goto vcp1_ready_ipi_unregister;
@@ -1541,6 +1572,7 @@ static void vcp_device_shutdown(struct platform_device *pdev)
 
 static const struct mtk_vcp_of_data mt8196_of_data = {
 	.vcp_is_ready = is_vcp_ready,
+	.vcp_is_suspending = is_vcp_suspending,
 	.vcp_register_notify = vcp_A_register_notify,
 	.vcp_unregister_notify = vcp_A_unregister_notify,
 	.vcp_register_feature = vcp_A_register_feature,
@@ -1549,6 +1581,7 @@ static const struct mtk_vcp_of_data mt8196_of_data = {
 	.vcp_get_mem_iova = vcp_get_reserve_mem_iova,
 	.vcp_get_mem_virt = vcp_get_reserve_mem_virt,
 	.vcp_get_mem_size = vcp_get_reserve_mem_size,
+	.vcp_get_sram_virt = vcp_get_internal_sram_virt,
 };
 
 static const struct dev_pm_ops mtk_vcp_rproc_pm_ops = {

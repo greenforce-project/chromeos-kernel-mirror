@@ -10,10 +10,8 @@
 #define VCP_R_CORE1_SW_RSTN_SET         (0x000C)
 #define R_GIPC_IN_SET                   (0x0028)
 #define R_GIPC_IN_CLR                   (0x002C)
-#define B_GIPC2_SETCLR_2                (1 << 10)
-#define GIPC_MMUP_SHUT                  B_GIPC2_SETCLR_2
-#define B_GIPC3_SETCLR_2                (1 << 14)
-#define GIPC_VCP_HART0_SHUT             B_GIPC3_SETCLR_2
+#define GIPC_MMUP_SHUT                  (1 << 10)
+#define GIPC_VCP_HART0_SHUT             (1 << 14)
 #define B_GIPC4_SETCLR_3                (1 << 19)
 #define R_CORE0_WDT_IRQ                 (0x0050)
 #define R_CORE1_WDT_IRQ                 (0x0054)

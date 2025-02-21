@@ -25,7 +25,9 @@ enum vcp_reserve_mem_id_t {
 	VCP_RTOS_MEM_ID,
 	VDEC_MEM_ID,
 	VENC_MEM_ID,
-	VCP_A_LOGGER_MEM_ID,
+	MMDVFS_VCP_MEM_ID,
+	MMDVFS_MMUP_MEM_ID,
+	MMQOS_MEM_ID,
 	NUMS_MEM_ID,
 };
 
@@ -37,8 +39,10 @@ enum feature_id {
 	GCE_FEATURE_ID,
 	MMDVFS_MMUP_FEATURE_ID,
 	MMDVFS_VCP_FEATURE_ID,
+	MMDEBUG_FEATURE_ID,
 	VMM_FEATURE_ID,
 	VDISP_FEATURE_ID,
+	MMQOS_FEATURE_ID,
 	NUM_FEATURE_ID,
 };
 
@@ -75,6 +79,16 @@ enum {
 	VCP_IPI_NS_SERVICE_COUNT       = 0x100,
 };
 
+struct mtk_vcp_ipi_ops {
+	int (*ipi_send)(struct mtk_ipi_device *ipidev, u32 ipi_id,
+			void *data, u32 len, u32 timeout_ms);;
+	int (*ipi_send_compl)(struct mtk_ipi_device *ipidev, u32 ipi_id,
+			      void *data, u32 len, u32 timeout_ms);
+	int (*ipi_register)(struct mtk_ipi_device *ipidev, int ipi_id,
+			    mbox_pin_cb_t cb, void *prdata, void *msg);
+	int (*ipi_unregister)(struct mtk_ipi_device *ipidev, int ipi_id);
+};
+
 struct mtk_vcp_device {
 	struct platform_device *pdev;
 	struct device *dev;
@@ -84,10 +98,12 @@ struct mtk_vcp_device {
 	struct mtk_rpmsg_channel_info_mbox *mtk_rpchan;
 	struct mtk_vcp_of_cluster *vcp_cluster;
 	const struct mtk_vcp_of_data *data;
+	const struct mtk_vcp_ipi_ops *ipi_ops;
 };
 
 struct mtk_vcp_of_data {
 	bool (*vcp_is_ready)(enum feature_id id);
+	bool (*vcp_is_suspending)(struct mtk_vcp_device *vcp);
 	void (*vcp_register_notify)(enum feature_id id, struct notifier_block *nb);
 	void (*vcp_unregister_notify)(enum feature_id id, struct notifier_block *nb);
 	int (*vcp_register_feature)(struct mtk_vcp_device *vcp, enum feature_id id);
@@ -96,6 +112,7 @@ struct mtk_vcp_of_data {
 	dma_addr_t (*vcp_get_mem_iova)(enum vcp_reserve_mem_id_t id);
 	void __iomem *(*vcp_get_mem_virt)(enum vcp_reserve_mem_id_t id);
 	uint32_t (*vcp_get_mem_size)(enum vcp_reserve_mem_id_t id);
+	void __iomem *(*vcp_get_sram_virt)(struct mtk_vcp_device *vcp);
 };
 
 struct mtk_vcp_device *vcp_get(struct platform_device *pdev);
