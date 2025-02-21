@@ -3432,7 +3432,9 @@
 			vcp-mem-tbl = <0 0x1a00000>, /* VCP_RTOS_MEM_ID 26MB */
 				      <1 0x30000>, /* VDEC_MEM_ID 192KB */
 				      <2 0x12000>, /* VENC_MEM_ID 72KB */
-				      <3 0x1000>; /* LOGGER 4KB*/
+				      <3 0x1000>, /* MMDVFS_VCP_MEM_ID 4KB */
+				      <4 0x1000>, /* MMDVFS_MMUP_MEM_ID 4KB */
+				      <5 0x1000>; /* MMQOS_MEM_ID 4KB */
 
 			vcp@0 {
 				compatible = "mediatek,vcp-core";
