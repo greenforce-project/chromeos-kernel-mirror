@@ -12,7 +12,7 @@
 #include <linux/remoteproc.h>
 #include <dt-bindings/memory/mtk-memory-port.h>
 
-#include "mtk_imgsys-scp.h"
+#include "../mtk_imgsys-scp.h"
 #include "../mtk_imgsys-debug.h"
 #include "../mtk_imgsys-engine.h"
 #include "mtk_imgsys-traw.h"

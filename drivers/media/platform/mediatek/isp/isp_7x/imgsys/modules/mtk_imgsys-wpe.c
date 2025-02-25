@@ -6,8 +6,8 @@
  *
  */
 
-#include "mtk_imgsys-scp.h"
-#include "mtk_imgsys-debug.h"
+#include "../mtk_imgsys-scp.h"
+#include "../mtk_imgsys-debug.h"
 #include <linux/device.h>
 #include <linux/of_address.h>
 #include <linux/pm_runtime.h>

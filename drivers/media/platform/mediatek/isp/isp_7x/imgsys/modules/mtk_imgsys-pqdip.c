@@ -11,7 +11,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/remoteproc.h>
 
-#include "mtk_imgsys-scp.h"
+#include "../mtk_imgsys-scp.h"
 #include "../mtk_imgsys-debug.h"
 #include "../mtk_imgsys-engine.h"
 #include "mtk_imgsys-pqdip.h"
