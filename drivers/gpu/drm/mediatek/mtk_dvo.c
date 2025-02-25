@@ -31,6 +31,25 @@
 #include "mtk_crtc.h"
 #include "mtk_ddp_comp.h"
 
+/* DVO INPUT default value is 1T2P */
+#define MTK_DVO_INPUT_MODE				2
+/* DVO OUTPUT value is 1T4P*/
+#define MTK_DVO_OUTPUT_MODE				4
+/* 1 unit = 2 group data = 2 * 1T4P = 8P */
+#define MTK_DISP_BUF_SRAM_UNIT_SIZE			8
+#define MTK_DISP_LINE_BUF_DVO_US			40
+#define MTK_BLANKING_RATIO				1
+#define MTK_DVO_EDP_MAX_CLK				297
+#define MTK_DVO_MAX_HACTIVE				3840
+#define TWAIT_SLEEP					1
+#define TWAKE_UP					5
+#define PREULTRA_HIGH_US				26
+#define PREULTRA_LOW_US					25
+#define ULTRA_HIGH_US					25
+#define ULTRA_LOW_US					23
+#define URGENT_HIGH_US					12
+#define URGENT_LOW_US					11
+
 enum mtk_dvo_out_bit_num {
 	MTK_DVO_OUT_BIT_NUM_8BITS,
 	MTK_DVO_OUT_BIT_NUM_10BITS,
@@ -253,6 +272,119 @@ static void mtk_dvo_get_gs_level(struct mtk_dvo *dvo)
 		*gsl = MTK_DVO_8K_30FPS;
 }
 
+void mtk_dvo_mutex_vsync_set(struct mtk_dvo *dvo)
+{
+	u32 val = 0x5;
+	struct drm_display_mode *mode;
+	struct videomode vm = { 0 };
+	unsigned int vfporch;
+
+	if (!dvo)
+		return;
+
+	mode = &dvo->mode;
+	drm_display_mode_to_videomode(mode, &vm);
+
+	vfporch = vm.vfront_porch;
+	if (vfporch > 10) {
+		dev_dbg(dvo->dev, "%s vfporch %d no need set mutex_vsync_sel\n",
+				   __func__, vfporch);
+		return;
+	}
+
+	val = (val << 4) | MUTEX_VSYNC_SEL;
+	mtk_dvo_mask(dvo, DVO_MUTEX_VSYNC_SET, val, MUTEX_VSYNC_SEL | MUTEX_VFP_MASK);
+}
+
+static void mtk_dvo_sodi_setting(struct mtk_dvo *dvo, struct drm_display_mode *mode)
+{
+	u32 mmsys_clk = 273;
+	u64 data_rate = 0;
+	u64 fill_rate_rem = 0, consume_rate_rem = 0;
+	u64 fill_rate = 0, consume_rate = 0;
+	u64 dvo_fifo_size = 0, fifo_size = 0, total_bit = 0;
+	u64 sodi_high_rem = 0, sodi_low_rem = 0, tmp = 0;
+	u64 sodi_high = 0, sodi_low = 0, preultra_high = 0, preultra_low = 0;
+	u64 ultra_high = 0, ultra_low = 0, urgent_high = 0, urgent_low = 0;
+
+	mmsys_clk = mode->clock / 1000;
+	dev_dbg(dvo->dev, "mode->clock = %d\n", mode->clock);
+	if (!mmsys_clk) {
+		dev_dbg(dvo->dev, "mmclk is zero, use default value\n");
+		mmsys_clk = 273;
+	}
+
+	fill_rate = ((u64)mmsys_clk * MTK_DVO_INPUT_MODE * 30) /
+		    (32 * MTK_DISP_BUF_SRAM_UNIT_SIZE);
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	fill_rate = div64_u64_rem(mmsys_clk * MTK_DVO_INPUT_MODE * 30,
+		    (u64)32 * MTK_DISP_BUF_SRAM_UNIT_SIZE, &fill_rate_rem);
+#endif
+
+	data_rate = (u64)mode->hdisplay * mode->vdisplay *
+		    div64_u64((u64)mode->clock * 1000, ((u64)mode->htotal * mode->vtotal));
+#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+	consume_rate = div64_u64_rem(((data_rate * 30 * 5) / 4),
+					(u64)(8 * 32 * 1000000), &consume_rate_rem);
+#endif
+	total_bit = (u64)MTK_DVO_EDP_MAX_CLK * MTK_DVO_OUTPUT_MODE * 30 *
+			 MTK_DISP_LINE_BUF_DVO_US;
+
+	fifo_size = total_bit / (MTK_DISP_BUF_SRAM_UNIT_SIZE * 30);
+
+	/* 3 is dvo supports MSO mode, it adds three more line buffers */
+	dvo_fifo_size = fifo_size +
+			((MTK_DVO_MAX_HACTIVE / MTK_DISP_BUF_SRAM_UNIT_SIZE) * 3);
+
+	/* 1 is to round up */
+	sodi_high_rem = (u64)fill_rate_rem * (8 * 32 * 1000000);
+	tmp = (u64)consume_rate_rem * (32 * MTK_DISP_BUF_SRAM_UNIT_SIZE);
+
+	if (sodi_high_rem < tmp) {
+		u64 total = (u64)8 * 32 * 1000000 * 32 * MTK_DISP_BUF_SRAM_UNIT_SIZE;
+
+		fill_rate -= 1;
+		sodi_high_rem = (total + sodi_high_rem - tmp) * 32 * 6 / total;
+	} else {
+		u64 total = (u64)8 * 32 * 1000000 * 32 * MTK_DISP_BUF_SRAM_UNIT_SIZE;
+
+		sodi_high_rem = (sodi_high_rem - tmp) * 32 * 6 / total;
+	}
+
+	sodi_high = ((dvo_fifo_size * 30 * 5) - (32 * 6 * (fill_rate - consume_rate))
+		      - sodi_high_rem + (5 * 32 - 1)) / (5 * 32);
+	sodi_low_rem = (consume_rate_rem * (ULTRA_LOW_US + TWAKE_UP)
+			+ (u64)(8 * 32 * 1000000) - 1)
+			/ (u64)(8 * 32 * 1000000);
+	sodi_low = consume_rate * (ULTRA_LOW_US + TWAKE_UP) + sodi_low_rem;
+	preultra_high = consume_rate * PREULTRA_HIGH_US
+			+ ((consume_rate_rem * (PREULTRA_HIGH_US)
+			+ (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+	preultra_low = (consume_rate * PREULTRA_LOW_US)
+			+ ((consume_rate_rem * (PREULTRA_LOW_US)
+			+ (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+	ultra_high = (consume_rate * ULTRA_HIGH_US) + ((consume_rate_rem * (ULTRA_HIGH_US)
+		      + (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+	ultra_low = (consume_rate * ULTRA_LOW_US) + ((consume_rate_rem * (ULTRA_LOW_US)
+		     + (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+	urgent_high = (consume_rate * URGENT_HIGH_US) + ((consume_rate_rem * (URGENT_HIGH_US)
+		       + (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+	urgent_low = (consume_rate * URGENT_LOW_US) + ((consume_rate_rem * (URGENT_LOW_US)
+		      + (u64)(8 * 32 * 1000000) - 1) / (u64)(8 * 32 * 1000000));
+
+	mtk_dvo_mask(dvo, DVO_BUF_SODI_HIGHT, sodi_high, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_SODI_LOW, sodi_low, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_PREULTRA_HIGHT, preultra_high, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_PREULTRA_LOW, preultra_low, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_ULTRA_HIGHT, ultra_high, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_ULTRA_LOW, ultra_low, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_URGENT_HIGHT, urgent_high, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_URGENT_LOW, urgent_low, DVO_DISP_BUF_MASK);
+	mtk_dvo_mask(dvo, DVO_BUF_URGENT_LOW, urgent_low, DVO_DISP_BUF_MASK);
+
+	mtk_dvo_mutex_vsync_set(dvo);
+}
+
 static void mtk_dvo_golden_setting(struct mtk_dvo *dvo)
 {
 	struct mtk_dvo_gs_info *gs_info = NULL;
@@ -444,6 +576,7 @@ static int mtk_dvo_set_display_mode(struct mtk_dvo *dvo,
 
 	mtk_dvo_get_gs_level(dvo);
 	mtk_dvo_golden_setting(dvo);
+	mtk_dvo_sodi_setting(dvo, mode);
 
 	if (dvo->conf->pixels_per_iter)
 		mtk_dvo_shadow_ctrl(dvo);

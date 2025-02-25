@@ -133,6 +133,10 @@
 #define EXT_TG_DLY_LINE				0
 #define EXT_TG_DLY_LINE_MASK			(0xffff << 0)
 
+#define DVO_MUTEX_VSYNC_SET		0x84
+#define MUTEX_VSYNC_SEL				BIT(0)
+#define MUTEX_VFP_MASK				GENMASK(19, 4)
+
 #define DVO_PATTERN_CTRL		0x100
 #define PRE_PAT_EN				BIT(0)
 #define PRE_PAT_SEL_MASK			(0x7 << 4)
@@ -157,5 +161,14 @@
 
 #define DVO_BUF_SODI_HIGHT		0x230
 #define DVO_BUF_SODI_LOW		0x234
+#define DVO_BUF_DVFS_HIGHT		0x238
+#define DVO_BUF_DVFS_LOW		0x23c
+#define DVO_BUF_PREULTRA_HIGHT		0x240
+#define DVO_BUF_PREULTRA_LOW		0x244
+#define DVO_BUF_ULTRA_HIGHT		0x248
+#define DVO_BUF_ULTRA_LOW		0x24c
+#define DVO_BUF_URGENT_HIGHT		0x250
+#define DVO_BUF_URGENT_LOW		0x254
+#define DVO_DISP_BUF_MASK		GENMASK(31,0)
 
 #endif /* __MTK_DPI_REGS_H */
