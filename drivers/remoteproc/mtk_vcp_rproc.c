@@ -410,6 +410,7 @@ static void vcp_A_notify_ws(struct work_struct *ws)
 	if (core_id < VCP_CORE_TOTAL) {
 		mutex_lock(&vcp_ready_mutex);
 		vcp_ready[core_id] = 1;
+		vcp_ipidev.prdata = core_id;
 		mutex_unlock(&vcp_ready_mutex);
 
 		mutex_lock(&vcp_A_notify_mutex);
@@ -1102,7 +1103,7 @@ int vcp_awake_lock(void *vcp_core_id)
 
 	vcp_awake_count = (int *)&vcp_awake_counts[core_id];
 
-	if (is_vcp_ready_by_coreid(core_id) == false)
+	if (!is_vcp_ready_by_coreid(core_id))
 		return -EINVAL;
 
 	/* vcp unlock awake */
@@ -1133,7 +1134,7 @@ int vcp_awake_unlock(void *vcp_core_id)
 
 	vcp_awake_count = (int *)&vcp_awake_counts[core_id];
 
-	if (is_vcp_ready_by_coreid(core_id) == 0)
+	if (!is_vcp_ready_by_coreid(core_id))
 		return -EINVAL;
 
 	/* vcp unlock awake */
