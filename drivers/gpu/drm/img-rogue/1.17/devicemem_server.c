@@ -1244,7 +1244,6 @@ DevmemIntMapPMR2(DEVMEMINT_HEAP *psDevmemHeap,
 
 	PMR_LogicalSize(psPMR, &uiPMRLogicalSize);
 
-	PVR_LOG_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, "psReservation");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(uiPMRLogicalSize == psReservation->uiLength, "psPMR logical size");
 
 	if (uiLog2HeapContiguity > PMR_GetLog2Contiguity(psPMR))
@@ -1263,13 +1262,14 @@ DevmemIntMapPMR2(DEVMEMINT_HEAP *psDevmemHeap,
 
 	OSLockAcquire(psReservation->hLock);
 
+	PVR_LOG_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, eError, ErrorReleaseResLock);
+
 	if (!DevmemIntReservationAcquireUnlocked(psReservation))
 	{
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_REFCOUNT_OVERFLOW, ErrorReleaseResLock);
 	}
 
 	uiAllocationSize = psReservation->uiLength;
-
 	ui32NumDevPages = 0xffffffffU & ( ( (uiAllocationSize - 1) >> uiLog2HeapContiguity) + 1);
 	PVR_ASSERT((IMG_DEVMEM_SIZE_T) ui32NumDevPages << uiLog2HeapContiguity == uiAllocationSize);
 
@@ -1439,12 +1439,13 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 	IMG_BOOL bIsSparse = IMG_FALSE;
 	IMG_UINT32 i;
 
-	PVR_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL);
-
 	ui32NumDevPages = _DevmemReservationPageCount(psReservation);
 	sAllocationDevVAddr = psReservation->sBase;
 
 	OSLockAcquire(psReservation->hLock);
+
+	PVR_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, ErrUnlockRes);
+
 	PMRLockPMR(psReservation->psMappedPMR);
 
 	bIsSparse = PMR_IsSparse(psReservation->psMappedPMR);
@@ -1497,6 +1498,7 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 
 ErrUnlock:
 	PMRUnlockPMR(psReservation->psMappedPMR);
+ErrUnlockRes:
 	OSLockRelease(psReservation->hLock);
 
 	return eError;
