@@ -4359,28 +4359,64 @@
 				compatible = "mediatek,mtk-vcodec-lat";
 				reg = <0 0x10000 0 0x800>;
 				interrupts = <GIC_SPI 676 IRQ_TYPE_LEVEL_HIGH 0>;
+
+				mediatek,larbs = <&smi_larb5 &smi_larb6>;
+				operating-points-v2 = <&opp_table_vdec>;
+
 				clocks = <&cksys_gp2_clk CLK_CK2_VDEC_SEL>,
-					<&vdec_soc_gcon_base_clk CLK_VDE1_VDEC_CKEN>,
-					<&vdec_soc_gcon_base_clk CLK_VDE1_LAT_CKEN>,
-					<&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>;
-				clock-names = "sel", "vdec", "lat", "top";
+					 <&vdec_soc_gcon_base_clk CLK_VDE1_VDEC_CKEN>,
+					 <&vdec_soc_gcon_base_clk CLK_VDE1_LAT_CKEN>,
+					 <&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>,
+					 <&mmdvfs_mux MMDVFS_USER_VDEC>;
+				clock-names = "sel", "vdec", "lat", "top", "mmdvfs_clk";
 				assigned-clocks = <&cksys_gp2_clk CLK_CK2_VDEC_SEL>;
 				assigned-clock-parents = <&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>;
+
 				power-domains = <&hfrpsys MT8196_POWER_DOMAIN_VDE0>;
+
+				interconnects = <&mmqos SLAVE_LARB(4) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(50) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(5) &mmqos SLAVE_COMMON(0)>,
+						<&mmqos SLAVE_LARB(51) &mmqos SLAVE_COMMON(0)>,
+						<&mmqos SLAVE_LARB(6) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(52) &mmqos SLAVE_COMMON(1)>;
+				interconnect-names = "path_larb4_r", "path_larb50_w",
+						     "path_larb5_r", "path_larb51_w",
+						     "path_larb6_r", "path_larb52_w";
+
+				bandwidth-larb-cnt = <6>;
 			};
 
 			video-codec@25000 {
 				compatible = "mediatek,mtk-vcodec-core";
 				reg = <0 0x25000 0 0x1000>;		/* VDEC_CORE_MISC */
 				interrupts = <GIC_SPI 673 IRQ_TYPE_LEVEL_HIGH 0>;
+
+				mediatek,larbs = <&smi_larb4>;
+				operating-points-v2 = <&opp_table_vdec>;
+
 				clocks = <&cksys_gp2_clk CLK_CK2_VDEC_SEL>,
-					<&vdec_gcon_base_clk CLK_VDE2_LAT_CKEN>,
-					<&vdec_gcon_base_clk CLK_VDE2_VDEC_CKEN>,
-					<&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>;
-				clock-names = "sel", "vdec", "lat", "top";
+					 <&vdec_gcon_base_clk CLK_VDE2_LAT_CKEN>,
+					 <&vdec_gcon_base_clk CLK_VDE2_VDEC_CKEN>,
+					 <&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>,
+					 <&mmdvfs_mux MMDVFS_USER_VDEC>;
+				clock-names = "sel", "vdec", "lat", "top", "mmdvfs_clk";
 				assigned-clocks = <&cksys_gp2_clk CLK_CK2_VDEC_SEL>;
 				assigned-clock-parents = <&cksys_gp2_clk CLK_CK2_MAINPLL2_D4>;
+
 				power-domains = <&hfrpsys MT8196_POWER_DOMAIN_VDE1>;
+
+				interconnects = <&mmqos SLAVE_LARB(4) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(50) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(5) &mmqos SLAVE_COMMON(0)>,
+						<&mmqos SLAVE_LARB(51) &mmqos SLAVE_COMMON(0)>,
+						<&mmqos SLAVE_LARB(6) &mmqos SLAVE_COMMON(1)>,
+						<&mmqos SLAVE_LARB(52) &mmqos SLAVE_COMMON(1)>;
+				interconnect-names = "path_larb4_r", "path_larb50_w",
+						     "path_larb5_r", "path_larb51_w",
+						     "path_larb6_r", "path_larb52_w";
+
+				bandwidth-larb-cnt = <6>;
 			};
 		};
 
