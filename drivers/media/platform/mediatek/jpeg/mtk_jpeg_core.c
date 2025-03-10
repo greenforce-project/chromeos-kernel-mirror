@@ -1624,6 +1624,117 @@ static void mtk_jpeg_enc_set_smmu_sid(struct mtk_jpegenc_comp_dev *jpeg)
 			   JPG_REG_GUSER_ID_ENC_SID << JPG_REG_ENC_GUSER_ID_SHIFT);
 }
 
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+static void mtk_jpegenc_dvfs_begin(struct mtk_jpegenc_comp_dev *jpeg)
+{
+	unsigned long active_freq = 0;
+	bool mmdfvs_enable_flag;
+	struct dev_pm_opp *opp;
+	int volt, ret;
+
+	if (jpeg->freq_cnt > 0 && jpeg->freq_cnt < MTK_JPEG_MAX_FREQ)
+		active_freq = jpeg->freqs[jpeg->freq_cnt - 1];
+
+	if (jpeg->jpeg_reg) {
+		opp = dev_pm_opp_find_freq_ceil(jpeg->dev, &active_freq);
+		if (IS_ERR(opp)) {
+			dev_err(jpeg->dev, "Failed to get dev_pm_opp");
+			return;
+		}
+
+		volt = dev_pm_opp_get_voltage(opp);
+		dev_pm_opp_put(opp);
+
+		ret = regulator_set_voltage(jpeg->jpeg_reg, volt, INT_MAX);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set voltage %d\n", volt);
+	} else if (jpeg->jpeg_mmdvfs_clk) {
+		mmdfvs_enable_flag = mmdvfs_is_mux_version();
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(true, VCP_PWR_USR_JPEGENC);
+
+		ret = clk_set_rate(jpeg->jpeg_mmdvfs_clk, active_freq);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set freq %lu\n",
+				active_freq);
+
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(false, VCP_PWR_USR_JPEGENC);
+	}
+}
+
+static void jpeg_drv_hybrid_dec_start_dvfs(struct mtk_jpegdec_comp_dev *jpeg)
+{
+	unsigned long active_freq = 0;
+	bool mmdfvs_enable_flag;
+	struct dev_pm_opp *opp;
+	int volt, ret;
+
+	if (jpeg->freq_cnt > 0 && jpeg->freq_cnt < MTK_JPEG_MAX_FREQ)
+		active_freq = jpeg->freqs[jpeg->freq_cnt - 1];
+
+	if (jpeg->jpeg_reg) {
+		opp = dev_pm_opp_find_freq_ceil(jpeg->dev, &active_freq);
+		if (IS_ERR(opp)) {
+			dev_err(jpeg->dev, "Failed to get dev_pm_opp");
+			return;
+		}
+
+		volt = dev_pm_opp_get_voltage(opp);
+		dev_pm_opp_put(opp);
+
+		ret = regulator_set_voltage(jpeg->jpeg_reg, volt, INT_MAX);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set voltage %d", volt);
+	} else if (jpeg->jpeg_mmdvfs_clk) {
+		mmdfvs_enable_flag = mmdvfs_is_mux_version();
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(true, VCP_PWR_USR_JPEGDEC);
+
+		ret = clk_set_rate(jpeg->jpeg_mmdvfs_clk, active_freq);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set freq %lu",
+				active_freq);
+
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(false, VCP_PWR_USR_JPEGDEC);
+	}
+}
+#endif
+
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+static void mtk_jpegenc_update_bw_request(struct mtk_jpeg_ctx *ctx,
+					  struct mtk_jpegenc_comp_dev *jpeg)
+{
+	unsigned int target_fps = 30;
+	unsigned int picsize = 0;
+	unsigned int emi_bw = 0;
+
+	picsize = (ctx->out_q.pix_mp.width * ctx->out_q.pix_mp.height) / 1000;
+	emi_bw = picsize * target_fps;
+	emi_bw = emi_bw * 4 / 3;
+
+	if (ctx->out_q.fmt->fourcc == V4L2_PIX_FMT_YUYV ||
+	    ctx->out_q.fmt->fourcc == V4L2_PIX_FMT_YVYU) {
+		mtk_icc_set_bw(jpeg->path_y_rdma, kBps_to_icc(emi_bw * 2), 0);
+		mtk_icc_set_bw(jpeg->path_c_rdma, kBps_to_icc(emi_bw), 0);
+	} else {
+		mtk_icc_set_bw(jpeg->path_y_rdma, kBps_to_icc(emi_bw), 0);
+		mtk_icc_set_bw(jpeg->path_c_rdma, kBps_to_icc(emi_bw * 1 / 2), 0);
+	}
+
+	mtk_icc_set_bw(jpeg->path_qtbl, kBps_to_icc(emi_bw), 0);
+	mtk_icc_set_bw(jpeg->path_bsdma, kBps_to_icc(emi_bw), 0);
+}
+
+static void jpeg_drv_update_bw_request(struct mtk_jpegdec_comp_dev *jpeg)
+{
+	mtk_icc_set_bw(jpeg->jpeg_path_wdma, MBps_to_icc(960), 0);
+	mtk_icc_set_bw(jpeg->jpeg_path_bsdma, MBps_to_icc(576), 0);
+	mtk_icc_set_bw(jpeg->jpeg_path_huff_offset, MBps_to_icc(40), 0);
+}
+#endif
+
 static void mtk_jpegenc_worker(struct work_struct *work)
 {
 	struct mtk_jpegenc_comp_dev *comp_jpeg[MTK_JPEGENC_HW_MAX];
@@ -1675,6 +1786,13 @@ retry_select:
 			__func__, __LINE__);
 		goto enc_end;
 	}
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mtk_jpegenc_dvfs_begin(comp_jpeg[hw_id]);
+#endif
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+	mtk_jpegenc_update_bw_request(ctx, comp_jpeg[hw_id]);
+#endif
 
 	schedule_delayed_work(&comp_jpeg[hw_id]->job_timeout_work,
 			      msecs_to_jiffies(MTK_JPEG_HW_TIMEOUT_MSEC));
@@ -1797,6 +1915,13 @@ retry_select:
 				 &jpeg_src_buf->dec_param,
 				 &dst_buf->vb2_buf, &fb))
 		goto set_dst_fail;
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	jpeg_drv_hybrid_dec_start_dvfs(comp_jpeg[hw_id]);
+#endif
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+	jpeg_drv_update_bw_request(comp_jpeg[hw_id]);
+#endif
 
 	schedule_delayed_work(&comp_jpeg[hw_id]->job_timeout_work,
 			      msecs_to_jiffies(MTK_JPEG_HW_TIMEOUT_MSEC));

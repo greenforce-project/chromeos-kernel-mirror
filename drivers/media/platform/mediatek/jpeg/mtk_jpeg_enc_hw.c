@@ -221,6 +221,107 @@ void mtk_jpeg_set_enc_params(struct mtk_jpeg_ctx *ctx,  void __iomem *base)
 }
 EXPORT_SYMBOL_GPL(mtk_jpeg_set_enc_params);
 
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+static void mtk_jpegenc_prepare_dvfs(struct mtk_jpegenc_comp_dev *jpeg)
+{
+	struct dev_pm_opp *opp;
+	unsigned long freq = 0;
+	int ret = 0;
+	int i = 0;
+
+	ret = dev_pm_opp_of_add_table(jpeg->dev);
+	if (ret < 0) {
+		dev_err(jpeg->dev, "Failed to get opp table (%d)\n", ret);
+		return;
+	}
+
+	jpeg->jpeg_reg =
+		devm_regulator_get_optional(jpeg->dev, "mmdvfs-dvfsrc-vcore");
+	if (IS_ERR_OR_NULL(jpeg->jpeg_reg)) {
+		jpeg->jpeg_reg = NULL;
+		jpeg->jpeg_mmdvfs_clk = devm_clk_get(jpeg->dev, "mmdvfs_clk");
+		if (IS_ERR_OR_NULL(jpeg->jpeg_mmdvfs_clk)) {
+			dev_err(jpeg->dev, "Failed to get mmdvfs clk\n");
+			jpeg->jpeg_mmdvfs_clk = NULL;
+			return;
+		}
+	}
+
+	jpeg->freq_cnt = dev_pm_opp_get_opp_count(jpeg->dev);
+	if ((jpeg->freq_cnt <= 0) || (jpeg->freq_cnt >= MTK_JPEG_MAX_FREQ)) {
+		jpeg->jpeg_reg = NULL;
+		jpeg->jpeg_mmdvfs_clk = NULL;
+		dev_err(jpeg->dev, "Failed to get mmdvfs freq_cnt");
+		return;
+	}
+
+	while (!IS_ERR(opp =
+		       dev_pm_opp_find_freq_ceil(jpeg->dev, &freq))) {
+		jpeg->freqs[i] = freq;
+		freq++;
+		i++;
+		dev_pm_opp_put(opp);
+	}
+}
+
+static void mtk_jpegenc_dvfs_end(struct mtk_jpegenc_comp_dev *jpeg)
+{
+	bool mmdfvs_enable_flag;
+	unsigned long active_freq;
+	struct dev_pm_opp *opp;
+	int volt;
+	int ret;
+
+	active_freq = jpeg->freqs[0];
+
+	if (jpeg->jpeg_reg) {
+		opp = dev_pm_opp_find_freq_ceil(jpeg->dev, &active_freq);
+		if (IS_ERR(opp)) {
+			dev_err(jpeg->dev, "Failed to get dev_pm_opp");
+			return;
+		}
+
+		volt = dev_pm_opp_get_voltage(opp);
+		dev_pm_opp_put(opp);
+
+		ret = regulator_set_voltage(jpeg->jpeg_reg, volt, INT_MAX);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set voltage %d\n", volt);
+
+	} else if (jpeg->jpeg_mmdvfs_clk) {
+		mmdfvs_enable_flag = mmdvfs_is_mux_version();
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(true, VCP_PWR_USR_JPEGENC);
+
+		ret = clk_set_rate(jpeg->jpeg_mmdvfs_clk, active_freq);
+		if (ret)
+			dev_err(jpeg->dev, "Failed to set freq %lu\n",
+				active_freq);
+
+		if (mmdfvs_enable_flag)
+			mtk_mmdvfs_enable_vcp(false, VCP_PWR_USR_JPEGENC);
+	}
+}
+#endif
+
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+static void mtk_jpegenc_prepare_bw_request(struct mtk_jpegenc_comp_dev *jpeg)
+{
+	jpeg->path_y_rdma = of_mtk_icc_get(jpeg->dev, "path_jpegenc_y_rdma");
+	jpeg->path_c_rdma = of_mtk_icc_get(jpeg->dev, "path_jpegenc_c_rmda");
+	jpeg->path_qtbl = of_mtk_icc_get(jpeg->dev, "path_jpegenc_q_table");
+	jpeg->path_bsdma = of_mtk_icc_get(jpeg->dev, "path_jpegenc_bsdma");
+}
+
+static void mtk_jpegenc_end_bw_request(struct mtk_jpegenc_comp_dev *jpeg)
+{
+	mtk_icc_set_bw(jpeg->path_y_rdma, 0, 0);
+	mtk_icc_set_bw(jpeg->path_c_rdma, 0, 0);
+	mtk_icc_set_bw(jpeg->path_qtbl, 0, 0);
+	mtk_icc_set_bw(jpeg->path_bsdma, 0, 0);
+}
+#endif
+
 static void mtk_jpegenc_put_buf(struct mtk_jpegenc_comp_dev *jpeg)
 {
 	struct mtk_jpeg_ctx *ctx;
@@ -289,6 +390,14 @@ static void mtk_jpegenc_timeout_work(struct work_struct *work)
 	v4l2_m2m_buf_copy_metadata(src_buf, dst_buf, true);
 
 	mtk_jpeg_enc_reset(cjpeg->reg_base);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mtk_jpegenc_dvfs_end(cjpeg);
+#endif
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+	mtk_jpegenc_end_bw_request(cjpeg);
+#endif
+
 	cjpeg->hw_state = MTK_JPEG_HW_IDLE;
 	atomic_inc(&master_jpeg->hw_rdy);
 	wake_up(&master_jpeg->hw_wq);
@@ -307,11 +416,13 @@ static irqreturn_t mtk_jpegenc_hw_irq_handler(int irq, void *priv)
 	u32 irq_status;
 
 	struct mtk_jpegenc_comp_dev *jpeg = priv;
+#if !(IS_ENABLED(CONFIG_MTK_MMDVFS) || IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON))
 	struct mtk_jpeg_dev *master_jpeg = jpeg->master_dev;
-
-	cancel_delayed_work(&jpeg->job_timeout_work);
+#endif
 
 	ctx = jpeg->hw_param.curr_ctx;
+	cancel_delayed_work(&jpeg->job_timeout_work);
+
 	src_buf = jpeg->hw_param.src_buffer;
 	dst_buf = jpeg->hw_param.dst_buffer;
 	v4l2_m2m_buf_copy_metadata(src_buf, dst_buf, true);
@@ -329,12 +440,18 @@ static irqreturn_t mtk_jpegenc_hw_irq_handler(int irq, void *priv)
 	buf_state = VB2_BUF_STATE_DONE;
 	v4l2_m2m_buf_done(src_buf, buf_state);
 	mtk_jpegenc_put_buf(jpeg);
-	jpeg_buf_queue_dec(ctx);
 
+#if IS_ENABLED(CONFIG_MTK_MMDVFS) || IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+	atomic_set(&jpeg->irq_done, 1);
+	wake_up_interruptible(&jpeg->irq_queue);
+#else
+	jpeg_buf_queue_dec(ctx);
 	jpeg->hw_state = MTK_JPEG_HW_IDLE;
+
 	wake_up(&master_jpeg->hw_wq);
 	atomic_inc(&master_jpeg->hw_rdy);
 	pm_runtime_put(jpeg->dev);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -380,6 +497,38 @@ static int mtk_jpegenc_smmu_init(struct mtk_jpegenc_comp_dev *dev)
 
 	return 0;
 }
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS) || IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+static int jpeg_irq_done_kthread(void *data)
+{
+	struct mtk_jpegenc_comp_dev *comp_dev = (struct mtk_jpegenc_comp_dev *)data;
+	struct mtk_jpeg_dev *master_jpeg = comp_dev->master_dev;
+	struct mtk_jpeg_ctx *ctx;
+
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(comp_dev->irq_queue,
+					 atomic_read(&comp_dev->irq_done) != 0);
+		atomic_set(&comp_dev->irq_done, 0);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+		mtk_jpegenc_dvfs_end(comp_dev);
+#endif
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+		mtk_jpegenc_end_bw_request(comp_dev);
+#endif
+		ctx = comp_dev->hw_param.curr_ctx;
+
+		jpeg_buf_queue_dec(ctx);
+		comp_dev->hw_state = MTK_JPEG_HW_IDLE;
+
+		wake_up(&master_jpeg->hw_wq);
+		atomic_inc(&master_jpeg->hw_rdy);
+		pm_runtime_put(master_jpeg->dev);
+	}
+
+	return 0;
+}
+#endif
 
 static int mtk_jpegenc_hw_probe(struct platform_device *pdev)
 {
@@ -434,6 +583,23 @@ static int mtk_jpegenc_hw_probe(struct platform_device *pdev)
 	ret = mtk_jpegenc_smmu_init(dev);
 	if (ret)
 		return ret;
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	mtk_jpegenc_prepare_dvfs(dev);
+#endif
+#if IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+	mtk_jpegenc_prepare_bw_request(dev);
+#endif
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS) || IS_ENABLED(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON)
+		/* for update hrt bw in non irq context */
+		char name[30];
+		snprintf(name, 30, "mtk_jpegenc_%d_irq_done_thread", i);
+		init_waitqueue_head(&dev->irq_queue);
+		dev->irq_done_task = kthread_create(jpeg_irq_done_kthread, dev, name);
+		atomic_set(&dev->irq_done, 0);
+		wake_up_process(dev->irq_done_task);
+#endif
 
 	platform_set_drvdata(pdev, dev);
 	pm_runtime_enable(&pdev->dev);

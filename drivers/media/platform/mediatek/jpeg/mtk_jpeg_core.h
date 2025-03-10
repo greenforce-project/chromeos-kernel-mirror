@@ -12,14 +12,24 @@
 #include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/syscon.h>
+#include <linux/pm_opp.h>
+#include <linux/regulator/consumer.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fh.h>
 #include <media/videobuf2-v4l2.h>
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+#include <soc/mediatek/mmdvfs_v3.h>
+#endif
+#include <soc/mediatek/mtk-interconnect.h>
+#include <soc/mediatek/smi.h>
 
 #include "mtk_jpeg_dec_hw.h"
 
 #define MTK_JPEG_NAME		"mtk-jpeg"
+
+#define MTK_JPEG_MAX_FREQ		8
+#define MTK_JPEG_MAX_LARB_COUNT		2
 
 #define MTK_JPEG_FMT_FLAG_OUTPUT	BIT(0)
 #define MTK_JPEG_FMT_FLAG_CAPTURE	BIT(1)
@@ -162,6 +172,17 @@ struct mtk_jpegdec_clk {
  * @hw_state:		record hw state
  * @hw_lock:		spinlock protecting the hw device resource
  * @smmu_regmap:	SMMU registers mapping
+ * @path_y_rdma:	record output the panel's addr of y
+ * @path_c_rdma:	record output the panel's addr of uv
+ * @path_qtbl:		record q table's addr
+ * @path_bsdma: 	record bs buffer dma addr
+ * @jpeg_reg: 		jpeg encoder vcore node
+ * @jpeg_mmdvfs_clk:	jpeg encode mmdvfs clock
+ * @freq_cnt:		jpeg encode mmdvfs frequency num
+ * @freqs:		jpeg encode mmdvfs frequency array
+ * @irq_done_task:	record irq done task
+ * @irq_done:		record irq done atomic parm
+ * @irq_queue:		record irq handler queue
  */
 struct mtk_jpegenc_comp_dev {
 	struct device *dev;
@@ -176,6 +197,18 @@ struct mtk_jpegenc_comp_dev {
 	/* spinlock protecting the hw device resource */
 	spinlock_t hw_lock;
 	struct regmap *smmu_regmap;
+
+	struct icc_path *path_y_rdma;
+	struct icc_path *path_c_rdma;
+	struct icc_path *path_qtbl;
+	struct icc_path *path_bsdma;
+	struct regulator *jpeg_reg;
+	struct clk *jpeg_mmdvfs_clk;
+	int freq_cnt;
+	unsigned long freqs[MTK_JPEG_MAX_FREQ];
+	struct task_struct *irq_done_task;
+	atomic_t irq_done;
+	wait_queue_head_t irq_queue;
 };
 
 /**
@@ -191,6 +224,16 @@ struct mtk_jpegenc_comp_dev {
  * @hw_state:			record hw state
  * @hw_lock:			spinlock protecting hw
  * @smmu_regmap:		SMMU registers mapping
+ * @jpeg_path_wdma:		record input buffer's addr
+ * @jpeg_path_bsdma:		record bs buffer's addr
+ * @jpeg_path_huff_offset:	huffman table's addr
+ * @jpeg_reg: 			jpeg decoder vcore node
+ * @jpeg_mmdvfs_clk:		jpeg decode mmdvfs clock
+ * @freq_cnt:	    		jpeg decode mmdvfs frequency num
+ * @freqs:       	        jpeg decode mmdvfs frequency array
+ * @irq_done_task:		record irq done task
+ * @irq_done:			record irq done atomic parm
+ * @irq_queue:			record irq handler queue
  */
 struct mtk_jpegdec_comp_dev {
 	struct device *dev;
@@ -205,6 +248,17 @@ struct mtk_jpegdec_comp_dev {
 	/* spinlock protecting the hw device resource */
 	spinlock_t hw_lock;
 	struct regmap *smmu_regmap;
+
+	struct icc_path *jpeg_path_wdma;
+	struct icc_path *jpeg_path_bsdma;
+	struct icc_path *jpeg_path_huff_offset;
+	struct regulator *jpeg_reg;
+	struct clk *jpeg_mmdvfs_clk;
+	int freq_cnt;
+	unsigned long freqs[MTK_JPEG_MAX_FREQ];
+	struct task_struct *irq_done_task;
+	atomic_t irq_done;
+	wait_queue_head_t irq_queue;
 };
 
 /**
