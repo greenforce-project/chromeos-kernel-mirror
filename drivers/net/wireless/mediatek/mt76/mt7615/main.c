@@ -1262,7 +1262,7 @@ static int mt7615_suspend(struct ieee80211_hw *hw,
 					    phy->mt76);
 
 	if (!mt7615_dev_running(dev))
-		err = mt76_connac_mcu_set_hif_suspend(&dev->mt76, true, true);
+		err = mt76_connac_mcu_set_hif_suspend(&dev->mt76, true);
 
 	mt7615_mutex_release(dev);
 
@@ -1284,7 +1284,7 @@ static int mt7615_resume(struct ieee80211_hw *hw)
 	if (!running) {
 		int err;
 
-		err = mt76_connac_mcu_set_hif_suspend(&dev->mt76, false, true);
+		err = mt76_connac_mcu_set_hif_suspend(&dev->mt76, false);
 		if (err < 0) {
 			mt7615_mutex_release(dev);
 			return err;
