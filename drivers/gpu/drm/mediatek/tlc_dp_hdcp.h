@@ -216,7 +216,7 @@ static inline int tee_hdcp2_set_rx_info(struct mtk_hdcp_info *hdcp_info, u8 *rx_
 {
 	return -EFAULT;
 }
-static inline int tee_hdcp_toggle_encrypt(struct mtk_hdcp_info *hdcp_info);
+static inline int tee_hdcp_toggle_encrypt(struct mtk_hdcp_info *hdcp_info)
 {
 	return -EFAULT;
 }
