@@ -1263,6 +1263,8 @@ static void process_init_reply(struct fuse_mount *fm, struct fuse_args *args,
 	if (!ok) {
 		fc->conn_init = 0;
 		fc->conn_error = 1;
+	} else {
+		init_fuse_watchdog(fc);
 	}
 
 	fuse_set_initialized(fc);
@@ -1645,7 +1647,6 @@ int fuse_fill_super_common(struct super_block *sb, struct fuse_fs_context *ctx)
 	fc->destroy = ctx->destroy;
 	fc->no_control = ctx->no_control;
 	fc->no_force_umount = ctx->no_force_umount;
-	init_fuse_watchdog(fc);
 
 	err = -ENOMEM;
 	root = fuse_get_root_inode(sb, ctx->rootmode);
