@@ -696,6 +696,34 @@ int mtk_drm_crtc_plane_check(struct drm_crtc *crtc, struct drm_plane *plane,
 	return 0;
 }
 
+void mtk_drm_crtc_plane_disable(struct drm_crtc *crtc, struct drm_plane *new_plane)
+{
+	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
+	struct mtk_plane_state *new_plane_state = to_mtk_plane_state(new_plane->state);
+	int i;
+
+	if (!mtk_crtc->enabled)
+		return;
+
+	/* Set pending plane state to disabled */
+	for (i = 0; i < mtk_crtc->layer_nr; i++) {
+		struct drm_plane *plane = &mtk_crtc->planes[i];
+		struct mtk_plane_state *plane_state = to_mtk_plane_state(plane->state);
+
+		if (plane->index == new_plane->index)
+			memcpy(plane_state, new_plane_state, sizeof(*plane_state));
+	}
+	mtk_drm_crtc_update_config(mtk_crtc, false);
+
+#if IS_REACHABLE(CONFIG_MTK_CMDQ)
+	/* Wait for planes to be disabled by cmdq */
+	if (mtk_crtc->cmdq_client.chan)
+		wait_event_timeout(mtk_crtc->cb_blocking_queue,
+				   mtk_crtc->cmdq_vblank_cnt == 0,
+				   msecs_to_jiffies(500));
+#endif
+}
+
 void mtk_drm_crtc_async_update(struct drm_crtc *crtc, struct drm_plane *plane,
 			       struct drm_atomic_state *state)
 {
