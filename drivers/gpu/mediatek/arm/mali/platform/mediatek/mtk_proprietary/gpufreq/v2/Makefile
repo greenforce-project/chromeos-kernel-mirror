@@ -31,5 +31,5 @@ mtk_gpufreq_mt8196-y := \
 	gpuppm.o \
 	gpufreq_mt8196.o
 
-obj-y += mtk_gpufreq_wrapper.o
-obj-y += mtk_gpufreq_mt8196.o
+obj-$(CONFIG_MALI_MTK) += mtk_gpufreq_wrapper.o
+obj-$(CONFIG_MALI_MTK) += mtk_gpufreq_mt8196.o

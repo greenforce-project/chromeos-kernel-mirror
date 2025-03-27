@@ -21,4 +21,6 @@
 ccflags-y += -I$(srctree)/drivers/gpu/mediatek/arm/mali/include
 subdir-ccflags-y += $(ccflags-y)
 
-obj-$(CONFIG_MALI_MTK_MEMORY_GROUP_MANAGER) += memory_group_manager.o
+ifeq ($(CONFIG_MALI_MTK_MEMORY_GROUP_MANAGER), y)
+obj-$(CONFIG_MALI_MTK) += memory_group_manager.o
+endif

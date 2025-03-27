@@ -1231,10 +1231,16 @@ module_param_cb(ged_log_perf_trace_enable, &ged_log_perf_trace_enable_ops,
 static int sys_get_process_name_by_pid(int pid, char *buf, int len)
 {
 	struct task_struct *task;
+	struct pid_namespace *ns;
+	struct pid *pid_struct;
+	pid_t vpid;
 	char *name = NULL;
 
 	rcu_read_lock();
-	task = find_task_by_vpid(pid);
+	ns = task_active_pid_ns(current);
+	vpid = task_pid_nr_ns(current, ns);
+	pid_struct = find_vpid(vpid);
+	task = pid_task(pid_struct, PIDTYPE_PID);
 	rcu_read_unlock();
 
 	if (task != NULL) {

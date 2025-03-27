@@ -17,7 +17,7 @@ ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(M
 
 subdir-ccflags-y += -Wno-error
 
-obj-y += mtk_gpueb.o
+obj-$(CONFIG_MALI_MTK) += mtk_gpueb.o
 
 mtk_gpueb-y += \
     gpueb.o \
@@ -38,5 +38,5 @@ mtk_ghpm-y := \
 mtk_ghpm_swwa-y := \
 	ghpm_swwa.o \
 
-obj-y += mtk_ghpm.o
-obj-y += mtk_ghpm_swwa.o
+obj-$(CONFIG_MALI_MTK) += mtk_ghpm.o
+obj-$(CONFIG_MALI_MTK) += mtk_ghpm_swwa.o

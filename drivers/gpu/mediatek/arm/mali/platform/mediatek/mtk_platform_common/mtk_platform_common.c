@@ -322,6 +322,7 @@ void mtk_common_debugfs_init(struct kbase_device *kbdev)
 	mtk_dump_gpu_register_debugfs_init(kbdev);
 	mtk_debug_sleep_mode_debugfs_init(kbdev);
 }
+EXPORT_SYMBOL(mtk_common_debugfs_init);
 #endif /* MALI_MTK_DEBUG_FS */
 
 int mtk_common_device_init(struct kbase_device *kbdev)
@@ -345,6 +346,7 @@ int mtk_common_device_init(struct kbase_device *kbdev)
 	mtk_dvfs_init(kbdev);
 	return 0;
 }
+EXPORT_SYMBOL(mtk_common_device_init);
 
 void mtk_common_device_term(struct kbase_device *kbdev)
 {
@@ -360,3 +362,4 @@ void mtk_common_device_term(struct kbase_device *kbdev)
 	mtk_dvfs_term(kbdev);
 	mtk_platform_pm_term(kbdev);
 }
+EXPORT_SYMBOL(mtk_common_device_term);

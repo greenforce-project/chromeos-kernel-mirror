@@ -22,5 +22,5 @@ ccflags-y += -DMTK_SCMI
 #$(info *GPU BM QoS 2.0 SCMI defined)
 endif
 
-obj-y += mtk_gpu_qos.o
+obj-$(CONFIG_MALI_MTK) += mtk_gpu_qos.o
 mtk_gpu_qos-y := gpu_bm.o

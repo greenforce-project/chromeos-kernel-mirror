@@ -1336,6 +1336,7 @@ done:
 
 	return ret;
 }
+EXPORT_SYMBOL(gpufreq_fix_target_oppidx);
 
 /***********************************************************************************
  * Function Name      : gpufreq_fix_dual_target_oppidx

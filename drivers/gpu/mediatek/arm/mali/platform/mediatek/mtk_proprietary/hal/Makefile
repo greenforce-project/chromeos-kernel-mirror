@@ -16,5 +16,5 @@ ccflags-y += \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ \
 	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq/ \
 
-obj-y += mtk_gpu_hal.o
+obj-$(CONFIG_MALI_MTK) += mtk_gpu_hal.o
 mtk_gpu_hal-y := mtk_gpu_utility.o
