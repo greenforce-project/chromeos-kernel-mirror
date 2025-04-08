@@ -400,11 +400,28 @@ static inline void i915_request_fence_signal(struct i915_request *rq)
 	 * track ownership of.  Workaround by locking (the same)
 	 * lock via request and mark our ownership.
 	 */
-	spin_lock_irqsave(&rq->__lock, flags);
-	__i915_lock_acquire(rq);
+	i915_request_lock_irqsave(rq, flags);
 	dma_fence_signal_locked(&rq->fence);
-	__i915_lock_release(rq);
-	spin_unlock_irqrestore(&rq->__lock, flags);
+	i915_request_unlock_irqrestore(rq, flags);
+}
+
+static inline bool i915_request_fence_is_signaled(struct i915_request *rq)
+{
+	unsigned long flags;
+	bool signaled;
+
+	/*
+	 * Same as above:
+	 *
+	 * we need to explicitly take the request lock here and cannot let
+	 * dma_fence_is_signaled() handle locking internally because then
+	 * we can re-enter i915 and deadlock on spin-lock recursion.
+	 */
+	i915_request_lock_irqsave(rq, flags);
+	signaled = dma_fence_is_signaled_locked(&rq->fence);
+	i915_request_unlock_irqrestore(rq, flags);
+
+	return signaled;
 }
 
 #define I915_FENCE_GFP (GFP_KERNEL | __GFP_RETRY_MAYFAIL | __GFP_NOWARN)

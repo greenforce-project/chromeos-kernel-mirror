@@ -1633,7 +1633,7 @@ long i915_request_wait(struct i915_request *rq,
 	might_sleep();
 	GEM_BUG_ON(timeout < 0);
 
-	if (dma_fence_is_signaled(&rq->fence))
+	if (i915_request_fence_is_signaled(rq))
 		return timeout;
 
 	if (!timeout)
