@@ -18,9 +18,6 @@
 
 #include "tlc_dp_hdcp.h"
 
-#define DP_SUPPORT_MAX_LINKRATE		DP_LINK_RATE_HBR3
-#define DP_SUPPORT_MAX_LANECOUNT	DP_2LANE
-#define DP_SUPPORT_DSC		1
 #define SUPPORT_YUV422		1
 
 #define DP_ENCODER_NUM		2
@@ -77,6 +74,8 @@
 	mtk_dp_mask_v2(mtk_dp, addr, val, mask)
 #define WRITE_4BYTE_MASK(mtk_dp, addr, val, mask) \
 	mtk_dp_mask_v2(mtk_dp, addr, val, mask)
+
+struct mtk_dp;
 
 enum audio_m_div {
 	DP_AUDIO_M_DIV_M,
@@ -269,6 +268,18 @@ struct mtk_dp_data {
 	u16 max_vdisplay;
 	u16 min_hdisplay;
 	u16 min_vdisplay;
+	void (*mac_power)(struct mtk_dp *mtk_dp);
+	void (*disable_mac_power)(struct mtk_dp *mtk_dp);
+	void (*set_param)(struct mtk_dp *mtk_dp);
+	u32 phyd_dig_glb_offset;
+	u32 phyd_dig_lan_offset[4];
+	u8 max_link_rate;
+	u8 max_lane_count;
+	u8 encoder_num;
+	bool need_phy_lane_enable_set;
+	bool need_phy_flip_set;
+	u32 phy_4lane_ctrl_bit;
+	u32 phy_flip_ctrl_bit;
 };
 
 struct dp_timing_parameter {

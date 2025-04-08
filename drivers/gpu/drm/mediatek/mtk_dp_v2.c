@@ -21,6 +21,7 @@
 
 #include <linux/arm-smccc.h>
 #include <linux/atomic.h>
+#include <linux/bitfield.h>
 #include <linux/bpf.h>
 #include <linux/capability.h>
 #include <linux/clk.h>
@@ -2848,25 +2849,27 @@ static int set_dsc_decompression_flag_v2(struct drm_dp_aux *aux, u8 flag, bool s
 
 static void mtk_dp_phy_set_rate_param_v2(struct mtk_dp *mtk_dp, enum dp_link_rate val)
 {
+	u32 phyd_dig_glb_offset = mtk_dp->data->phyd_dig_glb_offset;
+
 	switch (val) {
 	case DP_LINK_RATE_RBR:
 		/* Set gear : 0x0 : RBR, 0x1 : HBR, 0x2 : HBR2, 0x3 : HBR3 */
-		PHY_WRITE_4BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_BIT_RATE, 0x0);
+		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_BIT_RATE, 0x0);
 		break;
 
 	case DP_LINK_RATE_HBR:
 		/* Set gear : 0x0 : RBR, 0x1 : HBR, 0x2 : HBR2, 0x3 : HBR3 */
-		PHY_WRITE_4BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_BIT_RATE, 0x1);
+		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_BIT_RATE, 0x1);
 		break;
 
 	case DP_LINK_RATE_HBR2:
 		/* Set gear : 0x0 : RBR, 0x1 : HBR, 0x2 : HBR2, 0x3 : HBR3 */
-		PHY_WRITE_4BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_BIT_RATE, 0x2);
+		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_BIT_RATE, 0x2);
 		break;
 
 	case DP_LINK_RATE_HBR3:
 		/* Set gear : 0x0 : RBR, 0x1 : HBR, 0x2 : HBR2, 0x3 : HBR3 */
-		PHY_WRITE_4BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_BIT_RATE, 0x3);
+		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_BIT_RATE, 0x3);
 		break;
 	default:
 		break;
@@ -2882,41 +2885,44 @@ static void mtk_dp_phy_set_lane_pwr_v2(struct mtk_dp *mtk_dp, enum dp_lane_count
 {
 	int power_indx = lane_count - 1;
 	u8 power_bmp = BIT(power_indx);
+	u32 phyd_dig_glb_offset = mtk_dp->data->phyd_dig_glb_offset;
 
 	do {
 		power_bmp |= BIT(power_indx);
-		PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_TX_CTL_0,
+		PHY_WRITE_BYTE_MASK(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_TX_CTL_0,
 				    power_bmp << TX_LN_EN_FLDMASK_POS,
-				TX_LN_EN_FLDMASK);
-		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] set lane pwr %x\n", (PHY_READ_BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET
-						+ DP_PHY_DIG_TX_CTL_0) &
-					TX_LN_EN_FLDMASK) >> TX_LN_EN_FLDMASK_POS);
+				    TX_LN_EN_FLDMASK);
+
+		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] set lane pwr %x\n",
+			    FIELD_GET(TX_LN_EN_FLDMASK,
+				      PHY_READ_BYTE(mtk_dp, phyd_dig_glb_offset
+						    + DP_PHY_DIG_TX_CTL_0)));
 	} while (--power_indx >= 0);
 }
 
 static void mtk_dp_phy_clear_lane_pwr_v2(struct mtk_dp *mtk_dp)
 {
-	u8 power_bmp = (PHY_READ_BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET
-				      + DP_PHY_DIG_TX_CTL_0) &
-				      TX_LN_EN_FLDMASK) >> TX_LN_EN_FLDMASK_POS;
+	u32 phyd_dig_glb_offset = mtk_dp->data->phyd_dig_glb_offset;
 
+	u8 power_bmp = FIELD_GET(TX_LN_EN_FLDMASK,
+				 PHY_READ_BYTE(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_TX_CTL_0));
 	do {
 		power_bmp >>= 1;
-		PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_TX_CTL_0,
+		PHY_WRITE_BYTE_MASK(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_TX_CTL_0,
 				    power_bmp << TX_LN_EN_FLDMASK_POS,
 				    TX_LN_EN_FLDMASK);
-		drm_dbg_kms(mtk_dp->drm_dev,
-			    "[DPTX] clear lane pwr %x\n", (PHY_READ_BYTE(mtk_dp, PHYD_DIG_GLB_OFFSET
-							     + DP_PHY_DIG_TX_CTL_0) &
-							     TX_LN_EN_FLDMASK) >> TX_LN_EN_FLDMASK_POS);
+		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] clear lane pwr %x\n",
+			    FIELD_GET(TX_LN_EN_FLDMASK,
+				      PHY_READ_BYTE(mtk_dp,
+				      phyd_dig_glb_offset + DP_PHY_DIG_TX_CTL_0)));
 	} while (power_bmp > 0);
 }
 
 static void mtk_dp_phy_power_on_v2(struct mtk_dp *mtk_dp)
 {
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_0,
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x1 << FORCE_PWR_STATE_EN_FLDMASK_POS, FORCE_PWR_STATE_EN_FLDMASK);
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_0,
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x3 << FORCE_PWR_STATE_VAL_FLDMASK_POS, FORCE_PWR_STATE_VAL_FLDMASK);
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] DP PHYD power on\n");
@@ -2926,14 +2932,15 @@ static void mtk_dp_phy_power_down_v2(struct mtk_dp *mtk_dp)
 {
 	mtk_dp_phy_clear_lane_pwr_v2(mtk_dp);
 
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_0,
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x1 << FORCE_PWR_STATE_EN_FLDMASK_POS, FORCE_PWR_STATE_EN_FLDMASK);
 	/* power off TPLL and Lane */
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_0,
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x1 << FORCE_PWR_STATE_VAL_FLDMASK_POS, FORCE_PWR_STATE_VAL_FLDMASK);
 
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_SW_RST, 0, BIT(1) | BIT(3));
-	PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_SW_RST,
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_SW_RST,
+			    0, BIT(1) | BIT(3));
+	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_SW_RST,
 			    BIT(1) | BIT(3), BIT(1) | BIT(3));
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] DP PHYD power down\n");
@@ -2941,64 +2948,36 @@ static void mtk_dp_phy_power_down_v2(struct mtk_dp *mtk_dp)
 
 static void mtk_dp_phy_reset_swing_pre_v2(struct mtk_dp *mtk_dp)
 {
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_VOLT_SWING_EN_FLDMASK_POS),
-			     DP_TX_FORCE_VOLT_SWING_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_PRE_EMPH_EN_FLDMASK_POS),
-			     DP_TX_FORCE_PRE_EMPH_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_VOLT_SWING_EN_FLDMASK_POS),
-			     DP_TX_FORCE_VOLT_SWING_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_PRE_EMPH_EN_FLDMASK_POS),
-			     DP_TX_FORCE_PRE_EMPH_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_VOLT_SWING_EN_FLDMASK_POS),
-			     DP_TX_FORCE_VOLT_SWING_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_PRE_EMPH_EN_FLDMASK_POS),
-			     DP_TX_FORCE_PRE_EMPH_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_VOLT_SWING_EN_FLDMASK_POS),
-			     DP_TX_FORCE_VOLT_SWING_EN_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-			     (0x1 << DP_TX_FORCE_PRE_EMPH_EN_FLDMASK_POS),
-			     DP_TX_FORCE_PRE_EMPH_EN_FLDMASK);
+	u8 i;
 
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-	PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-			     0,
-			     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
+	for (i = 0; i < 4; i++) {
+		PHY_WRITE_4BYTE_MASK(mtk_dp,
+				     mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_FORCE,
+				     0x1 << DP_TX_FORCE_VOLT_SWING_EN_FLDMASK_POS,
+				     DP_TX_FORCE_VOLT_SWING_EN_FLDMASK);
+		PHY_WRITE_4BYTE_MASK(mtk_dp,
+				     mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_FORCE,
+				     0x1 << DP_TX_FORCE_PRE_EMPH_EN_FLDMASK_POS,
+				     DP_TX_FORCE_PRE_EMPH_EN_FLDMASK);
+		PHY_WRITE_4BYTE_MASK(mtk_dp,
+				     mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_FORCE,
+				     0x0 << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS,
+				     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
+		PHY_WRITE_4BYTE_MASK(mtk_dp,
+				     mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_FORCE,
+				     0x0  << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS,
+				     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
+	}
 }
 
 static void mtk_dp_phy_ssc_enable_v2(struct mtk_dp *mtk_dp, bool enable)
 {
+	u32 phyd_dig_glb_offset = mtk_dp->data->phyd_dig_glb_offset;
 	if (enable)
-		PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_1,
+		PHY_WRITE_BYTE_MASK(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_1,
 				    0x1 << TPLL_SSC_EN_FLDMASK_POS, TPLL_SSC_EN_FLDMASK);
 	else
-		PHY_WRITE_BYTE_MASK(mtk_dp, PHYD_DIG_GLB_OFFSET + DP_PHY_DIG_PLL_CTL_1,
+		PHY_WRITE_BYTE_MASK(mtk_dp, phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_1,
 				    0x0, TPLL_SSC_EN_FLDMASK);
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Phy SSC enable = %d\n", enable);
@@ -3031,11 +3010,12 @@ static void mtk_dp_phy_4lane_enable_v2(struct mtk_dp *mtk_dp)
 	value = (BIT(12) | BIT(13));
 
 	tmp = readl(mtk_dp->phy_mux_regs);
-	tmp |= BIT(19);
+	tmp |= mtk_dp->data->phy_4lane_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
-	for (i = 1; i <= lane_count; i++)
-		PHY_WRITE_2BYTE_MASK(mtk_dp, 0x0100 * i, value, (BIT(12) | BIT(13)));
+	if (mtk_dp->data->need_phy_lane_enable_set)
+		for (i = 1; i <= lane_count; i++)
+			PHY_WRITE_2BYTE_MASK(mtk_dp, 0x0100 * i, value, (BIT(12) | BIT(13)));
 }
 
 static void mtk_dp_phy_4lane_disable_v2(struct mtk_dp *mtk_dp)
@@ -3049,52 +3029,53 @@ static void mtk_dp_phy_4lane_disable_v2(struct mtk_dp *mtk_dp)
 	value = BIT(12);
 
 	tmp = readl(mtk_dp->phy_mux_regs);
-	tmp &= ~BIT(19);
+	tmp &= ~mtk_dp->data->phy_4lane_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
-	for (i = 1; i <= lane_count; i++)
-		PHY_WRITE_2BYTE_MASK(mtk_dp, 0x0100 * i, value, (BIT(12) | BIT(13)));
+	if (mtk_dp->data->need_phy_lane_enable_set)
+		for (i = 1; i <= lane_count; i++)
+			PHY_WRITE_2BYTE_MASK(mtk_dp, 0x0100 * i, value, (BIT(12) | BIT(13)));
 }
 
-static void mtk_dp_phy_flip_enable_v2(struct mtk_dp *mtk_dp)
+void mtk_dp_phy_flip_enable_v2(struct mtk_dp *mtk_dp)
 {
 	u32 tmp;
 
-	PHY_WRITE_BYTE(mtk_dp, 0x01A0, 0x47);
-	PHY_WRITE_BYTE(mtk_dp, 0x02A0, 0x47);
-	PHY_WRITE_BYTE(mtk_dp, 0x03A0, 0x46);
-	PHY_WRITE_BYTE(mtk_dp, 0x04A0, 0x46);
+	if (mtk_dp->data->need_phy_flip_set) {
+		PHY_WRITE_BYTE(mtk_dp, 0x01a0, 0x47);
+		PHY_WRITE_BYTE(mtk_dp, 0x02a0, 0x47);
+		PHY_WRITE_BYTE(mtk_dp, 0x03a0, 0x46);
+		PHY_WRITE_BYTE(mtk_dp, 0x04a0, 0x46);
+	}
 
 	tmp = readl(mtk_dp->phy_mux_regs);
-	tmp |= BIT(18);
+	tmp |= mtk_dp->data->phy_flip_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Swap enable\n");
 }
 
-static void mtk_dp_phy_flip_disable_v2(struct mtk_dp *mtk_dp)
+void mtk_dp_phy_flip_disable_v2(struct mtk_dp *mtk_dp)
 {
 	u32 tmp;
 
-	PHY_WRITE_BYTE(mtk_dp, 0x01a0, 0x46);
-	PHY_WRITE_BYTE(mtk_dp, 0x02a0, 0x46);
-	PHY_WRITE_BYTE(mtk_dp, 0x03a0, 0x47);
-	PHY_WRITE_BYTE(mtk_dp, 0x04a0, 0x47);
+	if (mtk_dp->data->need_phy_flip_set) {
+		PHY_WRITE_BYTE(mtk_dp, 0x01a0, 0x46);
+		PHY_WRITE_BYTE(mtk_dp, 0x02a0, 0x46);
+		PHY_WRITE_BYTE(mtk_dp, 0x03a0, 0x47);
+		PHY_WRITE_BYTE(mtk_dp, 0x04a0, 0x47);
+	}
 
 	tmp = readl(mtk_dp->phy_mux_regs);
-	tmp &= ~BIT(18);
+	tmp &= ~mtk_dp->data->phy_flip_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Swap disable\n");
 }
 
-static void mtk_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
+static void mtk_mt8196_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
 {
 	u8 i;
-
-	const u32 phyd_dig_lan_base_addr[4] = {
-		PHYD_DIG_LAN0_OFFSET, PHYD_DIG_LAN1_OFFSET,
-		PHYD_DIG_LAN2_OFFSET, PHYD_DIG_LAN3_OFFSET};
 
 	/* 4-1. PLL */
 	PHY_WRITE_BYTE_MASK(mtk_dp, 0x0614, BIT(0), BIT(0));
@@ -3103,12 +3084,18 @@ static void mtk_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
 
 	/* 4-4. Swing and Pre-emphasis Optimization */
 	for (i = 0; i < 4; i++) {
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_3, 0x110e0c0a);
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_4, 0x1212110e);
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_5, 0x1815);
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_6, 0x7040200);
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_7, 0x60300);
-		PHY_WRITE_4BYTE(mtk_dp, phyd_dig_lan_base_addr[i] + DRIVING_PARAM_8, 0x3);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_3,
+				0x110e0c0a);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_4,
+				0x1212110e);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_5,
+				0x1815);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_6,
+				0x7040200);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_7,
+				0x60300);
+		PHY_WRITE_4BYTE(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_8,
+				0x3);
 	}
 }
 
@@ -3125,7 +3112,9 @@ static void mtk_dp_phy_setting_v2(struct mtk_dp *mtk_dp)
 	else
 		mtk_dp_phy_flip_disable_v2(mtk_dp);
 
-	mtk_dp_phy_set_param_v2(mtk_dp);
+	if (mtk_dp->data->set_param)
+		mtk_dp->data->set_param(mtk_dp);
+
 	/* step2: phy power ON */
 	mtk_dp_phy_power_on_v2(mtk_dp);
 }
@@ -3408,47 +3397,17 @@ static bool mtk_dp_swingt_set_pre_emphasis_v2(struct mtk_dp *mtk_dp,
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] lane:%d, set Swing:0x%x, Emp:0x%x\n",
 	        lane_num, swing_level, pre_emphasis_level);
 
-	switch (lane_num) {
-	case DP_LANE0:
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-				     (swing_level << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN0_OFFSET + DRIVING_FORCE,
-				     (pre_emphasis_level << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-		break;
-
-	case DP_LANE1:
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-				     (swing_level << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN1_OFFSET + DRIVING_FORCE,
-				     (pre_emphasis_level << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-		break;
-
-	case DP_LANE2:
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-				     (swing_level << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN2_OFFSET + DRIVING_FORCE,
-				     (pre_emphasis_level << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-		break;
-
-	case DP_LANE3:
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-				     (swing_level << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
-		PHY_WRITE_4BYTE_MASK(mtk_dp, PHYD_DIG_LAN3_OFFSET + DRIVING_FORCE,
-				     (pre_emphasis_level << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS),
-				     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
-		break;
-
-	default:
+	if (lane_num < DP_LANE0 || lane_num > DP_LANE3) {
 		dev_err(mtk_dp->dev, "[DPTX] lane number is error\n");
 		return false;
 	}
+
+	PHY_WRITE_4BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[lane_num] + DRIVING_FORCE,
+			     (swing_level << DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK_POS),
+			     DP_TX_FORCE_VOLT_SWING_VAL_FLDMASK);
+	PHY_WRITE_4BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_lan_offset[lane_num] + DRIVING_FORCE,
+			     (pre_emphasis_level << DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS),
+			     DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK);
 
 	return true;
 }
@@ -3488,7 +3447,7 @@ static void mtk_dp_set_lane_count_v2(struct mtk_dp *mtk_dp, const enum dp_lane_c
 		return;
 	}
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++) {
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++) {
 		reg_offset = DP_REG_OFFSET(encoder_id);
 
 		WRITE_BYTE_MASK(mtk_dp, REG_3000_DP_ENCODER0_P0 + reg_offset,
@@ -3519,7 +3478,7 @@ static void mtk_dp_set_enhanced_frame_mode_v2(struct mtk_dp *mtk_dp, bool enable
 	enum dp_encoder_id encoder_id;
 	u32 reg_offset;
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++) {
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++) {
 		reg_offset = DP_REG_OFFSET(encoder_id);
 
 		if (enable)
@@ -3942,15 +3901,15 @@ static void mtk_dp_init_variable_v2(struct mtk_dp *mtk_dp)
 	enum dp_encoder_id encoder_id;
 
 	mtk_dp->training_info.dp_version = DP_VER_14;
-	mtk_dp->training_info.max_link_rate = DP_SUPPORT_MAX_LINKRATE;
-	mtk_dp->training_info.max_link_lane_count = DP_SUPPORT_MAX_LANECOUNT;
+	mtk_dp->training_info.max_link_rate = mtk_dp->data->max_link_rate;
+	mtk_dp->training_info.max_link_lane_count = mtk_dp->data->max_lane_count;
 	mtk_dp->training_info.sink_ext_cap_en = false;
 	mtk_dp->training_info.sink_ssc_en = false;
 	mtk_dp->training_info.tps3_support = true;
 	mtk_dp->training_info.tps4_support = true;
 	mtk_dp->training_info.phy_status = HPD_INITIAL_STATE;
 	mtk_dp->training_info.cable_plug_in = false;
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++) {
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++) {
 		mtk_dp->info[encoder_id].depth = DP_COLOR_DEPTH_8BIT;
 		memset(&mtk_dp->info[encoder_id].dp_output_timing, 0,
 		       sizeof(struct dp_timing_parameter));
@@ -3975,7 +3934,7 @@ static void mtk_dp_initial_setting_v2(struct mtk_dp *mtk_dp)
 
 	mtk_dp_fec_init_setting_v2(mtk_dp);
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++) {
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++) {
 		reg_offset = DP_REG_OFFSET(encoder_id);
 		WRITE_4BYTE_MASK(mtk_dp, REG_31EC_DP_ENCODER0_P0  + reg_offset, BIT(4), BIT(4));
 		WRITE_4BYTE_MASK(mtk_dp, REG_304C_DP_ENCODER0_P0  + reg_offset, 0, BIT(8));
@@ -4073,12 +4032,12 @@ static void mtk_dp_init_port_v2(struct mtk_dp *mtk_dp)
 	mtk_dp_init_variable_v2(mtk_dp);
 
 	mtk_dp_fec_disable_v2(mtk_dp);
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++)
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++)
 		mtk_dp_dsc_disable_v2(mtk_dp, encoder_id);
 
 	mtk_dp_initial_setting_v2(mtk_dp);
 	mtk_dp_aux_setting_v2(mtk_dp);
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++)
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++)
 		mtk_dp_digital_setting_v2(mtk_dp, encoder_id);
 
 	mtk_dp_analog_power_on_v2(mtk_dp);
@@ -4114,7 +4073,7 @@ static void mtk_dp_disconnect_release_v2(struct mtk_dp *mtk_dp)
 	mtk_dp_phy_set_idle_pattern_v2(mtk_dp, true);
 	mtk_dp_fec_disable_v2(mtk_dp);
 
-	for (i = 0; i < DP_ENCODER_NUM; i++)
+	for (i = 0; i < mtk_dp->data->encoder_num; i++)
 		mtk_dp_dsc_disable_v2(mtk_dp, i);
 
 	mtk_dp_analog_power_off_v2(mtk_dp);
@@ -4805,7 +4764,7 @@ static int mtk_dp_bridge_attach_v2(struct drm_bridge *bridge,
 	 * to a bridge. DP initialization is performed only
 	 * after all bridges are attached.
 	 */
-	if (atomic_inc_return(&mtk_dp->refcount) != DP_ENCODER_NUM)
+	if (atomic_inc_return(&mtk_dp->refcount) != mtk_dp->data->encoder_num)
 		return 0;
 
 	mtk_dp->drm_dev = bridge->dev;
@@ -5368,7 +5327,7 @@ static int mtk_dp_audio_hw_params_v2(struct device *dev, void *data,
 	struct mtk_dp *mtk_dp = dev_get_drvdata(dev);
 	enum dp_encoder_id encoder_id;
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++) {
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++) {
 		mtk_dp->info[encoder_id].audio_cur_cfg.channels = params->cea.channels;
 		mtk_dp->info[encoder_id].audio_cur_cfg.word_length_bits = params->sample_width;
 		mtk_dp->info[encoder_id].audio_cur_cfg.sample_rate = params->sample_rate;
@@ -5384,7 +5343,7 @@ static int mtk_dp_audio_startup_v2(struct device *dev, void *data)
 	struct mtk_dp *mtk_dp = dev_get_drvdata(dev);
 	enum dp_encoder_id encoder_id;
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++)
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++)
 		mtk_dp_audio_mute_v2(mtk_dp, encoder_id, false);
 
 	return 0;
@@ -5395,7 +5354,7 @@ static void mtk_dp_audio_shutdown_v2(struct device *dev, void *data)
 	struct mtk_dp *mtk_dp = dev_get_drvdata(dev);
 	enum dp_encoder_id encoder_id;
 
-	for (encoder_id = 0; encoder_id < DP_ENCODER_NUM; encoder_id++)
+	for (encoder_id = 0; encoder_id < mtk_dp->data->encoder_num; encoder_id++)
 		mtk_dp_audio_mute_v2(mtk_dp, encoder_id, true);
 }
 
@@ -5710,7 +5669,7 @@ static void mtk_dp_init_property_v2(struct mtk_dp *mtk_dp)
 	if (mtk_dp->init_property)
 		return;
 
-	for (i = 0; i < DP_ENCODER_NUM; i++) {
+	for (i = 0; i < mtk_dp->data->encoder_num; i++) {
 		bridge = devm_drm_of_get_bridge(mtk_dp->dev,
 						mtk_dp->dev->of_node, i, DP_ENCODER_ENDPOINT);
 		if (IS_ERR(bridge)) {
@@ -5783,7 +5742,7 @@ static irqreturn_t mtk_dp_hpd_event_thread_v2(int hpd, void *dev)
 			/* Wait until crtc of current encoder is disabled */
 			timeout = jiffies + msecs_to_jiffies(2000);
 			while (time_before(jiffies, timeout)) {
-				for (i = 0; i < DP_ENCODER_NUM; i++) {
+				for (i = 0; i < mtk_dp->data->encoder_num; i++) {
 					if (wait_done[i])
 						continue;
 
@@ -5799,13 +5758,13 @@ static irqreturn_t mtk_dp_hpd_event_thread_v2(int hpd, void *dev)
 						    i);
 				}
 
-				if (wait_done_count == DP_ENCODER_NUM)
+				if (wait_done_count == mtk_dp->data->encoder_num)
 					break;
 
 				msleep(100);
 			}
 
-			for (i = 0; i < DP_ENCODER_NUM; i++) {
+			for (i = 0; i < mtk_dp->data->encoder_num; i++) {
 				if (wait_done[i])
 					continue;
 
@@ -6011,7 +5970,7 @@ static int mtk_dp_dt_parse_pdata_v2(struct mtk_dp *mtk_dp,
 	return 0;
 }
 
-static void mtk_dp_enable_mac_power_v2(struct mtk_dp *mtk_dp)
+static void mtk_mt8196_dp_mac_power(struct mtk_dp *mtk_dp)
 {
 	writel((readl(mtk_dp->mac_power_regs) & ~BIT(0)), mtk_dp->mac_power_regs);
 	writel((readl(mtk_dp->mac_power_regs) | BIT(4)), mtk_dp->mac_power_regs);
@@ -6052,7 +6011,8 @@ static int mtk_dp_suspend_v2(struct device *dev)
 
 	mtk_dp_disconnect_release_v2(mtk_dp);
 
-	mtk_dp_disable_mac_power_v2(mtk_dp);
+	if (mtk_dp->data->disable_mac_power)
+		mtk_dp->data->disable_mac_power(mtk_dp);
 
 	clk_disable_unprepare(mtk_dp->pclk);
 
@@ -6090,7 +6050,8 @@ static int mtk_dp_resume_v2(struct device *dev)
 		return ret;
 	}
 
-	mtk_dp_enable_mac_power_v2(mtk_dp);
+	if (mtk_dp->data->mac_power)
+		mtk_dp->data->mac_power(mtk_dp);
 
 	mtk_dp_init_port_v2(mtk_dp);
 
@@ -6246,7 +6207,8 @@ static int mtk_drm_dp_probe_v2(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	mtk_dp_enable_mac_power_v2(mtk_dp);
+	if (mtk_dp->data->mac_power)
+		mtk_dp->data->mac_power(mtk_dp);
 
 	mtk_dp->pclk = devm_clk_get_enabled(mtk_dp->dev, "mux_dp");
 	if (IS_ERR(mtk_dp->pclk))
@@ -6269,7 +6231,7 @@ static int mtk_drm_dp_probe_v2(struct platform_device *pdev)
 		dev_err(mtk_dp->dev, "[DPTX] register pm notifier failed %d", ret);
 
 	for_each_of_graph_port(np, port) {
-		if (i >= DP_ENCODER_NUM)
+		if (i >= mtk_dp->data->encoder_num)
 			break;
 
 		dev_dbg(dev, "[DPTX] port:%pOF\n", port);
@@ -6300,7 +6262,7 @@ static int mtk_drm_dp_remove_v2(struct platform_device *pdev)
 	int ret = 0;
 	int i;
 
-	for (i = 0; i < DP_ENCODER_NUM; i++)
+	for (i = 0; i < mtk_dp->data->encoder_num; i++)
 		if (mtk_dp->mtk_bridge[i])
 			drm_bridge_remove(&mtk_dp->mtk_bridge[i]->bridge);
 
@@ -6338,6 +6300,18 @@ static const struct mtk_dp_data mt8196_dp_data = {
 	.max_vdisplay = 2160,
 	.min_hdisplay = 800,
 	.min_vdisplay = 600,
+	.mac_power = mtk_mt8196_dp_mac_power,
+	.disable_mac_power = mtk_dp_disable_mac_power_v2,
+	.set_param = mtk_mt8196_dp_phy_set_param_v2,
+	.phyd_dig_glb_offset = 0x1000,
+	.phyd_dig_lan_offset = {0x1100, 0x1200, 0x1300, 0x1400},
+	.max_link_rate = DP_LINK_RATE_HBR3,
+	.max_lane_count = DP_2LANE,
+	.encoder_num = 2,
+	.need_phy_lane_enable_set = true,
+	.need_phy_flip_set = true,
+	.phy_4lane_ctrl_bit = BIT(19),
+	.phy_flip_ctrl_bit = BIT(18),
 };
 
 static const struct of_device_id mtk_dp_of_match_v2[] = {

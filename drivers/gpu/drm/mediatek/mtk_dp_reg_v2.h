@@ -26,12 +26,6 @@
 #define DPCD_0200C									0x0200c
 #define DPCD_02200									0x02200
 
-#define PHYD_DIG_GLB_OFFSET							0x1000
-#define PHYD_DIG_LAN0_OFFSET						0x1100
-#define PHYD_DIG_LAN1_OFFSET						0x1200
-#define PHYD_DIG_LAN2_OFFSET						0x1300
-#define PHYD_DIG_LAN3_OFFSET						0x1400
-
 #define TOP_OFFSET											0x2000
 
 #define FORCE_PWR_STATE_EN_FLDMASK							0x1
