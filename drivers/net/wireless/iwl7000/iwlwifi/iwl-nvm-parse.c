@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2005-2014, 2018-2024 Intel Corporation
+ * Copyright (C) 2005-2014, 2018-2025 Intel Corporation
  * Copyright (C) 2013-2015 Intel Mobile Communications GmbH
  * Copyright (C) 2016-2017 Intel Deutschland GmbH
  */
@@ -141,8 +141,13 @@ static struct ieee80211_rate iwl_cfg80211_rates[] = {
 /**
  * enum iwl_nvm_channel_flags - channel flags in NVM
  * @NVM_CHANNEL_VALID: channel is usable for this SKU/geo
- * @NVM_CHANNEL_IBSS: usable as an IBSS channel
- * @NVM_CHANNEL_ACTIVE: active scanning allowed
+ * @NVM_CHANNEL_IBSS: usable as an IBSS channel and deprecated
+ *	when %IWL_NVM_SBANDS_FLAGS_LAR enabled.
+ * @NVM_CHANNEL_ALLOW_20MHZ_ACTIVITY: active scanning allowed and
+ *	AP allowed only in 20 MHz. Valid only
+ *	when %IWL_NVM_SBANDS_FLAGS_LAR enabled.
+ * @NVM_CHANNEL_ACTIVE: active scanning allowed and allows IBSS
+ *	when %IWL_NVM_SBANDS_FLAGS_LAR enabled.
  * @NVM_CHANNEL_RADAR: radar detection required
  * @NVM_CHANNEL_INDOOR_ONLY: only indoor use is allowed
  * @NVM_CHANNEL_GO_CONCURRENT: GO operation is allowed when connected to BSS
@@ -157,20 +162,21 @@ static struct ieee80211_rate iwl_cfg80211_rates[] = {
  * @NVM_CHANNEL_AFC: client support connection to UHB AFC AP
  */
 enum iwl_nvm_channel_flags {
-	NVM_CHANNEL_VALID		= BIT(0),
-	NVM_CHANNEL_IBSS		= BIT(1),
-	NVM_CHANNEL_ACTIVE		= BIT(3),
-	NVM_CHANNEL_RADAR		= BIT(4),
-	NVM_CHANNEL_INDOOR_ONLY		= BIT(5),
-	NVM_CHANNEL_GO_CONCURRENT	= BIT(6),
-	NVM_CHANNEL_UNIFORM		= BIT(7),
-	NVM_CHANNEL_20MHZ		= BIT(8),
-	NVM_CHANNEL_40MHZ		= BIT(9),
-	NVM_CHANNEL_80MHZ		= BIT(10),
-	NVM_CHANNEL_160MHZ		= BIT(11),
-	NVM_CHANNEL_DC_HIGH		= BIT(12),
-	NVM_CHANNEL_VLP			= BIT(13),
-	NVM_CHANNEL_AFC			= BIT(14),
+	NVM_CHANNEL_VALID                   = BIT(0),
+	NVM_CHANNEL_IBSS                    = BIT(1),
+	NVM_CHANNEL_ALLOW_20MHZ_ACTIVITY    = BIT(2),
+	NVM_CHANNEL_ACTIVE                  = BIT(3),
+	NVM_CHANNEL_RADAR                   = BIT(4),
+	NVM_CHANNEL_INDOOR_ONLY             = BIT(5),
+	NVM_CHANNEL_GO_CONCURRENT           = BIT(6),
+	NVM_CHANNEL_UNIFORM                 = BIT(7),
+	NVM_CHANNEL_20MHZ                   = BIT(8),
+	NVM_CHANNEL_40MHZ                   = BIT(9),
+	NVM_CHANNEL_80MHZ                   = BIT(10),
+	NVM_CHANNEL_160MHZ                  = BIT(11),
+	NVM_CHANNEL_DC_HIGH                 = BIT(12),
+	NVM_CHANNEL_VLP                     = BIT(13),
+	NVM_CHANNEL_AFC                     = BIT(14),
 };
 
 /**
@@ -598,7 +604,8 @@ static const struct ieee80211_sband_iftype_data iwl_he_eht_capa[] = {
 			.has_he = true,
 			.he_cap_elem = {
 				.mac_cap_info[0] =
-					IEEE80211_HE_MAC_CAP0_HTC_HE,
+					IEEE80211_HE_MAC_CAP0_HTC_HE |
+					IEEE80211_HE_MAC_CAP0_TWT_REQ,
 				.mac_cap_info[1] =
 					IEEE80211_HE_MAC_CAP1_TF_MAC_PAD_DUR_16US |
 					IEEE80211_HE_MAC_CAP1_MULTI_TID_AGG_RX_QOS_8,
@@ -784,11 +791,6 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 {
 	bool is_ap = iftype_data->types_mask & (BIT(NL80211_IFTYPE_AP) |
 						BIT(NL80211_IFTYPE_P2P_GO));
-	bool no_320;
-
-	no_320 = (!trans->trans_cfg->integrated &&
-		 trans->pcie_link_speed < PCI_EXP_LNKSTA_CLS_8_0GB) ||
-		 trans->reduced_cap_sku;
 
 	if (!data->sku_cap_11be_enable || iwlwifi_mod_params.disable_11be)
 		{}
@@ -812,7 +814,8 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 			IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_40MHZ_IN_2G;
 		break;
 	case NL80211_BAND_6GHZ:
-		if (!no_320) {
+		if (!trans->reduced_cap_sku &&
+		    trans->bw_limit >= 320) {
 		}
 		fallthrough;
 	case NL80211_BAND_5GHZ:
@@ -895,9 +898,12 @@ iwl_nvm_fixup_sband_iftd(struct iwl_trans *trans,
 	if (trans->step_urm) {
 	}
 
-	if (trans->no_160)
+	if (trans->bw_limit < 160)
 		iftype_data->he_cap.he_cap_elem.phy_cap_info[0] &=
 			~IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_160MHZ_IN_5G;
+
+	if (trans->bw_limit < 320 || trans->reduced_cap_sku) {
+	}
 
 	if (trans->reduced_cap_sku) {
 	}
@@ -1684,6 +1690,10 @@ static u32 iwl_nvm_get_regdom_bw_flags(const u16 *nvm_chan,
 
 	if (nvm_flags & NVM_CHANNEL_INDOOR_ONLY)
 		flags |= NL80211_RRF_NO_OUTDOOR;
+
+	if (nvm_flags & NVM_CHANNEL_ALLOW_20MHZ_ACTIVITY &&
+	    flags & NL80211_RRF_NO_IR)
+		flags |= NL80211_RRF_ALLOW_20MHZ_ACTIVITY;
 
 	/* Set the GO concurrent flag only in case that NO_IR is set.
 	 * Otherwise it is meaningless

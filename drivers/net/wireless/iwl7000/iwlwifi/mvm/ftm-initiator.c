@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
  * Copyright (C) 2015-2017 Intel Deutschland GmbH
- * Copyright (C) 2018-2024 Intel Corporation
+ * Copyright (C) 2018-2025 Intel Corporation
  */
 #include <linux/etherdevice.h>
 #include <linux/math64.h>
@@ -596,12 +596,12 @@ static int iwl_mvm_ftm_set_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 		if (mvmvif->ftm_unprotected) {
-			*sta_id = IWL_MVM_INVALID_STA;
+			*sta_id = IWL_INVALID_STA;
 			*flags &= ~cpu_to_le32(IWL_INITIATOR_AP_FLAGS_PMF);
 		}
 #endif
 	} else {
-		*sta_id = IWL_MVM_INVALID_STA;
+		*sta_id = IWL_INVALID_STA;
 	}
 
 	return 0;
@@ -1022,7 +1022,7 @@ static int iwl_mvm_ftm_start_v13(struct iwl_mvm *mvm,
 static int
 iwl_mvm_ftm_put_target_v10(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			   struct cfg80211_pmsr_request_peer *peer,
-			   struct iwl_tof_range_req_ap_entry_v10 *target)
+			   struct iwl_tof_range_req_ap_entry *target)
 {
 	u32 i2r_max_sts, flags;
 	int ret;
@@ -1078,6 +1078,16 @@ iwl_mvm_ftm_put_target_v10(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	if (IWL_MVM_FTM_TEST_INCORRECT_SAC)
 		FTM_PUT_FLAG(TEST_INCORRECT_SAC);
+
+	if (IWL_MVM_FTM_TEST_BAD_SLTF) {
+		u8 cmd_ver = iwl_fw_lookup_cmd_ver(mvm->fw,
+						   WIDE_ID(LOCATION_GROUP,
+							   TOF_RANGE_REQ_CMD),
+						   IWL_FW_CMD_VER_UNKNOWN);
+
+		if (cmd_ver == 15)
+			FTM_PUT_FLAG(TEST_BAD_SLTF);
+	}
 #endif
 
 	/*
@@ -1105,7 +1115,7 @@ static int iwl_mvm_ftm_start_v14(struct iwl_mvm *mvm,
 				 struct ieee80211_vif *vif,
 				 struct cfg80211_pmsr_request *req)
 {
-	struct iwl_tof_range_req_cmd_v14 cmd;
+	struct iwl_tof_range_req_cmd cmd;
 	struct iwl_host_cmd hcmd = {
 		.id = WIDE_ID(LOCATION_GROUP, TOF_RANGE_REQ_CMD),
 		.dataflags[0] = IWL_HCMD_DFL_DUP,
@@ -1119,7 +1129,7 @@ static int iwl_mvm_ftm_start_v14(struct iwl_mvm *mvm,
 
 	for (i = 0; i < cmd.num_of_ap; i++) {
 		struct cfg80211_pmsr_request_peer *peer = &req->peers[i];
-		struct iwl_tof_range_req_ap_entry_v10 *target = &cmd.ap[i];
+		struct iwl_tof_range_req_ap_entry *target = &cmd.ap[i];
 
 		err = iwl_mvm_ftm_put_target_v10(mvm, vif, peer, target);
 		if (err)
@@ -1147,6 +1157,8 @@ int iwl_mvm_ftm_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 						   IWL_FW_CMD_VER_UNKNOWN);
 
 		switch (cmd_ver) {
+		case 15:
+			/* Version 15 has the same struct as 14 */
 		case 14:
 			err = iwl_mvm_ftm_start_v14(mvm, vif, req);
 			break;
@@ -1383,7 +1395,7 @@ static void iwl_mvm_debug_range_resp(struct iwl_mvm *mvm, u8 index,
 
 static void
 iwl_mvm_ftm_pasn_update_pn(struct iwl_mvm *mvm,
-			   struct iwl_tof_range_rsp_ap_entry_ntfy_v6 *fw_ap)
+			   struct iwl_tof_range_rsp_ap_entry_ntfy *fw_ap)
 {
 	struct iwl_mvm_ftm_pasn_entry *entry;
 
@@ -1421,7 +1433,7 @@ static bool iwl_mvm_ftm_resp_size_validation(u8 ver, unsigned int pkt_len)
 	switch (ver) {
 	case 9:
 	case 8:
-		return pkt_len == sizeof(struct iwl_tof_range_rsp_ntfy_v8);
+		return pkt_len == sizeof(struct iwl_tof_range_rsp_ntfy);
 	case 7:
 		return pkt_len == sizeof(struct iwl_tof_range_rsp_ntfy_v7);
 	case 6:
@@ -1441,7 +1453,7 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	struct iwl_tof_range_rsp_ntfy_v5 *fw_resp_v5 = (void *)pkt->data;
 	struct iwl_tof_range_rsp_ntfy_v6 *fw_resp_v6 = (void *)pkt->data;
 	struct iwl_tof_range_rsp_ntfy_v7 *fw_resp_v7 = (void *)pkt->data;
-	struct iwl_tof_range_rsp_ntfy_v8 *fw_resp_v8 = (void *)pkt->data;
+	struct iwl_tof_range_rsp_ntfy *fw_resp_v8 = (void *)pkt->data;
 	int i;
 	bool new_api = fw_has_api(&mvm->fw->ucode_capa,
 				  IWL_UCODE_TLV_API_FTM_NEW_RANGE_REQ);
@@ -1477,9 +1489,9 @@ void iwl_mvm_ftm_range_resp(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 	IWL_DEBUG_INFO(mvm, "request id: %lld, num of entries: %u\n",
 		       mvm->ftm_initiator.req->cookie, num_of_aps);
 
-	for (i = 0; i < num_of_aps && i < IWL_MVM_TOF_MAX_APS; i++) {
+	for (i = 0; i < num_of_aps && i < IWL_TOF_MAX_APS; i++) {
 		struct cfg80211_pmsr_result result = {};
-		struct iwl_tof_range_rsp_ap_entry_ntfy_v6 *fw_ap;
+		struct iwl_tof_range_rsp_ap_entry_ntfy *fw_ap;
 		int peer_idx;
 
 		if (new_api) {
