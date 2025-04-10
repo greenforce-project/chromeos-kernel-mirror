@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2022 - 2024 Intel Corporation
+ * Copyright (C) 2022 - 2025 Intel Corporation
  */
 #include "mvm.h"
 #include "time-event.h"
@@ -20,7 +20,9 @@
 	HOW(EXIT_CSA)			\
 	HOW(EXIT_RFI)			\
 	HOW(EXIT_LINK_USAGE)		\
-	HOW(EXIT_FAIL_ENTRY)
+	HOW(EXIT_FAIL_ENTRY)		\
+	HOW(EXIT_EQUAL_BAND)		\
+	HOW(EXIT_CHANNEL_LOAD)
 
 static const char *const iwl_mvm_esr_states_names[] = {
 #define NAME_ENTRY(x) [ilog2(IWL_MVM_ESR_##x)] = #x,
@@ -362,7 +364,8 @@ int iwl_mvm_link_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 send_cmd:
 	cmd.modify_mask = cpu_to_le32(changes);
 	cmd.flags = cpu_to_le32(flags);
-	cmd.flags_mask = cpu_to_le32(flags_mask);
+	if (cmd_ver < 6)
+		cmd.flags_mask = cpu_to_le32(flags_mask);
 	cmd.spec_link_id = link_conf->link_id;
 	if (cmd_ver < 2)
 		cmd.listen_lmac = cpu_to_le32(link_info->listen_lmac);
@@ -412,9 +415,8 @@ int iwl_mvm_remove_link(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	ret = iwl_mvm_link_cmd_send(mvm, &cmd, FW_CTXT_ACTION_REMOVE);
 
-	if (!ret)
-		if (iwl_mvm_sf_update(mvm, vif, true))
-			IWL_ERR(mvm, "Failed to update SF state\n");
+	if (!ret && iwl_mvm_sf_update(mvm, vif, true))
+		IWL_ERR(mvm, "Failed to update SF state\n");
 
 	return ret;
 }
@@ -748,6 +750,57 @@ iwl_mvm_esr_disallowed_with_link(struct iwl_mvm *mvm,
 	return ret;
 }
 
+static u32 iwl_mvm_get_bw_ratio(enum nl80211_chan_width chan_width_a,
+				enum nl80211_chan_width chan_width_b)
+{
+	u32 bw_a, bw_b, bw_ratio;
+
+	bw_a = nl80211_chan_width_to_mhz(chan_width_a);
+	bw_b = nl80211_chan_width_to_mhz(chan_width_b);
+	return bw_ratio = (bw_a > bw_b) ? bw_a / bw_b : bw_b / bw_a;
+}
+
+static u32 iwl_mvm_mld_check_channel_load_criteria(struct ieee80211_vif *vif,
+						   u8 link_id, u32 bw_ratio)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm_vif_link_info *mvm_link = NULL;
+	unsigned int primary_load_perc = 0;
+	struct iwl_mvm *mvm = mvmvif->mvm;
+
+	/* In low latency, the required channel load is 10% and is
+	 * indicated by BLOCKED_FW.
+	 */
+	if (iwl_mvm_vif_low_latency(mvmvif))
+		return 0;
+
+	mvm_link = mvmvif->link[link_id];
+
+	if (!mvm_link || WARN_ON(!mvm_link->phy_ctxt))
+		return IWL_MVM_ESR_EXIT_BANDWIDTH;
+
+	primary_load_perc = mvm_link->phy_ctxt->channel_load_not_by_us;
+
+	IWL_DEBUG_INFO(mvm,
+		       "channel load of link: %d with bw_ratio: %d is: %d\n",
+		       link_id, bw_ratio, primary_load_perc);
+
+	switch (bw_ratio) {
+	case 2:
+		return primary_load_perc > 25 ? 0 :
+			IWL_MVM_ESR_EXIT_CHANNEL_LOAD;
+	case 4:
+		return primary_load_perc > 40 ? 0 :
+			IWL_MVM_ESR_EXIT_CHANNEL_LOAD;
+	case 8:
+	case 16:
+		return primary_load_perc > 50 ? 0 :
+			IWL_MVM_ESR_EXIT_CHANNEL_LOAD;
+	}
+
+	return IWL_MVM_ESR_EXIT_BANDWIDTH;
+}
+
 VISIBLE_IF_IWLWIFI_KUNIT
 bool iwl_mvm_mld_valid_link_pair(struct ieee80211_vif *vif,
 				 const struct iwl_mvm_link_sel_data *a,
@@ -762,11 +815,15 @@ bool iwl_mvm_mld_valid_link_pair(struct ieee80211_vif *vif,
 	    iwl_mvm_esr_disallowed_with_link(mvm, vif, b, false))
 		return false;
 
-	if (a->chandef->width != b->chandef->width ||
-	    !(a->chandef->chan->band == NL80211_BAND_6GHZ &&
-	      b->chandef->chan->band == NL80211_BAND_5GHZ))
-		ret |= IWL_MVM_ESR_EXIT_BANDWIDTH;
+	if (a->chandef->chan->band == b->chandef->chan->band) {
+		ret |= IWL_MVM_ESR_EXIT_EQUAL_BAND;
+	} else if (a->chandef->width != b->chandef->width) {
+		u32 bw_ratio = iwl_mvm_get_bw_ratio(a->chandef->width,
+						    b->chandef->width);
 
+		ret |= iwl_mvm_mld_check_channel_load_criteria(vif, a->link_id,
+							       bw_ratio);
+	}
 	/* RFI considerations */
 	ret |= iwl_mvm_rfi_esr_state_link_pair(vif, a, b);
 
@@ -774,6 +831,10 @@ bool iwl_mvm_mld_valid_link_pair(struct ieee80211_vif *vif,
 		IWL_DEBUG_INFO(mvm,
 			       "Links %d and %d are not a valid pair for EMLSR\n",
 			       a->link_id, b->link_id);
+		IWL_DEBUG_INFO(mvm,
+			       "Links bandwidth are: %d and %d\n",
+			       nl80211_chan_width_to_mhz(a->chandef->width),
+			       nl80211_chan_width_to_mhz(b->chandef->width));
 		iwl_mvm_print_esr_state(mvm, ret);
 		return false;
 	}
@@ -998,7 +1059,8 @@ void iwl_mvm_exit_esr(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	lockdep_assert_held(&mvm->mutex);
 
-	if (!IWL_MVM_AUTO_EML_ENABLE)
+	/* On entry failure need to exit anyway, even if entered from debugfs */
+	if (!IWL_MVM_AUTO_EML_ENABLE && reason != IWL_MVM_ESR_EXIT_FAIL_ENTRY)
 		return;
 
 	/* Nothing to do */
@@ -1168,4 +1230,15 @@ void iwl_mvm_unblock_esr(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	if (!mvmvif->esr_disable_reason)
 		iwl_mvm_esr_unblocked(mvm, vif);
+}
+
+void iwl_mvm_init_link(struct iwl_mvm_vif_link_info *link)
+{
+	link->bcast_sta.sta_id = IWL_INVALID_STA;
+	link->mcast_sta.sta_id = IWL_INVALID_STA;
+	link->ap_sta_id = IWL_INVALID_STA;
+
+	for (int r = 0; r < NUM_IWL_MVM_SMPS_REQ; r++)
+		link->smps_requests[r] =
+			IEEE80211_SMPS_AUTOMATIC;
 }

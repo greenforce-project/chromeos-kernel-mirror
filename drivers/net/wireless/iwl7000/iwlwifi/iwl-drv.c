@@ -22,6 +22,7 @@
 #include "iwl-modparams.h"
 #include "fw/api/alive.h"
 #include "fw/api/mac.h"
+#include "fw/api/mac-cfg.h"
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 #include "iwl-dbg-cfg.h"
 #endif
@@ -354,8 +355,7 @@ static void iwl_dealloc_ucode(struct iwl_drv *drv)
 	memset(&drv->fw, 0, sizeof(drv->fw));
 }
 
-static int iwl_alloc_fw_desc(struct iwl_drv *drv, struct fw_desc *desc,
-			     struct fw_sec *sec)
+static int iwl_alloc_fw_desc(struct fw_desc *desc, struct fw_sec *sec)
 {
 	void *data;
 
@@ -383,6 +383,11 @@ static inline char iwl_drv_get_step(int step)
 	if (step == SILICON_TC_STEP)
 		return 'a';
 	return 'a' + step;
+}
+
+static bool iwl_drv_is_wifi7_supported(struct iwl_trans *trans)
+{
+	return CSR_HW_RFID_TYPE(trans->hw_rf_id) >= IWL_CFG_RF_TYPE_FM;
 }
 
 const char *iwl_drv_get_fwname_pre(struct iwl_trans *trans, char *buf)
@@ -558,18 +563,8 @@ struct iwl_firmware_pieces {
 	size_t dbg_trigger_tlv_len[FW_DBG_TRIGGER_MAX];
 	struct iwl_fw_dbg_mem_seg_tlv *dbg_mem_tlv;
 	size_t n_mem_tlv;
+	u32 major;
 };
-
-/*
- * These functions are just to extract uCode section data from the pieces
- * structure.
- */
-static struct fw_sec *get_sec(struct iwl_firmware_pieces *pieces,
-			      enum iwl_ucode_type type,
-			      int  sec)
-{
-	return &pieces->img[type].sec[sec];
-}
 
 static void alloc_sec_data(struct iwl_firmware_pieces *pieces,
 			   enum iwl_ucode_type type,
@@ -631,21 +626,17 @@ static void set_sec_offset(struct iwl_firmware_pieces *pieces,
 /*
  * Gets uCode section from tlv.
  */
-static int iwl_store_ucode_sec(struct iwl_firmware_pieces *pieces,
-			       const void *data, enum iwl_ucode_type type,
-			       int size)
+static int iwl_store_ucode_sec(struct fw_img_parsing *img,
+			       const void *data, int size)
 {
-	struct fw_img_parsing *img;
 	struct fw_sec *sec;
 	const struct fw_sec_parsing *sec_parse;
 	size_t alloc_size;
 
-	if (WARN_ON(!pieces || !data || type >= IWL_UCODE_TYPE_MAX))
-		return -1;
+	if (WARN_ON(!img || !data))
+		return -EINVAL;
 
 	sec_parse = (const struct fw_sec_parsing *)data;
-
-	img = &pieces->img[type];
 
 	alloc_size = sizeof(*img->sec) * (img->sec_counter + 1);
 	sec = krealloc(img->sec, alloc_size, GFP_KERNEL);
@@ -1157,18 +1148,18 @@ fw_dbg_conf:
 					le32_to_cpup((const __le32 *)tlv_data);
 			break;
 		case IWL_UCODE_TLV_SEC_RT:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_REGULAR,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_REGULAR],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_SEC_INIT:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_INIT,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_INIT],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_SEC_WOWLAN:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_WOWLAN,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_WOWLAN],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_DEF_CALIB:
@@ -1210,18 +1201,18 @@ fw_dbg_conf:
 						FW_PHY_CFG_RX_CHAIN_POS;
 			break;
 		case IWL_UCODE_TLV_SECURE_SEC_RT:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_REGULAR,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_REGULAR],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_SECURE_SEC_INIT:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_INIT,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_INIT],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_SECURE_SEC_WOWLAN:
-			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_WOWLAN,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_WOWLAN],
+					    tlv_data, tlv_len);
 			drv->fw.type = IWL_FW_MVM;
 			break;
 		case IWL_UCODE_TLV_NUM_OF_CPU:
@@ -1250,19 +1241,19 @@ fw_dbg_conf:
 			break;
 		case IWL_UCODE_TLV_FW_VERSION: {
 			const __le32 *ptr = (const void *)tlv_data;
-			u32 major, minor;
+			u32 minor;
 			u8 local_comp;
 
 			if (tlv_len != sizeof(u32) * 3)
 				goto invalid_tlv_len;
 
-			major = le32_to_cpup(ptr++);
+			pieces->major = le32_to_cpup(ptr++);
 			minor = le32_to_cpup(ptr++);
 			local_comp = le32_to_cpup(ptr);
 
 			snprintf(drv->fw.fw_version,
 				 sizeof(drv->fw.fw_version),
-				 "%u.%08x.%u %s", major, minor,
+				 "%u.%08x.%u %s", pieces->major, minor,
 				 local_comp, iwl_reduced_fw_name(drv));
 			break;
 			}
@@ -1398,9 +1389,8 @@ fw_dbg_conf:
 			}
 		case IWL_UCODE_TLV_SEC_RT_USNIFFER:
 			*usniffer_images = true;
-			iwl_store_ucode_sec(pieces, tlv_data,
-					    IWL_UCODE_REGULAR_USNIFFER,
-					    tlv_len);
+			iwl_store_ucode_sec(&pieces->img[IWL_UCODE_REGULAR_USNIFFER],
+					    tlv_data, tlv_len);
 			break;
 		case IWL_UCODE_TLV_PAGING:
 			if (tlv_len != sizeof(u32))
@@ -1485,7 +1475,7 @@ fw_dbg_conf:
 
 			if (tlv_len != sizeof(*fseq_ver))
 				goto invalid_tlv_len;
-			IWL_INFO(drv, "TLV_FW_FSEQ_VERSION: %s\n",
+			IWL_INFO(drv, "TLV_FW_FSEQ_VERSION: %.32s\n",
 				 fseq_ver->version);
 			}
 			break;
@@ -1500,6 +1490,19 @@ fw_dbg_conf:
 				goto tlv_error;
 			}
 			capa->num_stations =
+				le32_to_cpup((const __le32 *)tlv_data);
+			break;
+		case IWL_UCODE_TLV_FW_NUM_LINKS:
+			if (tlv_len != sizeof(u32))
+				goto invalid_tlv_len;
+			if (le32_to_cpup((const __le32 *)tlv_data) >
+			    IWL_FW_MAX_LINK_ID + 1) {
+				IWL_ERR(drv,
+					"%d is an invalid number of links\n",
+					le32_to_cpup((const __le32 *)tlv_data));
+				goto tlv_error;
+			}
+			capa->num_links =
 				le32_to_cpup((const __le32 *)tlv_data);
 			break;
 		case IWL_UCODE_TLV_FW_NUM_BEACONS:
@@ -1625,24 +1628,29 @@ fw_dbg_conf:
 	return -EINVAL;
 }
 
+static int iwl_alloc_ucode_mem(struct fw_img *out, struct fw_img_parsing *img)
+{
+	struct fw_desc *sec;
+
+	sec = kcalloc(img->sec_counter, sizeof(*sec), GFP_KERNEL);
+	if (!sec)
+		return -ENOMEM;
+
+	out->sec = sec;
+	out->num_sec = img->sec_counter;
+
+	for (int i = 0; i < out->num_sec; i++)
+		if (iwl_alloc_fw_desc(&sec[i], &img->sec[i]))
+			return -ENOMEM;
+
+	return 0;
+}
+
 static int iwl_alloc_ucode(struct iwl_drv *drv,
 			   struct iwl_firmware_pieces *pieces,
 			   enum iwl_ucode_type type)
 {
-	int i;
-	struct fw_desc *sec;
-
-	sec = kcalloc(pieces->img[type].sec_counter, sizeof(*sec), GFP_KERNEL);
-	if (!sec)
-		return -ENOMEM;
-	drv->fw.img[type].sec = sec;
-	drv->fw.img[type].num_sec = pieces->img[type].sec_counter;
-
-	for (i = 0; i < pieces->img[type].sec_counter; i++)
-		if (iwl_alloc_fw_desc(drv, &sec[i], get_sec(pieces, type, i)))
-			return -ENOMEM;
-
-	return 0;
+	return iwl_alloc_ucode_mem(&drv->fw.img[type], &pieces->img[type]);
 }
 
 static int validate_sec_sizes(struct iwl_drv *drv,
@@ -1713,22 +1721,30 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 							drv->dbgfs_drv);
 		dbgfs_dir = drv->dbgfs_op_mode;
 #endif
+#ifdef HACK_IWLWIFI_DEBUGFS_IWLMVM_SYMLINK
+		if (!strcmp(op->name, "iwlmld"))
+			debugfs_create_symlink("iwlmvm", drv->dbgfs_drv,
+					       "iwlmld");
+#endif
 
 		op_mode = ops->start(drv->trans, drv->trans->cfg,
 				     &drv->fw, dbgfs_dir);
 
-		if (op_mode)
+		if (!IS_ERR(op_mode))
 			return op_mode;
 
 		if (test_bit(STATUS_TRANS_DEAD, &drv->trans->status))
 			break;
 
-		IWL_ERR(drv, "retry init count %d\n", retry);
-
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 		debugfs_remove_recursive(drv->dbgfs_op_mode);
 		drv->dbgfs_op_mode = NULL;
 #endif
+
+		if (PTR_ERR(op_mode) != -ETIMEDOUT)
+			break;
+
+		IWL_ERR(drv, "retry init count %d\n", retry);
 	}
 
 	return NULL;
@@ -1750,6 +1766,8 @@ static void _iwl_op_mode_stop(struct iwl_drv *drv)
 #endif
 	}
 }
+
+#define IWL_MLD_SUPPORTED_FW_VERSION 97
 
 /*
  * iwl_req_fw_callback - callback when firmware was loaded
@@ -2028,9 +2046,20 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 		op = &iwlwifi_opmode_table[MVM_OP_MODE];
 		break;
 	}
+
 #if IS_ENABLED(CPTCFG_IWLMLD)
-	if (iwlwifi_mod_params.mld_op_mode && drv->fw.type == IWL_FW_MVM)
+	if (pieces->major >= IWL_MLD_SUPPORTED_FW_VERSION &&
+	    iwl_drv_is_wifi7_supported(drv->trans))
 		op = &iwlwifi_opmode_table[MLD_OP_MODE];
+	else
+#else
+	if (pieces->major >= IWL_MLD_SUPPORTED_FW_VERSION &&
+	    iwl_drv_is_wifi7_supported(drv->trans)) {
+		IWL_ERR(drv,
+			"IWLMLD needs to be compiled to support this firmware\n");
+		mutex_unlock(&iwlwifi_opmode_table_mtx);
+		goto out_unbind;
+	}
 #endif
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
@@ -2320,6 +2349,7 @@ module_init(iwl_drv_init);
 static void __exit iwl_drv_exit(void)
 {
 	iwl_pci_unregister_driver();
+	iwl_trans_free_restart_list();
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(iwl_dbgfs_root);
@@ -2422,10 +2452,3 @@ MODULE_PARM_DESC(disable_msix, "Disable MSI-X and use MSI instead (default: fals
 module_param_named(disable_11be, iwlwifi_mod_params.disable_11be, bool, 0444);
 MODULE_PARM_DESC(disable_11be, "Disable EHT capabilities (default: false)");
 
-#if IS_ENABLED(CPTCFG_IWLMLD)
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-module_param_named(mld_op_mode, iwlwifi_mod_params.mld_op_mode,
-		   bool, 0444);
-MODULE_PARM_DESC(mld_op_mode, "Load iwlwifi using the MLD operation mode (default: false)");
-#endif
-#endif
