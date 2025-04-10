@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * mac80211 - channel management
- * Copyright 2020 - 2024 Intel Corporation
+ * Copyright 2020 - 2025 Intel Corporation
  */
 
 #include <linux/nl80211.h>
@@ -247,6 +247,13 @@ static enum nl80211_chan_width ieee80211_get_sta_bw(struct sta_info *sta,
 	if (!link_sta)
 		return NL80211_CHAN_WIDTH_20_NOHT;
 
+	/*
+	 * We assume that TX/RX might be asymmetric (so e.g. VHT operating
+	 * mode notification changes what a STA wants to receive, but not
+	 * necessarily what it will transmit to us), and therefore use the
+	 * capabilities here. Calling it RX bandwidth capability is a bit
+	 * wrong though, since capabilities are in fact symmetric.
+	 */
 	width = ieee80211_sta_cap_rx_bw(link_sta);
 
 	switch (width) {
@@ -323,22 +330,34 @@ ieee80211_get_chanctx_max_required_bw(struct ieee80211_local *local,
 			continue;
 
 		switch (link->sdata->vif.type) {
+		case NL80211_IFTYPE_STATION:
+			if (!link->sdata->vif.cfg.assoc) {
+				/*
+				 * The AP's sta->bandwidth may not yet be set
+				 * at this point (pre-association), so simply
+				 * take the width from the chandef. We cannot
+				 * have TDLS peers yet (only after association).
+				 */
+				width = link->conf->chanreq.oper.width;
+				break;
+			}
+			/*
+			 * otherwise just use min_def like in AP, depending on what
+			 * we currently think the AP STA (and possibly TDLS peers)
+			 * require(s)
+			 */
+			fallthrough;
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_AP_VLAN:
 			width = ieee80211_get_max_required_bw(link);
 			break;
-		case NL80211_IFTYPE_STATION:
-			/*
-			 * The ap's sta->bandwidth is not set yet at this
-			 * point, so take the width from the chandef, but
-			 * account also for TDLS peers
-			 */
-			width = max(link->conf->chanreq.oper.width,
-				    ieee80211_get_max_required_bw(link));
-			break;
 		case NL80211_IFTYPE_P2P_DEVICE:
 		case NL80211_IFTYPE_NAN:
 			continue;
+		case NL80211_IFTYPE_MONITOR:
+			WARN_ON_ONCE(!ieee80211_hw_check(&local->hw,
+							 NO_VIRTUAL_MONITOR));
+			fallthrough;
 		case NL80211_IFTYPE_ADHOC:
 		case NL80211_IFTYPE_MESH_POINT:
 		case NL80211_IFTYPE_OCB:
@@ -347,7 +366,6 @@ ieee80211_get_chanctx_max_required_bw(struct ieee80211_local *local,
 		case NL80211_IFTYPE_WDS:
 		case NL80211_IFTYPE_UNSPECIFIED:
 		case NUM_NL80211_IFTYPES:
-		case NL80211_IFTYPE_MONITOR:
 		case NL80211_IFTYPE_P2P_CLIENT:
 		case NL80211_IFTYPE_P2P_GO:
 			WARN_ON_ONCE(1);
@@ -462,12 +480,12 @@ static void ieee80211_chan_bw_change(struct ieee80211_local *local,
 				continue;
 
 			/* vif changed to narrow BW and narrow BW for station wasn't
-			 * requested or vise versa */
+			 * requested or vice versa */
 			if ((new_sta_bw < link_sta->pub->bandwidth) == !narrowed)
 				continue;
 
 			link_sta->pub->bandwidth = new_sta_bw;
-			rate_control_rate_update(local, sband, sta, link_id,
+			rate_control_rate_update(local, sband, link_sta,
 						 IEEE80211_RC_BW_CHANGED);
 		}
 	}
@@ -683,6 +701,7 @@ ieee80211_alloc_chanctx(struct ieee80211_local *local,
 	ctx->mode = mode;
 	ctx->conf.radar_enabled = false;
 	ctx->conf.radio_idx = radio_idx;
+	ctx->radar_detected = false;
 	_ieee80211_recalc_chanctx_min_def(local, ctx, NULL, false);
 
 	return ctx;
@@ -955,6 +974,10 @@ void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
 			if (!link->sdata->u.mgd.associated)
 				continue;
 			break;
+		case NL80211_IFTYPE_MONITOR:
+			if (!ieee80211_hw_check(&local->hw, NO_VIRTUAL_MONITOR))
+				continue;
+			break;
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_ADHOC:
 		case NL80211_IFTYPE_MESH_POINT:
@@ -966,6 +989,11 @@ void ieee80211_recalc_smps_chanctx(struct ieee80211_local *local,
 
 		if (rcu_access_pointer(link->conf->chanctx_conf) != &chanctx->conf)
 			continue;
+
+		if (link->sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+			rx_chains_dynamic = rx_chains_static = local->rx_chains;
+			break;
+		}
 
 		switch (link->smps_mode) {
 		default:
@@ -1117,7 +1145,7 @@ ieee80211_replace_chanctx(struct ieee80211_local *local,
 		 *
 		 * Consider ctx1..3, link1..6, each ctx has 2 links. link1 and
 		 * link2 from ctx1 request new different chandefs starting 2
-		 * in-place reserations with ctx4 and ctx5 replacing ctx1 and
+		 * in-place reservations with ctx4 and ctx5 replacing ctx1 and
 		 * ctx2 respectively. Next link5 and link6 from ctx3 reserve
 		 * ctx4. If link3 and link4 remain on ctx2 as they are then this
 		 * fails unless `replace_ctx` from ctx5 is replaced with ctx3.
@@ -2108,3 +2136,21 @@ void ieee80211_iter_chan_contexts_atomic(
 	rcu_read_unlock();
 }
 EXPORT_SYMBOL_GPL(ieee80211_iter_chan_contexts_atomic);
+
+void ieee80211_iter_chan_contexts_mtx(
+	struct ieee80211_hw *hw,
+	void (*iter)(struct ieee80211_hw *hw,
+		     struct ieee80211_chanctx_conf *chanctx_conf,
+		     void *data),
+	void *iter_data)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_chanctx *ctx;
+
+	lockdep_assert_wiphy(hw->wiphy);
+
+	list_for_each_entry(ctx, &local->chanctx_list, list)
+		if (ctx->driver_present)
+			iter(hw, &ctx->conf, iter_data);
+}
+EXPORT_SYMBOL_GPL(ieee80211_iter_chan_contexts_mtx);

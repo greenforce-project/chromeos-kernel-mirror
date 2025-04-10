@@ -371,7 +371,8 @@ static void iwl_mvm_power_build_cmd(struct iwl_mvm *mvm,
 	 */
 	keep_alive = DIV_ROUND_UP(ieee80211_tu_to_usec(3 * dtimper * bi),
 				  USEC_PER_SEC);
-	keep_alive = max(keep_alive, POWER_KEEP_ALIVE_PERIOD_SEC);
+	keep_alive = max(keep_alive,
+			 (typeof(keep_alive))POWER_KEEP_ALIVE_PERIOD_SEC);
 	cmd->keep_alive_seconds = cpu_to_le16(keep_alive);
 
 	if (mvm->ps_disabled)
@@ -573,7 +574,7 @@ struct iwl_power_vifs {
 	bool monitor_active;
 };
 
-static void iwl_mvm_power_disable_pm_iterator(void *_data, u8* mac,
+static void iwl_mvm_power_disable_pm_iterator(void *_data, u8 *mac,
 					      struct ieee80211_vif *vif)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
@@ -581,7 +582,7 @@ static void iwl_mvm_power_disable_pm_iterator(void *_data, u8* mac,
 	mvmvif->pm_enabled = false;
 }
 
-static void iwl_mvm_power_ps_disabled_iterator(void *_data, u8* mac,
+static void iwl_mvm_power_ps_disabled_iterator(void *_data, u8 *mac,
 					       struct ieee80211_vif *vif)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
