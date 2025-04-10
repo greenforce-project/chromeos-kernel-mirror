@@ -5,6 +5,7 @@ iwlwifi-objs		+= iwl-io.o
 iwlwifi-objs		+= iwl-drv.o
 iwlwifi-objs		+= iwl-debug.o
 iwlwifi-objs		+= iwl-nvm-utils.o
+iwlwifi-objs		+= iwl-utils.o
 iwlwifi-objs		+= iwl-phy-db.o iwl-nvm-parse.o
 iwlwifi-objs		+= iwl-dbg-tlv.o
 iwlwifi-objs		+= iwl-trans.o
@@ -13,6 +14,7 @@ iwlwifi-objs		+= fw/img.o fw/notif-wait.o fw/rs.o
 iwlwifi-objs		+= fw/dbg.o fw/pnvm.o fw/dump.o
 iwlwifi-objs		+= fw/regulatory.o
 iwlwifi-$(CPTCFG_IWLMVM)	+= fw/paging.o fw/smem.o fw/init.o
+iwlwifi-$(CPTCFG_IWLMLD)	+= fw/smem.o fw/init.o
 iwlwifi-$(CONFIG_ACPI)	+= fw/acpi.o
 iwlwifi-$(CONFIG_EFI)	+= fw/uefi.o
 
@@ -27,8 +29,8 @@ iwlwifi-$(CONFIG_PCI) += pcie/ctxt-info.o pcie/ctxt-info-gen3.o pcie/trans-gen2.
 
 iwlwifi-$(CPTCFG_IWLMVM) += cfg/7000.o cfg/8000.o
 iwlwifi-$(CPTCFG_IWLMVM) += cfg/9000.o cfg/22000.o
-iwlwifi-$(CPTCFG_IWLMVM) += cfg/ax210.o cfg/bz.o cfg/sc.o
-iwlwifi-$(CPTCFG_IWLMLD) += cfg/bz.o cfg/sc.o
+iwlwifi-$(CPTCFG_IWLMVM) += cfg/ax210.o
+iwlwifi-$(CPTCFG_IWLMLD) += cfg/bz.o cfg/sc.o cfg/dr.o
 
 iwlwifi-$(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES) += iwl-dbg-cfg.o
 

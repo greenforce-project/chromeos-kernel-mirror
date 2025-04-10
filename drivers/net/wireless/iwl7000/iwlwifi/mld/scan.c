@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  */
 #include <linux/crc32.h>
 
@@ -8,6 +8,8 @@
 #include "scan.h"
 #include "hcmd.h"
 #include "iface.h"
+#include "phy.h"
+#include "mlo.h"
 
 #include "fw/api/scan.h"
 #include "fw/dbg.h"
@@ -37,9 +39,13 @@
 /* adaptive dwell number of APs override for P2P social channels */
 #define IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS 2
 
+/* adaptive dwell number of APs override mask for p2p friendly GO */
+#define IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY_BIT BIT(20)
+
+/* adaptive dwell number of APs override mask for social channels */
+#define IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS_BIT BIT(21)
+
 #define SCAN_TIMEOUT_MSEC (30000 * HZ * CPTCFG_IWL_TIMEOUT_FACTOR)
-#define IWL_MLD_6GHZ_PASSIVE_SCAN_TIMEOUT 3000 /* in seconds */
-#define IWL_MLD_6GHZ_PASSIVE_SCAN_ASSOC_TIMEOUT 60 /* in seconds */
 
 /* minimal number of 2GHz and 5GHz channels in the regular scan request */
 #define IWL_MLD_6GHZ_PASSIVE_SCAN_MIN_CHANS 4
@@ -99,14 +105,143 @@ struct iwl_mld_scan_params {
 	int n_scan_plans;
 	struct cfg80211_sched_scan_plan *scan_plans;
 	bool iter_notif;
-	/* TODO: respect_p2p_go (task=p2p)*/
-	s8 fw_link_id;
+	bool respect_p2p_go;
+	u8 fw_link_id;
 	struct cfg80211_scan_6ghz_params *scan_6ghz_params;
 	u32 n_6ghz_params;
 	bool scan_6ghz;
 	bool enable_6ghz_passive;
 	u8 bssid[ETH_ALEN] __aligned(2);
 };
+
+struct iwl_mld_scan_respect_p2p_go_iter_data {
+	struct ieee80211_vif *current_vif;
+	bool p2p_go;
+};
+
+static void iwl_mld_scan_respect_p2p_go_iter(void *_data, u8 *mac,
+					     struct ieee80211_vif *vif)
+{
+	struct iwl_mld_scan_respect_p2p_go_iter_data *data = _data;
+
+	/* exclude the given vif */
+	if (vif == data->current_vif)
+		return;
+
+	/* TODO: CDB check the band of the GO */
+	if (ieee80211_vif_type_p2p(vif) == NL80211_IFTYPE_P2P_GO &&
+	    iwl_mld_vif_from_mac80211(vif)->ap_ibss_active)
+		data->p2p_go = true;
+}
+
+static bool iwl_mld_get_respect_p2p_go(struct iwl_mld *mld,
+				       struct ieee80211_vif *vif,
+				       bool low_latency)
+{
+	struct iwl_mld_scan_respect_p2p_go_iter_data data = {
+		.current_vif = vif,
+		.p2p_go = false,
+	};
+
+	if (!low_latency)
+		return false;
+
+	ieee80211_iterate_active_interfaces_mtx(mld->hw,
+						IEEE80211_IFACE_ITER_NORMAL,
+						iwl_mld_scan_respect_p2p_go_iter,
+						&data);
+
+	return data.p2p_go;
+}
+
+struct iwl_mld_scan_iter_data {
+	struct ieee80211_vif *current_vif;
+	bool active_vif;
+	bool is_dcm_with_p2p_go;
+	bool global_low_latency;
+};
+
+static void iwl_mld_scan_iterator(void *_data, u8 *mac,
+				  struct ieee80211_vif *vif)
+{
+	struct iwl_mld_scan_iter_data *data = _data;
+	struct ieee80211_vif *curr_vif = data->current_vif;
+	struct iwl_mld_vif *mld_vif = iwl_mld_vif_from_mac80211(vif);
+	struct iwl_mld_vif *curr_mld_vif;
+	unsigned long curr_vif_active_links;
+	u16 link_id;
+
+	data->global_low_latency |= iwl_mld_vif_low_latency(mld_vif);
+
+	if ((ieee80211_vif_is_mld(vif) && vif->active_links) ||
+	    (vif->type != NL80211_IFTYPE_P2P_DEVICE &&
+	     mld_vif->deflink.active))
+		data->active_vif = true;
+
+	if (vif == curr_vif)
+		return;
+
+	if (ieee80211_vif_type_p2p(vif) != NL80211_IFTYPE_P2P_GO)
+		return;
+
+	/* Currently P2P GO can't be AP MLD so the logic below assumes that */
+	WARN_ON_ONCE(ieee80211_vif_is_mld(vif));
+
+	curr_vif_active_links =
+		ieee80211_vif_is_mld(curr_vif) ? curr_vif->active_links : 1;
+
+	curr_mld_vif = iwl_mld_vif_from_mac80211(curr_vif);
+
+	for_each_set_bit(link_id, &curr_vif_active_links,
+			 IEEE80211_MLD_MAX_NUM_LINKS) {
+		struct iwl_mld_link *curr_mld_link =
+			iwl_mld_link_dereference_check(curr_mld_vif, link_id);
+
+		if (WARN_ON(!curr_mld_link))
+			return;
+
+		if (rcu_access_pointer(curr_mld_link->chan_ctx) &&
+		    rcu_access_pointer(mld_vif->deflink.chan_ctx) !=
+		    rcu_access_pointer(curr_mld_link->chan_ctx)) {
+			data->is_dcm_with_p2p_go = true;
+			return;
+		}
+	}
+}
+
+static enum
+iwl_mld_scan_type iwl_mld_get_scan_type(struct iwl_mld *mld,
+					struct ieee80211_vif *vif,
+					struct iwl_mld_scan_iter_data *data)
+{
+	enum iwl_mld_traffic_load load = mld->scan.traffic_load.status;
+
+	/* A scanning AP interface probably wants to generate a survey to do
+	 * ACS (automatic channel selection).
+	 * Force a non-fragmented scan in that case.
+	 */
+	if (ieee80211_vif_type_p2p(vif) == NL80211_IFTYPE_AP)
+		return IWL_SCAN_TYPE_WILD;
+
+	if (!data->active_vif)
+		return IWL_SCAN_TYPE_UNASSOC;
+
+	if ((load == IWL_MLD_TRAFFIC_HIGH || data->global_low_latency) &&
+	    vif->type != NL80211_IFTYPE_P2P_DEVICE)
+		return IWL_SCAN_TYPE_FRAGMENTED;
+
+	/* In case of DCM with P2P GO set all scan requests as
+	 * fast-balance scan
+	 */
+	if (vif->type == NL80211_IFTYPE_STATION &&
+	    data->is_dcm_with_p2p_go)
+		return IWL_SCAN_TYPE_FAST_BALANCE;
+
+	if (load >= IWL_MLD_TRAFFIC_MEDIUM || data->global_low_latency)
+		return IWL_SCAN_TYPE_MILD;
+
+	return IWL_SCAN_TYPE_WILD;
+}
 
 static u8 *
 iwl_mld_scan_add_2ghz_elems(struct iwl_mld *mld, const u8 *ies,
@@ -212,7 +347,7 @@ iwl_mld_scan_ssid_exist(u8 *ssid, u8 ssid_len, struct iwl_ssid_ie *ssid_list)
 		if (!ssid_list[i].len)
 			return -1;
 		if (ssid_list[i].len == ssid_len &&
-		    !memcmp(ssid_list->ssid, ssid, ssid_len))
+		    !memcmp(ssid_list[i].ssid, ssid, ssid_len))
 			return i;
 	}
 
@@ -339,6 +474,8 @@ iwl_mld_scan_get_cmd_gen_flags(struct iwl_mld *mld,
 	if (params->enable_6ghz_passive)
 		flags |= IWL_UMAC_SCAN_GEN_FLAGS_V2_6GHZ_PASSIVE_SCAN;
 
+	flags |= IWL_UMAC_SCAN_GEN_FLAGS_V2_ADAPTIVE_DWELL;
+
 	return flags;
 }
 
@@ -349,15 +486,13 @@ iwl_mld_scan_get_cmd_gen_flags2(struct iwl_mld *mld,
 {
 	u8 flags = 0;
 
-	/* TODO: respect_p2p_go (task=p2p)
-	 * IWL_UMAC_SCAN_GEN_PARAMS_FLAGS2_RESPECT_P2P_GO_LB |
-	 * IWL_UMAC_SCAN_GEN_PARAMS_FLAGS2_RESPECT_P2P_GO_HB
-	 */
+	/* TODO: CDB */
+	if (params->respect_p2p_go)
+		flags |= IWL_UMAC_SCAN_GEN_PARAMS_FLAGS2_RESPECT_P2P_GO_LB |
+			IWL_UMAC_SCAN_GEN_PARAMS_FLAGS2_RESPECT_P2P_GO_HB;
 
 	if (params->scan_6ghz)
 		flags |= IWL_UMAC_SCAN_GEN_PARAMS_FLAGS2_DONT_TOGGLE_ANT;
-
-	/* TODO: ACS IWL_UMAC_SCAN_GEN_FLAGS2_COLLECT_CHANNEL_STATS (task=AP/p2p) */
 
 	return flags;
 }
@@ -591,12 +726,10 @@ iwl_mld_scan_cmd_set_probe_params(struct iwl_mld_scan_params *params,
 }
 
 static inline bool
-iwl_mld_scan_use_ebs(struct iwl_mld *mld, struct ieee80211_vif *vif)
+iwl_mld_scan_use_ebs(struct iwl_mld *mld, struct ieee80211_vif *vif,
+		     bool low_latency)
 {
 	const struct iwl_ucode_capabilities *capa = &mld->fw->ucode_capa;
-	bool low_latency = false;
-
-	/* TODO: get low_latency mode (task=low_latency) */
 
 	/* We can only use EBS if:
 	 *	1. the feature is supported.
@@ -616,13 +749,14 @@ iwl_mld_scan_use_ebs(struct iwl_mld *mld, struct ieee80211_vif *vif)
 static u8
 iwl_mld_scan_cmd_set_chan_flags(struct iwl_mld *mld,
 				struct iwl_mld_scan_params *params,
-				struct ieee80211_vif *vif)
+				struct ieee80211_vif *vif,
+				bool low_latency)
 {
 	u8 flags = 0;
 
 	flags |= IWL_SCAN_CHANNEL_FLAG_ENABLE_CHAN_ORDER;
 
-	if (iwl_mld_scan_use_ebs(mld, vif))
+	if (iwl_mld_scan_use_ebs(mld, vif, low_latency))
 		flags |= IWL_SCAN_CHANNEL_FLAG_EBS |
 			 IWL_SCAN_CHANNEL_FLAG_EBS_ACCURATE |
 			 IWL_SCAN_CHANNEL_FLAG_CACHE_ADD;
@@ -631,9 +765,43 @@ iwl_mld_scan_cmd_set_chan_flags(struct iwl_mld *mld,
 	if (iwl_mld_scan_is_fragmented(params->type))
 		flags |= IWL_SCAN_CHANNEL_FLAG_EBS_FRAG;
 
-	/* TODO: IWL_SCAN_CHANNEL_FLAG_FORCE_EBS (task=p2p) */
+	/* Force EBS in case the scan is a fragmented and there is a need
+	 * to take P2P GO operation into consideration during scan operation.
+	 */
+	/* TODO: CDB */
+	if (iwl_mld_scan_is_fragmented(params->type) &&
+	    params->respect_p2p_go) {
+		IWL_DEBUG_SCAN(mld, "Respect P2P GO. Force EBS\n");
+		flags |= IWL_SCAN_CHANNEL_FLAG_FORCE_EBS;
+	}
 
 	return flags;
+}
+
+static const u8 p2p_go_friendly_chs[] = {
+	36, 40, 44, 48, 149, 153, 157, 161, 165,
+};
+
+static const u8 social_chs[] = {
+	1, 6, 11
+};
+
+static u32 iwl_mld_scan_ch_n_aps_flag(enum nl80211_iftype vif_type, u8 ch_id)
+{
+	if (vif_type != NL80211_IFTYPE_P2P_DEVICE)
+		return 0;
+
+	for (int i = 0; i < ARRAY_SIZE(p2p_go_friendly_chs); i++) {
+		if (ch_id == p2p_go_friendly_chs[i])
+			return IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY_BIT;
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(social_chs); i++) {
+		if (ch_id == social_chs[i])
+			return IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS_BIT;
+	}
+
+	return 0;
 }
 
 static void
@@ -647,12 +815,28 @@ iwl_mld_scan_cmd_set_channels(struct iwl_mld *mld,
 		enum nl80211_band band = channels[i]->band;
 		struct iwl_scan_channel_cfg_umac *cfg = &cp->channel_config[i];
 		u8 iwl_band = iwl_mld_nl80211_band_to_fw(band);
+		u32 n_aps_flag =
+			iwl_mld_scan_ch_n_aps_flag(vif_type,
+						   channels[i]->hw_value);
 
-		/* TODO: scan_ch_n_aps_flag (task=p2p) */
-		cfg->flags = cpu_to_le32(flags);
+		if (IWL_MLD_ADAPTIVE_DWELL_NUM_APS_OVERRIDE)
+			n_aps_flag = IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY_BIT;
+
+		cfg->flags = cpu_to_le32(flags | n_aps_flag);
 		cfg->channel_num = channels[i]->hw_value;
 		if (cfg80211_channel_is_psc(channels[i]))
 			cfg->flags = 0;
+
+		if (band == NL80211_BAND_6GHZ) {
+			/* 6 GHz channels should only appear in a scan request
+			 * that has scan_6ghz set. The only exception is MLO
+			 * scan, which has to be passive.
+			 */
+			WARN_ON_ONCE(cfg->flags != 0);
+			cfg->flags =
+				cpu_to_le32(IWL_UHB_CHAN_CFG_FLAG_FORCE_PASSIVE);
+		}
+
 		cfg->v2.iter_count = 1;
 		cfg->v2.iter_interval = 0;
 		cfg->flags |= cpu_to_le32(iwl_band <<
@@ -678,7 +862,7 @@ iwl_mld_scan_cfg_channels_6g(struct iwl_mld *mld,
 			&cp->channel_config[ch_cnt];
 
 		u32 s_ssid_bitmap = 0, bssid_bitmap = 0, flags = 0;
-		u8 j, k, n_s_ssids = 0, n_bssids = 0;
+		u8 k, n_s_ssids = 0, n_bssids = 0;
 		u8 max_s_ssids, max_bssids;
 		bool force_passive = false, found = false, allow_passive = true,
 		     unsolicited_probe_on_chan = false, psc_no_listen = false;
@@ -699,7 +883,7 @@ iwl_mld_scan_cfg_channels_6g(struct iwl_mld *mld,
 		cfg->v5.iter_count = 1;
 		cfg->v5.iter_interval = 0;
 
-		for (j = 0; j < params->n_6ghz_params; j++) {
+		for (u32 j = 0; j < params->n_6ghz_params; j++) {
 			s8 tmp_psd_20;
 
 			if (!(scan_6ghz_params[j].channel_idx == i))
@@ -770,7 +954,7 @@ iwl_mld_scan_cfg_channels_6g(struct iwl_mld *mld,
 		 * probe requests for each broadcast probe request with a short
 		 * SSID.
 		 */
-		for (j = 0; j < params->n_6ghz_params; j++) {
+		for (u32 j = 0; j < params->n_6ghz_params; j++) {
 			if (!(scan_6ghz_params[j].channel_idx == i))
 				continue;
 
@@ -873,9 +1057,6 @@ iwl_mld_scan_cmd_set_6ghz_chan_params(struct iwl_mld *mld,
 
 	chan_p->flags = iwl_mld_scan_get_cmd_gen_flags(mld, params, vif,
 						       scan_status);
-	chan_p->n_aps_override[0] = IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY;
-	chan_p->n_aps_override[1] = IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS;
-
 	chan_p->count = iwl_mld_scan_cfg_channels_6g(mld, params,
 						     params->n_channels,
 						     probe_p, chan_p,
@@ -895,6 +1076,7 @@ iwl_mld_scan_cmd_set_chan_params(struct iwl_mld *mld,
 				 struct iwl_mld_scan_params *params,
 				 struct ieee80211_vif *vif,
 				 struct iwl_scan_req_params_v17 *scan_p,
+				 bool low_latency,
 				 enum iwl_mld_scan_status scan_status,
 				 u32 channel_cfg_flags)
 {
@@ -905,13 +1087,17 @@ iwl_mld_scan_cmd_set_chan_params(struct iwl_mld *mld,
 	cp->n_aps_override[0] = IWL_SCAN_ADWELL_N_APS_GO_FRIENDLY;
 	cp->n_aps_override[1] = IWL_SCAN_ADWELL_N_APS_SOCIAL_CHS;
 
+	if (IWL_MLD_ADAPTIVE_DWELL_NUM_APS_OVERRIDE)
+		cp->n_aps_override[0] = IWL_MLD_ADAPTIVE_DWELL_NUM_APS_OVERRIDE;
+
 	if (params->scan_6ghz)
 		return iwl_mld_scan_cmd_set_6ghz_chan_params(mld, params,
 							     vif, scan_p,
 							     scan_status);
 
 	/* relevant only for 2.4 GHz/5 GHz scan */
-	cp->flags = iwl_mld_scan_cmd_set_chan_flags(mld, params, vif);
+	cp->flags = iwl_mld_scan_cmd_set_chan_flags(mld, params, vif,
+						    low_latency);
 	cp->count = params->n_channels;
 
 	iwl_mld_scan_cmd_set_channels(mld, params->channels, cp,
@@ -947,7 +1133,8 @@ iwl_mld_scan_cmd_set_chan_params(struct iwl_mld *mld,
 static int
 iwl_mld_scan_build_cmd(struct iwl_mld *mld, struct ieee80211_vif *vif,
 		       struct iwl_mld_scan_params *params,
-		       enum iwl_mld_scan_status scan_status)
+		       enum iwl_mld_scan_status scan_status,
+		       bool low_latency)
 {
 	struct iwl_scan_req_umac_v17 *cmd = mld->scan.cmd;
 	struct iwl_scan_req_params_v17 *scan_p = &cmd->scan_params;
@@ -956,9 +1143,8 @@ iwl_mld_scan_build_cmd(struct iwl_mld *mld, struct ieee80211_vif *vif,
 
 	memset(mld->scan.cmd, 0, mld->scan.cmd_size);
 
-	/* TODO: scan filter (task=mei)*/
-
-	uid = iwl_mld_scan_uid_by_status(mld, 0);
+	/* find a free UID entry */
+	uid = iwl_mld_scan_uid_by_status(mld, IWL_MLD_SCAN_NONE);
 	if (uid < 0)
 		return uid;
 
@@ -979,7 +1165,8 @@ iwl_mld_scan_build_cmd(struct iwl_mld *mld, struct ieee80211_vif *vif,
 					  &bitmap_ssid);
 
 	ret = iwl_mld_scan_cmd_set_chan_params(mld, params, vif, scan_p,
-					       scan_status, bitmap_ssid);
+					       low_latency, scan_status,
+					       bitmap_ssid);
 	if (ret)
 		return ret;
 
@@ -1070,32 +1257,33 @@ iwl_mld_config_sched_scan_profiles(struct iwl_mld *mld,
 	return ret;
 }
 
-static bool
-iwl_mld_sched_scan_handle_non_psc_channels(struct iwl_mld_scan_params *params)
+static int
+iwl_mld_sched_scan_handle_non_psc_channels(struct iwl_mld_scan_params *params,
+					   bool *non_psc_included)
 {
-	bool non_psc_included = false;
 	int i, j;
 
+	*non_psc_included = false;
 	/* for 6 GHZ band only PSC channels need to be added */
 	for (i = 0; i < params->n_channels; i++) {
 		struct ieee80211_channel *channel = params->channels[i];
 
 		if (channel->band == NL80211_BAND_6GHZ &&
 		    !cfg80211_channel_is_psc(channel)) {
-			non_psc_included = true;
+			*non_psc_included = true;
 			break;
 		}
 	}
 
-	if (!non_psc_included)
-		return false;
+	if (!*non_psc_included)
+		return 0;
 
 	params->channels =
 		kmemdup(params->channels,
 			sizeof(params->channels[0]) * params->n_channels,
 			GFP_KERNEL);
 	if (!params->channels)
-		return false;
+		return -ENOMEM;
 
 	for (i = j = 0; i < params->n_channels; i++) {
 		if (params->channels[i]->band == NL80211_BAND_6GHZ &&
@@ -1106,7 +1294,7 @@ iwl_mld_sched_scan_handle_non_psc_channels(struct iwl_mld_scan_params *params)
 
 	params->n_channels = j;
 
-	return true;
+	return 0;
 }
 
 static void
@@ -1237,6 +1425,9 @@ _iwl_mld_single_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 		.data = { mld->scan.cmd, },
 		.dataflags = { IWL_HCMD_DFL_NOCOPY, },
 	};
+	struct iwl_mld_scan_iter_data scan_iter_data = {
+		.current_vif = vif,
+	};
 	struct cfg80211_sched_scan_plan scan_plan = {.iterations = 1};
 	struct iwl_mld_scan_params params = {};
 	int ret, uid;
@@ -1248,10 +1439,12 @@ _iwl_mld_single_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 	if (!iwl_mld_scan_fits(mld, req->n_ssids, ies, req->n_channels))
 		return -ENOBUFS;
 
-	/* TODO: fill scan type based on vif type/low latency/traffic load
-	 * for now we can just assume TYPE_UNASSOC (task=low_latency)
-	 */
-	params.type = IWL_SCAN_TYPE_UNASSOC;
+	ieee80211_iterate_active_interfaces_mtx(mld->hw,
+						IEEE80211_IFACE_ITER_NORMAL,
+						iwl_mld_scan_iterator,
+						&scan_iter_data);
+
+	params.type = iwl_mld_get_scan_type(mld, vif, &scan_iter_data);
 	params.n_ssids = req->n_ssids;
 	params.flags = req->flags;
 	params.n_channels = req->n_channels;
@@ -1272,8 +1465,10 @@ _iwl_mld_single_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 	params.scan_6ghz = req->scan_6ghz;
 
 	ether_addr_copy(params.bssid, req->bssid);
-
-	/* TODO: fill_respect_p2p_go (task=p2p)*/
+	/* TODO: CDB - per-band flag */
+	params.respect_p2p_go =
+		iwl_mld_get_respect_p2p_go(mld, vif,
+					   scan_iter_data.global_low_latency);
 
 	if (req->duration)
 		params.iter_notif = true;
@@ -1285,7 +1480,8 @@ _iwl_mld_single_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 
 	iwl_mld_scan_6ghz_passive_scan(mld, &params, vif);
 
-	uid = iwl_mld_scan_build_cmd(mld, vif, &params, scan_status);
+	uid = iwl_mld_scan_build_cmd(mld, vif, &params, scan_status,
+				     scan_iter_data.global_low_latency);
 	if (uid < 0)
 		return uid;
 
@@ -1347,26 +1543,16 @@ out:
 }
 
 static int
-iwl_mld_scan_abort(struct iwl_mld *mld, int type, bool *wait)
+iwl_mld_scan_abort(struct iwl_mld *mld, int type, int uid, bool *wait)
 {
-	int uid, ret;
 	enum iwl_umac_scan_abort_status status;
+	int ret;
 
 	*wait = true;
-
-	/* We should always get a valid index here, because we already
-	 * checked that this type of scan was running in the generic
-	 * code.
-	 */
-	uid = iwl_mld_scan_uid_by_status(mld, type);
-	if (WARN_ON_ONCE(uid < 0))
-		return uid;
 
 	IWL_DEBUG_SCAN(mld, "Sending scan abort, uid %u\n", uid);
 
 	ret = iwl_mld_scan_send_abort_cmd_status(mld, uid, &status);
-
-	mld->scan.uid_status[uid] = type << IWL_MLD_SCAN_STOPPING_SHIFT;
 
 	IWL_DEBUG_SCAN(mld, "Scan abort: ret=%d status=%u\n", ret, status);
 
@@ -1386,7 +1572,7 @@ iwl_mld_scan_abort(struct iwl_mld *mld, int type, bool *wait)
 }
 
 static int
-iwl_mld_scan_stop_wait(struct iwl_mld *mld, int type)
+iwl_mld_scan_stop_wait(struct iwl_mld *mld, int type, int uid)
 {
 	struct iwl_notification_wait wait_scan_done;
 	static const u16 scan_comp_notif[] = { SCAN_COMPLETE_UMAC };
@@ -1400,7 +1586,7 @@ iwl_mld_scan_stop_wait(struct iwl_mld *mld, int type)
 
 	IWL_DEBUG_SCAN(mld, "Preparing to stop scan, type=%x\n", type);
 
-	ret = iwl_mld_scan_abort(mld, type, &wait);
+	ret = iwl_mld_scan_abort(mld, type, uid, &wait);
 	if (ret) {
 		IWL_DEBUG_SCAN(mld, "couldn't stop scan type=%d\n", type);
 		goto return_no_wait;
@@ -1431,6 +1617,9 @@ int iwl_mld_sched_scan_start(struct iwl_mld *mld,
 		.dataflags = { IWL_HCMD_DFL_NOCOPY, },
 	};
 	struct iwl_mld_scan_params params = {};
+	struct iwl_mld_scan_iter_data scan_iter_data = {
+		.current_vif = vif,
+	};
 	bool non_psc_included = false;
 	int ret, uid;
 
@@ -1442,10 +1631,12 @@ int iwl_mld_sched_scan_start(struct iwl_mld *mld,
 	if (mld->scan.status & (IWL_MLD_SCAN_SCHED | IWL_MLD_SCAN_NETDETECT))
 		return -EBUSY;
 
-	/* TODO: fill scan type based on vif type/low latency/traffic load
-	 * for now we can just assume TYPE_UNASSOC (task=low_latency)
-	 */
-	params.type = IWL_SCAN_TYPE_UNASSOC;
+	ieee80211_iterate_active_interfaces_mtx(mld->hw,
+						IEEE80211_IFACE_ITER_NORMAL,
+						iwl_mld_scan_iterator,
+						&scan_iter_data);
+
+	params.type = iwl_mld_get_scan_type(mld, vif, &scan_iter_data);
 	params.flags = req->flags;
 	params.n_ssids = req->n_ssids;
 	params.ssids = req->ssids;
@@ -1459,6 +1650,10 @@ int iwl_mld_sched_scan_start(struct iwl_mld *mld,
 	params.match_sets = req->match_sets;
 	params.n_scan_plans = req->n_scan_plans;
 	params.scan_plans = req->scan_plans;
+	/* TODO: CDB - per-band flag */
+	params.respect_p2p_go =
+		iwl_mld_get_respect_p2p_go(mld, vif,
+					   scan_iter_data.global_low_latency);
 
 	/* UMAC scan supports up to 16-bit delays, trim it down to 16-bits */
 	params.delay = req->delay > U16_MAX ? U16_MAX : req->delay;
@@ -1471,14 +1666,18 @@ int iwl_mld_sched_scan_start(struct iwl_mld *mld,
 
 	iwl_mld_scan_build_probe_req(mld, vif, ies, &params);
 
-	non_psc_included = iwl_mld_sched_scan_handle_non_psc_channels(&params);
+	ret = iwl_mld_sched_scan_handle_non_psc_channels(&params,
+							 &non_psc_included);
+	if (ret)
+		goto out;
 
 	if (!iwl_mld_scan_fits(mld, req->n_ssids, ies, params.n_channels)) {
 		ret = -ENOBUFS;
 		goto out;
 	}
 
-	uid = iwl_mld_scan_build_cmd(mld, vif, &params, type);
+	uid = iwl_mld_scan_build_cmd(mld, vif, &params, type,
+				     scan_iter_data.global_low_latency);
 	if (uid < 0) {
 		ret = uid;
 		goto out;
@@ -1504,7 +1703,7 @@ out:
 
 int iwl_mld_scan_stop(struct iwl_mld *mld, int type, bool notify)
 {
-	int ret;
+	int uid, ret;
 
 	IWL_DEBUG_SCAN(mld,
 		       "Request to stop scan: type=0x%x, status=0x%x\n",
@@ -1513,25 +1712,30 @@ int iwl_mld_scan_stop(struct iwl_mld *mld, int type, bool notify)
 	if (!(mld->scan.status & type))
 		return 0;
 
-	/* TODO: consider to return here in rfkill (task=rfkill) */
+	uid = iwl_mld_scan_uid_by_status(mld, type);
+	/* must be valid, we just checked it's running */
+	if (WARN_ON_ONCE(uid < 0))
+		return uid;
 
-	ret = iwl_mld_scan_stop_wait(mld, type);
-	if (!ret)
-		mld->scan.status |= type << IWL_MLD_SCAN_STOPPING_SHIFT;
-	else
+	ret = iwl_mld_scan_stop_wait(mld, type, uid);
+	if (ret)
 		IWL_DEBUG_SCAN(mld, "Failed to stop scan\n");
 
 	/* Clear the scan status so the next scan requests will
 	 * succeed and mark the scan as stopping, so that the Rx
 	 * handler doesn't do anything, as the scan was stopped from
-	 * above.
+	 * above. Also remove the handler to not notify mac80211
+	 * erroneously after a new scan starts, for example.
 	 */
 	mld->scan.status &= ~type;
+	mld->scan.uid_status[uid] = IWL_MLD_SCAN_NONE;
+	iwl_mld_cancel_notifications_of_object(mld, IWL_MLD_OBJECT_TYPE_SCAN,
+					       uid);
 
 	if (type == IWL_MLD_SCAN_REGULAR) {
 		if (notify) {
 			struct cfg80211_scan_info info = {
-			    .aborted = true,
+				.aborted = true,
 			};
 
 			ieee80211_scan_completed(mld->hw, &info);
@@ -1552,11 +1756,92 @@ int iwl_mld_regular_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 					  IWL_MLD_SCAN_REGULAR);
 }
 
+static void iwl_mld_int_mlo_scan_start(struct iwl_mld *mld,
+				       struct ieee80211_vif *vif,
+				       struct ieee80211_channel **channels,
+				       size_t n_channels)
+{
+	struct cfg80211_scan_request *req __free(kfree) = NULL;
+	struct ieee80211_scan_ies ies = {};
+	size_t size;
+	int ret;
+
+	IWL_DEBUG_SCAN(mld, "Starting Internal MLO scan: n_channels=%zu\n",
+		       n_channels);
+
+	size = struct_size(req, channels, n_channels);
+	req = kzalloc(size, GFP_KERNEL);
+	if (!req)
+		return;
+
+	/* set the requested channels */
+	for (int i = 0; i < n_channels; i++)
+		req->channels[i] = channels[i];
+
+	req->n_channels = n_channels;
+
+	/* set the rates */
+	for (int i = 0; i < NUM_NL80211_BANDS; i++)
+		if (mld->wiphy->bands[i])
+			req->rates[i] =
+				(1 << mld->wiphy->bands[i]->n_bitrates) - 1;
+
+	req->wdev = ieee80211_vif_to_wdev(vif);
+	req->wiphy = mld->wiphy;
+	req->scan_start = jiffies;
+
+	ret = _iwl_mld_single_scan_start(mld, vif, req, &ies,
+					 IWL_MLD_SCAN_INT_MLO);
+
+	if (!ret)
+		mld->scan.last_mlo_scan_time = ktime_get_boottime_ns();
+
+	IWL_DEBUG_SCAN(mld, "Internal MLO scan: ret=%d\n", ret);
+}
+
+void iwl_mld_int_mlo_scan(struct iwl_mld *mld, struct ieee80211_vif *vif)
+{
+	struct ieee80211_channel *channels[IEEE80211_MLD_MAX_NUM_LINKS];
+	unsigned long usable_links = ieee80211_vif_usable_links(vif);
+	size_t n_channels = 0;
+	u8 link_id;
+
+	lockdep_assert_wiphy(mld->wiphy);
+
+	if (!vif->cfg.assoc || !ieee80211_vif_is_mld(vif) ||
+	    hweight16(vif->valid_links) == 1)
+		return;
+
+	if (mld->scan.status & IWL_MLD_SCAN_INT_MLO) {
+		IWL_DEBUG_SCAN(mld, "Internal MLO scan is already running\n");
+		return;
+	}
+
+	for_each_set_bit(link_id, &usable_links, IEEE80211_MLD_MAX_NUM_LINKS) {
+		struct ieee80211_bss_conf *link_conf =
+			link_conf_dereference_check(vif, link_id);
+
+		if (WARN_ON_ONCE(!link_conf))
+			continue;
+
+		channels[n_channels++] = link_conf->chanreq.oper.chan;
+	}
+
+	if (!n_channels)
+		return;
+
+	iwl_mld_int_mlo_scan_start(mld, vif, channels, n_channels);
+}
+
 void iwl_mld_handle_scan_iter_complete_notif(struct iwl_mld *mld,
 					     struct iwl_rx_packet *pkt)
 {
 	struct iwl_umac_scan_iter_complete_notif *notif = (void *)pkt->data;
 	u32 uid = __le32_to_cpu(notif->uid);
+
+	if (IWL_FW_CHECK(mld, uid >= ARRAY_SIZE(mld->scan.uid_status),
+			 "FW reports out-of-range scan UID %d\n", uid))
+		return;
 
 	if (mld->scan.uid_status[uid] == IWL_MLD_SCAN_REGULAR)
 		mld->scan.start_tsf = le64_to_cpu(notif->start_tsf);
@@ -1590,7 +1875,9 @@ void iwl_mld_handle_scan_complete_notif(struct iwl_mld *mld,
 	bool aborted = (notif->status == IWL_SCAN_OFFLOAD_ABORTED);
 	u32 uid = __le32_to_cpu(notif->uid);
 
-	/* TODO: scan filter (task=mei)*/
+	if (IWL_FW_CHECK(mld, uid >= ARRAY_SIZE(mld->scan.uid_status),
+			 "FW reports out-of-range scan UID %d\n", uid))
+		return;
 
 	IWL_DEBUG_SCAN(mld,
 		       "Scan completed: uid=%u type=%u, status=%s, EBS=%s\n",
@@ -1605,7 +1892,8 @@ void iwl_mld_handle_scan_complete_notif(struct iwl_mld *mld,
 		       notif->last_schedule, notif->last_iter,
 		       __le32_to_cpu(notif->time_from_last_iter));
 
-	if (WARN_ON(!(mld->scan.uid_status[uid] & mld->scan.status)))
+	if (IWL_FW_CHECK(mld, !(mld->scan.uid_status[uid] & mld->scan.status),
+			 "FW reports scan UID %d we didn't trigger\n", uid))
 		return;
 
 	/* if the scan is already stopping, we don't need to notify mac80211 */
@@ -1634,22 +1922,26 @@ void iwl_mld_handle_scan_complete_notif(struct iwl_mld *mld,
 	} else if (mld->scan.uid_status[uid] == IWL_MLD_SCAN_SCHED) {
 		ieee80211_sched_scan_stopped(mld->hw);
 		mld->scan.pass_all_sched_res = SCHED_SCAN_PASS_ALL_STATE_DISABLED;
-	}
+	} else if (mld->scan.uid_status[uid] == IWL_MLD_SCAN_INT_MLO) {
+		IWL_DEBUG_SCAN(mld, "Internal MLO scan completed\n");
 
-	/* TODO: mld->scan.uid_status[uid] == IWL_MLD_SCAN_INT_MLO (task=mlo)*/
+		/*
+		 * We limit link selection to internal MLO scans as otherwise
+		 * we do not know whether all channels were covered.
+		 */
+		iwl_mld_select_links(mld);
+	}
 
 	mld->scan.status &= ~mld->scan.uid_status[uid];
 
 	IWL_DEBUG_SCAN(mld, "Scan completed: after update: scan_status=0x%x\n",
 		       mld->scan.status);
 
-	mld->scan.uid_status[uid] = 0;
+	mld->scan.uid_status[uid] = IWL_MLD_SCAN_NONE;
 
 	if (notif->ebs_status != IWL_SCAN_EBS_SUCCESS &&
 	    notif->ebs_status != IWL_SCAN_EBS_INACTIVE)
 		mld->scan.last_ebs_failed = true;
-
-	/* TODO: trig_link_selection_work (task=mlo)*/
 }
 
 /* This function is used in nic restart flow, to inform mac80211 about scans
@@ -1666,13 +1958,13 @@ void iwl_mld_report_scan_aborted(struct iwl_mld *mld)
 		};
 
 		ieee80211_scan_completed(mld->hw, &info);
-		mld->scan.uid_status[uid] = 0;
+		mld->scan.uid_status[uid] = IWL_MLD_SCAN_NONE;
 	}
 
 	uid = iwl_mld_scan_uid_by_status(mld, IWL_MLD_SCAN_SCHED);
 	if (uid >= 0) {
 		mld->scan.pass_all_sched_res = SCHED_SCAN_PASS_ALL_STATE_DISABLED;
-		mld->scan.uid_status[uid] = 0;
+		mld->scan.uid_status[uid] = IWL_MLD_SCAN_NONE;
 
 		/* sched scan will be restarted by mac80211 in reconfig.
 		 * report to mac80211 that sched scan stopped only if we won't
@@ -1682,8 +1974,13 @@ void iwl_mld_report_scan_aborted(struct iwl_mld *mld)
 			ieee80211_sched_scan_stopped(mld->hw);
 	}
 
-	/* TODO: IWL_MLD_SCAN_INT_MLO */
+	uid = iwl_mld_scan_uid_by_status(mld, IWL_MLD_SCAN_INT_MLO);
+	if (uid >= 0) {
+		IWL_DEBUG_SCAN(mld, "Internal MLO scan aborted\n");
+		mld->scan.uid_status[uid] = IWL_MLD_SCAN_NONE;
+	}
 
+	BUILD_BUG_ON(IWL_MLD_SCAN_NONE != 0);
 	memset(mld->scan.uid_status, 0, sizeof(mld->scan.uid_status));
 }
 

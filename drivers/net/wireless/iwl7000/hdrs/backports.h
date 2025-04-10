@@ -131,6 +131,13 @@ static inline void backport_led_trigger_blink(struct led_trigger *trigger,
 #define __cleanup(func) __attribute__((__cleanup__(func)))
 #endif
 
+static inline u32
+iwl7000_ieee80211_mandatory_rates(struct ieee80211_supported_band *sband)
+{
+	return ieee80211_mandatory_rates(sband, NL80211_BSS_CHAN_WIDTH_20);
+}
+#define ieee80211_mandatory_rates iwl7000_ieee80211_mandatory_rates
+
 void ieee80211_fragment_element(struct sk_buff *skb, u8 *len_pos, u8 frag_id);
 
 static inline void
@@ -183,12 +190,6 @@ WRAP_LOCKED(cfg80211_links_removed)(struct net_device *dev, u16 removed_links)
 	mutex_unlock(&dev->ieee80211_ptr->mtx);
 }
 #define cfg80211_links_removed WRAP_LOCKED(cfg80211_links_removed)
-static inline u32
-iwl7000_ieee80211_mandatory_rates(struct ieee80211_supported_band *sband)
-{
-	return ieee80211_mandatory_rates(sband, NL80211_BSS_CHAN_WIDTH_20);
-}
-#define ieee80211_mandatory_rates iwl7000_ieee80211_mandatory_rates
 
 static inline bool LINUX_BACKPORT(napi_schedule)(struct napi_struct *n)
 {
@@ -259,7 +260,7 @@ ssize_t wiphy_locked_debugfs_write(struct wiphy *wiphy, struct file *file,
 #else
 	rtnl_lock();
 #endif
-	ret = handler(wiphy, file, buf, bufsize, data);
+	ret = handler(wiphy, file, buf, count, data);
 #if LINUX_VERSION_IS_GEQ(5,12,0)
 	wiphy_unlock(wiphy);
 #else
@@ -269,27 +270,26 @@ ssize_t wiphy_locked_debugfs_write(struct wiphy *wiphy, struct file *file,
 	return ret;
 }
 #endif
+#define KUNIT_STATIC_STUB_REDIRECT(real_fn_name, args...) do {} while (0)
+
+int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
 
 static inline void cfg80211_schedule_channels_check(struct wireless_dev *wdev)
 {
 }
-#define NL80211_EXT_FEATURE_DFS_CONCURRENT -1
-#define NL80211_RRF_DFS_CONCURRENT 0
+
 
 struct cfg80211_ttlm_params {
 	u16 dlink[8];
 	u16 ulink[8];
 };
 
+#define NL80211_EXT_FEATURE_DFS_CONCURRENT -1
+#define NL80211_RRF_DFS_CONCURRENT 0
+
 bool
 ieee80211_uhb_power_type_valid(struct ieee80211_mgmt *mgmt, size_t len,
 			       struct ieee80211_channel *channel);
-
-#define IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT BIT(21)
-#define IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT BIT(22)
-
-#define NL80211_RRF_NO_6GHZ_VLP_CLIENT BIT(22)
-#define NL80211_RRF_NO_6GHZ_AFC_CLIENT BIT(23)
 
 ssize_t cfg80211_defragment_element(const struct element *elem, const u8 *ies,
 				    size_t ieslen, u8 *data, size_t data_len,
@@ -323,7 +323,6 @@ bool ieee80211_operating_class_to_chandef(u8 operating_class,
 
 #define IEEE80211_CHAN_CAN_MONITOR 0
 
-int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width);
 int cfg80211_chandef_primary(const struct cfg80211_chan_def *chandef,
 			     enum nl80211_chan_width primary_width,
 			     u16 *punctured);
@@ -411,6 +410,13 @@ int for_each_thermal_trip(struct thermal_zone_device *tz,
 #endif /* >= 6,0,0 */
 #endif /* CONFIG_THERMAL */
 
+
+#define IEEE80211_CHAN_NO_6GHZ_VLP_CLIENT BIT(21)
+#define IEEE80211_CHAN_NO_6GHZ_AFC_CLIENT BIT(22)
+
+#define NL80211_RRF_NO_6GHZ_VLP_CLIENT BIT(22)
+#define NL80211_RRF_NO_6GHZ_AFC_CLIENT BIT(23)
+
 static inline struct net_device *alloc_netdev_dummy(int sizeof_priv)
 {
 	struct net_device *dev;
@@ -434,6 +440,13 @@ static inline void LINUX_BACKPORT(free_netdev)(struct net_device *dev)
 }
 #define free_netdev LINUX_BACKPORT(free_netdev)
 
+#define kmemdup_array LINUX_BACKPORT(kmemdup_array)
+static inline void *
+kmemdup_array(const void *src, size_t count, size_t element_size, gfp_t gfp)
+{
+       return kmemdup(src, element_size * count, gfp);
+}
+
 
 enum ieee80211_ap_reg_power {
 	IEEE80211_REG_UNSET_AP,
@@ -449,3 +462,35 @@ enum ieee80211_ap_reg_power {
 struct cfg80211_iface_usage {
 	u32 types_mask;
 };
+
+#if LINUX_VERSION_IS_LESS(6,11,11)
+
+static inline bool wiphy_delayed_work_pending(struct wiphy *wiphy,
+				              struct wiphy_delayed_work *dwork)
+{
+	return timer_pending(&dwork->timer);
+}
+#endif
+
+static inline int pcim_request_all_regions(struct pci_dev *pdev, const char *name)
+{
+	/* NOTE: this only works with pcim_enable_device() on older kernels */
+	int mask = 0;
+
+	for (int i = 0; i < PCI_STD_NUM_BARS; i++) {
+		if (!pci_resource_start(pdev, i))
+			continue;
+		if (!pci_resource_len(pdev, i))
+			continue;
+		mask |= BIT(i);
+	}
+
+	return pci_request_selected_regions(pdev, mask, name);
+}
+
+static inline void
+cfg80211_epcs_changed(struct net_device *netdev, bool enabled)
+{
+}
+
+#define NL80211_RRF_ALLOW_20MHZ_ACTIVITY    BIT(25)
