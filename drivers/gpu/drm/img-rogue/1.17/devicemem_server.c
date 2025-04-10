@@ -614,7 +614,7 @@ DevmemIntCtxCreate(CONNECTION_DATA *psConnection,
 
 	if (psDeviceNode->pfnRegisterMemoryContext)
 	{
-		eError = psDeviceNode->pfnRegisterMemoryContext(psDeviceNode, psDevmemCtx->psMMUContext, &hPrivDataInt);
+		eError = psDeviceNode->pfnRegisterMemoryContext(psDeviceNode, psDevmemCtx->psMMUContext, psDevmemCtx, &hPrivDataInt);
 		PVR_LOG_GOTO_IF_ERROR(eError, "pfnRegisterMemoryContext", fail_register);
 	}
 
@@ -648,6 +648,16 @@ fail_mmucontext:
 fail_alloc:
 	PVR_ASSERT(eError != PVRSRV_OK);
 	return eError;
+}
+
+PVRSRV_ERROR DevmemIntCtxRef(DEVMEMINT_CTX *psDevmemCtx)
+{
+	return DevmemIntCtxAcquire(psDevmemCtx) ? PVRSRV_OK : PVRSRV_ERROR_REFCOUNT_OVERFLOW;
+}
+
+void DevmemIntCtxUnref(DEVMEMINT_CTX *psDevmemCtx)
+{
+	DevmemIntCtxRelease(psDevmemCtx);
 }
 
 /*************************************************************************/ /*!
@@ -1067,6 +1077,8 @@ DevmemXIntMapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	IMG_UINT32 uiPMRMaxChunkCount = PMRGetMaxChunkCount(psPMR);
 	DEVMEMINT_HEAP *psDevmemHeap = psRsrv->psDevmemHeap;
 	IMG_UINT32 uiLog2PageSize = psDevmemHeap->uiLog2PageSize;
+	PVRSRV_DEVICE_NODE *psDeviceNode = psDevmemHeap->psDevmemCtx->psDevNode;
+	MMU_CONTEXT *psMMUContext = psDevmemHeap->psDevmemCtx->psMMUContext;
 	IMG_UINT32 i;
 
 	/* Test uiPageCount+uiPhysPageOffset will not exceed IMG_UINT32_MAX (and thereby wrap) */
@@ -1098,9 +1110,19 @@ DevmemXIntMapPages(DEVMEMXINT_RESERVATION *psRsrv,
 	eError = DevmemValidateFlags(psPMR, uiFlags);
 	PVR_LOG_RETURN_IF_ERROR(eError, "DevmemValidateFlags");
 
+	if (psDeviceNode->pfnValidateAddressPermissions != NULL &&
+	    !psDeviceNode->pfnValidateAddressPermissions(psDeviceNode,
+	                                                 psMMUContext,
+	                                                 psDevmemHeap->sBaseAddr,
+	                                                 uiFlags))
+	{
+		eError = PVRSRV_ERROR_INVALID_HEAP;
+		PVR_LOG_RETURN_IF_ERROR(eError, "pfnValidateAddressPermissions");
+	}
+
 	OSLockAcquire(psRsrv->hLock);
 
-	eError = MMU_MapPages(psDevmemHeap->psDevmemCtx->psMMUContext,
+	eError = MMU_MapPages(psMMUContext,
 	                      uiFlags,
 	                      _DevmemXReservationPageAddress(psRsrv, uiVirtPageOffset),
 	                      psPMR,
@@ -1222,7 +1244,6 @@ DevmemIntMapPMR2(DEVMEMINT_HEAP *psDevmemHeap,
 
 	PMR_LogicalSize(psPMR, &uiPMRLogicalSize);
 
-	PVR_LOG_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, "psReservation");
 	PVR_LOG_RETURN_IF_INVALID_PARAM(uiPMRLogicalSize == psReservation->uiLength, "psPMR logical size");
 
 	if (uiLog2HeapContiguity > PMR_GetLog2Contiguity(psPMR))
@@ -1241,13 +1262,14 @@ DevmemIntMapPMR2(DEVMEMINT_HEAP *psDevmemHeap,
 
 	OSLockAcquire(psReservation->hLock);
 
+	PVR_LOG_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR == NULL, eError, ErrorReleaseResLock);
+
 	if (!DevmemIntReservationAcquireUnlocked(psReservation))
 	{
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_REFCOUNT_OVERFLOW, ErrorReleaseResLock);
 	}
 
 	uiAllocationSize = psReservation->uiLength;
-
 	ui32NumDevPages = 0xffffffffU & ( ( (uiAllocationSize - 1) >> uiLog2HeapContiguity) + 1);
 	PVR_ASSERT((IMG_DEVMEM_SIZE_T) ui32NumDevPages << uiLog2HeapContiguity == uiAllocationSize);
 
@@ -1417,12 +1439,13 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 	IMG_BOOL bIsSparse = IMG_FALSE;
 	IMG_UINT32 i;
 
-	PVR_RETURN_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL);
-
 	ui32NumDevPages = _DevmemReservationPageCount(psReservation);
 	sAllocationDevVAddr = psReservation->sBase;
 
 	OSLockAcquire(psReservation->hLock);
+
+	PVR_GOTO_IF_INVALID_PARAM(psReservation->psMappedPMR != NULL, eError, ErrUnlockRes);
+
 	PMRLockPMR(psReservation->psMappedPMR);
 
 	bIsSparse = PMR_IsSparse(psReservation->psMappedPMR);
@@ -1475,6 +1498,7 @@ DevmemIntUnmapPMR2(DEVMEMINT_RESERVATION2 *psReservation)
 
 ErrUnlock:
 	PMRUnlockPMR(psReservation->psMappedPMR);
+ErrUnlockRes:
 	OSLockRelease(psReservation->hLock);
 
 	return eError;
@@ -1506,7 +1530,8 @@ DevmemIntReserveRange2(DEVMEMINT_HEAP *psDevmemHeap,
 	DEVMEMINT_RESERVATION2 *psReservation;
 	IMG_UINT32 uiNumPages;
 	IMG_UINT64 ui64MapSize;
-
+	PVRSRV_DEVICE_NODE *psDeviceNode = psDevmemHeap->psDevmemCtx->psDevNode;
+	MMU_CONTEXT *psMMUContext = psDevmemHeap->psDevmemCtx->psMMUContext;
 	PVR_ASSERT(ppsReservationPtr != NULL);
 
 	eError = ReserveRangeParamValidation(psDevmemHeap,
@@ -1518,6 +1543,16 @@ DevmemIntReserveRange2(DEVMEMINT_HEAP *psDevmemHeap,
 	{
 		PVR_GOTO_WITH_ERROR(eError, PVRSRV_ERROR_REFCOUNT_OVERFLOW,
 		                    ErrorReturnError);
+	}
+
+	if (psDeviceNode->pfnValidateAddressPermissions != NULL &&
+	    !psDeviceNode->pfnValidateAddressPermissions(psDeviceNode,
+	                                                 psMMUContext,
+	                                                 psDevmemHeap->sBaseAddr,
+	                                                 uiFlags))
+	{
+		PVR_LOG_GOTO_WITH_ERROR("pfnValidateAddressPermissions", eError,
+		                        PVRSRV_ERROR_INVALID_HEAP, ErrorUnreference);
 	}
 
 	uiNumPages = uiAllocationSize >> psDevmemHeap->uiLog2PageSize;
@@ -1544,7 +1579,7 @@ DevmemIntReserveRange2(DEVMEMINT_HEAP *psDevmemHeap,
 	psReservation->uiLength = uiAllocationSize;
 	psReservation->pui8Map = IMG_OFFSET_ADDR(psReservation, sizeof(*psReservation));
 
-	eError = MMU_Alloc(psDevmemHeap->psDevmemCtx->psMMUContext,
+	eError = MMU_Alloc(psMMUContext,
 	                   uiAllocationSize,
 	                   &uiAllocationSize,
 	                   0, /* IMG_UINT32 uiProtFlags */
