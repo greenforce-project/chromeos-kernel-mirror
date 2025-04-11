@@ -1202,6 +1202,20 @@
 		mediatek,mmdvfs-mux = <&mmdvfs_mux>;
 	};
 
+	mmdvfs_debug: mmdvfs-debug {
+		compatible = "mediatek,mmdvfs-debug";
+		debug-version = <2>; /* OR operation of (1 << MMDVFS_DBG_VERx) */
+		mediatek,mmdebug = <&mmdebug>;
+		vcore-supply = <&mt6316_8_vbuck1>;
+		vdisp-pmic-supply = <&mt6363_vbuck1>;
+		vmm-pmic-supply = <&mt6363_vbuck2>;
+	};
+
+	mmdebug: mmdebug-vcp {
+		compatible = "mediatek,mmdebug-vcp";
+		mediatek,vcp = <&vcp>;
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
