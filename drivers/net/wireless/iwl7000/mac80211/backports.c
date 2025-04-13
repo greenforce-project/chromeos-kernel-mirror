@@ -333,73 +333,6 @@ int ieee80211_data_to_8023_exthdr(struct sk_buff *skb, struct ethhdr *ehdr,
 EXPORT_SYMBOL(/* don't auto-generate a rename */
 	ieee80211_data_to_8023_exthdr);
 
-struct ieee80211_per_bw_puncturing_values {
-	u8 len;
-	const u16 *valid_values;
-};
-
-static const u16 puncturing_values_80mhz[] = {
-	0x8, 0x4, 0x2, 0x1
-};
-
-static const u16 puncturing_values_160mhz[] = {
-	 0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1, 0xc0, 0x30, 0xc, 0x3
-};
-
-static const u16 puncturing_values_320mhz[] = {
-	0xc000, 0x3000, 0xc00, 0x300, 0xc0, 0x30, 0xc, 0x3, 0xf000, 0xf00,
-	0xf0, 0xf, 0xfc00, 0xf300, 0xf0c0, 0xf030, 0xf00c, 0xf003, 0xc00f,
-	0x300f, 0xc0f, 0x30f, 0xcf, 0x3f
-};
-
-#define IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(_bw) \
-	{ \
-		.len = ARRAY_SIZE(puncturing_values_ ## _bw ## mhz), \
-		.valid_values = puncturing_values_ ## _bw ## mhz \
-	}
-
-static const struct ieee80211_per_bw_puncturing_values per_bw_puncturing[] = {
-	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(80),
-	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(160),
-	IEEE80211_PER_BW_VALID_PUNCTURING_VALUES(320)
-};
-
-static bool
-ieee80211_valid_disable_subchannel_bitmap(u16 *bitmap, enum nl80211_chan_width bw)
-{
-	u32 idx, i;
-
-	switch((int)bw) {
-	case NL80211_CHAN_WIDTH_80:
-		idx = 0;
-		break;
-	case NL80211_CHAN_WIDTH_160:
-		idx = 1;
-		break;
-	case NL80211_CHAN_WIDTH_320:
-		idx = 2;
-		break;
-	default:
-		*bitmap = 0;
-		break;
-	}
-
-	if (!*bitmap)
-		return true;
-
-	for (i = 0; i < per_bw_puncturing[idx].len; i++)
-		if (per_bw_puncturing[idx].valid_values[i] == *bitmap)
-			return true;
-
-	return false;
-}
-
-bool cfg80211_valid_disable_subchannel_bitmap(u16 *bitmap,
-					      struct cfg80211_chan_def *chandef)
-{
-	return ieee80211_valid_disable_subchannel_bitmap(bitmap, chandef->width);
-}
-
 static void cfg80211_wiphy_work(struct work_struct *work)
 {
 	struct ieee80211_local *local;
@@ -454,6 +387,9 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 	lockdep_assert_wiphy(wiphy);
 
 	spin_lock_irqsave(&local->wiphy_work_lock, flags);
+	if (end && list_empty(&end->entry))
+		goto out;
+
 	while (!list_empty(&local->wiphy_work_list)) {
 		struct wiphy_work *wk;
 
@@ -472,6 +408,7 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 		if (WARN_ON(--runaway_limit == 0))
 			INIT_LIST_HEAD(&local->wiphy_work_list);
 	}
+out:
 	spin_unlock_irqrestore(&local->wiphy_work_lock, flags);
 }
 EXPORT_SYMBOL(wiphy_work_flush);
@@ -563,7 +500,11 @@ EXPORT_SYMBOL_GPL(wiphy_delayed_work_queue);
 void wiphy_delayed_work_cancel(struct wiphy *wiphy,
 			       struct wiphy_delayed_work *dwork)
 {
+#if LINUX_VERSION_IS_LESS(5,12,0)
+	ASSERT_RTNL();
+#else
 	lockdep_assert_held(&wiphy->mtx);
+#endif
 
 	del_timer_sync(&dwork->timer);
 	wiphy_work_cancel(wiphy, &dwork->work);
@@ -649,51 +590,6 @@ int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width)
 	return mhz;
 }
 EXPORT_SYMBOL_GPL(nl80211_chan_width_to_mhz);
-
-static int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
-{
-	return nl80211_chan_width_to_mhz(c->width);
-}
-
-int cfg80211_chandef_primary(const struct cfg80211_chan_def *c,
-			     enum nl80211_chan_width primary_chan_width,
-			     u16 *punctured)
-{
-	int pri_width = nl80211_chan_width_to_mhz(primary_chan_width);
-	int width = cfg80211_chandef_get_width(c);
-	u32 control = c->chan->center_freq;
-	u32 center = c->center_freq1;
-	u16 _punct = 0;
-
-	if (WARN_ON_ONCE(pri_width < 0 || width < 0))
-		return -1;
-
-	/* not intended to be called this way, can't determine */
-	if (WARN_ON_ONCE(pri_width > width))
-		return -1;
-
-	if (!punctured)
-		punctured = &_punct;
-
-#if LINUX_VERSION_IS_GEQ(6,9,0)
-	*punctured = 0;
-#endif
-
-	while (width > pri_width) {
-		unsigned int bits_to_drop = width / 20 / 2;
-
-		if (control > center) {
-			center += width / 4;
-			*punctured >>= bits_to_drop;
-		} else {
-			center -= width / 4;
-			*punctured &= (1 << bits_to_drop) - 1;
-		}
-		width /= 2;
-	}
-
-	return center;
-}
 
 bool
 ieee80211_uhb_power_type_valid(struct ieee80211_mgmt *mgmt, size_t len,
@@ -942,3 +838,49 @@ bool ieee80211_operating_class_to_chandef(u8 operating_class,
 		return false;
 	}
 }
+
+static int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
+{
+	return nl80211_chan_width_to_mhz(c->width);
+}
+
+int cfg80211_chandef_primary(const struct cfg80211_chan_def *c,
+			     enum nl80211_chan_width primary_chan_width,
+			     u16 *punctured)
+{
+	int pri_width = nl80211_chan_width_to_mhz(primary_chan_width);
+	int width = cfg80211_chandef_get_width(c);
+	u32 control = c->chan->center_freq;
+	u32 center = c->center_freq1;
+	u16 _punct = 0;
+
+	if (WARN_ON_ONCE(pri_width < 0 || width < 0))
+		return -1;
+
+	/* not intended to be called this way, can't determine */
+	if (WARN_ON_ONCE(pri_width > width))
+		return -1;
+
+	if (!punctured)
+		punctured = &_punct;
+
+#if LINUX_VERSION_IS_GEQ(6,9,0)
+	*punctured = 0;
+#endif
+
+	while (width > pri_width) {
+		unsigned int bits_to_drop = width / 20 / 2;
+
+		if (control > center) {
+			center += width / 4;
+			*punctured >>= bits_to_drop;
+		} else {
+			center -= width / 4;
+			*punctured &= (1 << bits_to_drop) - 1;
+		}
+		width /= 2;
+	}
+
+	return center;
+}
+EXPORT_SYMBOL_GPL(cfg80211_chandef_primary);

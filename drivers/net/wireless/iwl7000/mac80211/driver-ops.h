@@ -2,7 +2,7 @@
 /*
 * Portions of this file
 * Copyright(c) 2016 Intel Deutschland GmbH
-* Copyright (C) 2018-2019, 2021-2024 Intel Corporation
+* Copyright (C) 2018-2019, 2021-2025 Intel Corporation
 */
 
 #ifndef __MAC80211_DRIVER_OPS
@@ -593,9 +593,9 @@ int drv_sta_set_txpwr(struct ieee80211_local *local,
 		      struct ieee80211_sub_if_data *sdata,
 		      struct sta_info *sta);
 
-void drv_sta_rc_update(struct ieee80211_local *local,
-		       struct ieee80211_sub_if_data *sdata,
-		       struct ieee80211_sta *sta, u32 changed);
+void drv_link_sta_rc_update(struct ieee80211_local *local,
+			    struct ieee80211_sub_if_data *sdata,
+			    struct ieee80211_link_sta *link_sta, u32 changed);
 
 static inline void drv_sta_rate_tbl_update(struct ieee80211_local *local,
 					   struct ieee80211_sub_if_data *sdata,
@@ -721,6 +721,9 @@ static inline void drv_flush_sta(struct ieee80211_local *local,
 	sdata = get_bss_sdata(sdata);
 
 	if (sdata && !check_sdata_in_driver(sdata))
+		return;
+
+	if (!sta->uploaded)
 		return;
 
 	trace_drv_flush_sta(local, sdata, &sta->sta);
@@ -950,6 +953,7 @@ static inline void drv_mgd_complete_tx(struct ieee80211_local *local,
 		return;
 	WARN_ON_ONCE(sdata->vif.type != NL80211_IFTYPE_STATION);
 
+	info->link_id = info->link_id < 0 ? 0 : info->link_id;
 	trace_drv_mgd_complete_tx(local, sdata, info->duration,
 				  info->subtype, info->success);
 	if (local->ops->mgd_complete_tx)
