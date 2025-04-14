@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  */
 #include <net/mac80211.h>
 
 #include "phy.h"
 #include "hcmd.h"
 #include "fw/api/phy-ctxt.h"
-/* TODO: remove on RLC offload */
-#include "fw/api/datapath.h"
 
 int iwl_mld_allocate_fw_phy_id(struct iwl_mld *mld)
 {
@@ -59,7 +57,7 @@ iwl_mld_nl80211_width_to_fw(enum nl80211_chan_width width)
 /* Maps the driver specific control channel position (relative to the center
  * freq) definitions to the fw values
  */
-static u8 iwl_mld_get_fw_ctrl_pos(const struct cfg80211_chan_def *chandef)
+u8 iwl_mld_get_fw_ctrl_pos(const struct cfg80211_chan_def *chandef)
 {
 	int offs = chandef->chan->center_freq - chandef->center_freq1;
 	int abs_offs = abs(offs);
@@ -117,22 +115,45 @@ int iwl_mld_phy_fw_action(struct iwl_mld *mld,
 	return ret;
 }
 
-/* TODO: remove on RLC offload */
-int iwl_mld_send_rlc_cmd(struct iwl_mld *mld, u8 phy_id)
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+static u32 iwl_mld_get_phy_config(struct iwl_mld *mld)
 {
-	struct iwl_rlc_config_cmd cmd = {
-		.phy_id = cpu_to_le32(phy_id),
+	u32 phy_config = ~(FW_PHY_CFG_TX_CHAIN |
+			   FW_PHY_CFG_RX_CHAIN);
+	u32 valid_rx_ant = iwl_mld_get_valid_rx_ant(mld);
+	u32 valid_tx_ant = iwl_mld_get_valid_tx_ant(mld);
+
+	phy_config |= valid_tx_ant << FW_PHY_CFG_TX_CHAIN_POS |
+		      valid_rx_ant << FW_PHY_CFG_RX_CHAIN_POS;
+
+	return mld->fw->phy_config & phy_config;
+}
+
+int iwl_mld_send_phy_cfg_cmd(struct iwl_mld *mld)
+{
+	const struct iwl_tlv_calib_ctrl *default_calib =
+		&mld->fw->default_calib[IWL_UCODE_REGULAR];
+	struct iwl_phy_cfg_cmd_v3 cmd = {
+		.phy_cfg = cpu_to_le32(iwl_mld_get_phy_config(mld)),
+		.calib_control.event_trigger = default_calib->event_trigger,
+		.calib_control.flow_trigger = default_calib->flow_trigger,
 	};
 
-	cmd.rlc.rx_chain_info =
-		cpu_to_le32(iwl_mld_get_valid_rx_ant(mld) <<
-				PHY_RX_CHAIN_VALID_POS);
-	cmd.rlc.rx_chain_info |= cpu_to_le32(2 << PHY_RX_CHAIN_CNT_POS);
-	cmd.rlc.rx_chain_info |= cpu_to_le32(2 << PHY_RX_CHAIN_MIMO_CNT_POS);
+	/* For now, this function is called only if
+	 * MLD_SNIFFER_REDUCED_SENSITIVITY is enabled, but since we remove the
+	 * sensitivity calibration, better be safe than sorry and ensure
+	 * nobody called this function with MLD_SNIFFER_REDUCED_SENSITIVITY
+	 * disabled.
+	 */
+	WARN_ON(!mld->trans->dbg_cfg.MLD_SNIFFER_REDUCED_SENSITIVITY);
 
-	IWL_DEBUG_FW(mld, "Send RLC command: phy=%d, rx_chain_info=0x%x\n",
-		     phy_id, cmd.rlc.rx_chain_info);
+	cmd.calib_control.event_trigger &=
+		cpu_to_le32(~IWL_CALIB_CFG_SENSITIVITY_IDX);
+	cmd.calib_control.flow_trigger &=
+		cpu_to_le32(~IWL_CALIB_CFG_SENSITIVITY_IDX);
 
-	return iwl_mld_send_cmd_pdu(mld, iwl_cmd_id(RLC_CONFIG_CMD,
-						    DATA_PATH_GROUP, 2), &cmd);
+	IWL_INFO(mld, "Sending Phy CFG command: 0x%x\n", cmd.phy_cfg);
+
+	return iwl_mld_send_cmd_pdu(mld, PHY_CONFIGURATION_CMD, &cmd);
 }
+#endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */

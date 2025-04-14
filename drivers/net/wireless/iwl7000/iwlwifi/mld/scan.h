@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  */
 #ifndef __iwl_mld_scan_h__
 #define __iwl_mld_scan_h__
@@ -10,6 +10,8 @@ int iwl_mld_alloc_scan_cmd(struct iwl_mld *mld);
 int iwl_mld_regular_scan_start(struct iwl_mld *mld, struct ieee80211_vif *vif,
 			       struct cfg80211_scan_request *req,
 			       struct ieee80211_scan_ies *ies);
+
+void iwl_mld_int_mlo_scan(struct iwl_mld *mld, struct ieee80211_vif *vif);
 
 void iwl_mld_handle_scan_iter_complete_notif(struct iwl_mld *mld,
 					     struct iwl_rx_packet *pkt);
@@ -47,30 +49,12 @@ static inline int iwl_mld_scan_max_template_size(void)
 
 void iwl_mld_report_scan_aborted(struct iwl_mld *mld);
 
-#define IWL_MLD_SCAN_STOPPING_SHIFT	8
-
 enum iwl_mld_scan_status {
+	IWL_MLD_SCAN_NONE		= 0,
 	IWL_MLD_SCAN_REGULAR		= BIT(0),
 	IWL_MLD_SCAN_SCHED		= BIT(1),
 	IWL_MLD_SCAN_NETDETECT		= BIT(2),
 	IWL_MLD_SCAN_INT_MLO		= BIT(3),
-
-	IWL_MLD_SCAN_STOPPING_REGULAR	= BIT(IWL_MLD_SCAN_STOPPING_SHIFT),
-	IWL_MLD_SCAN_STOPPING_SCHED	= BIT(IWL_MLD_SCAN_STOPPING_SHIFT + 1),
-	IWL_MLD_SCAN_STOPPING_NETDETECT	= BIT(IWL_MLD_SCAN_STOPPING_SHIFT + 2),
-	IWL_MLD_SCAN_STOPPING_INT_MLO	= BIT(IWL_MLD_SCAN_STOPPING_SHIFT + 3),
-
-	IWL_MLD_SCAN_REGULAR_MASK	= IWL_MLD_SCAN_REGULAR |
-					  IWL_MLD_SCAN_STOPPING_REGULAR,
-	IWL_MLD_SCAN_SCHED_MASK		= IWL_MLD_SCAN_SCHED |
-					  IWL_MLD_SCAN_STOPPING_SCHED,
-	IWL_MLD_SCAN_NETDETECT_MASK	= IWL_MLD_SCAN_NETDETECT |
-					  IWL_MLD_SCAN_STOPPING_NETDETECT,
-	IWL_MLD_SCAN_INT_MLO_MASK	= IWL_MLD_SCAN_INT_MLO |
-					  IWL_MLD_SCAN_STOPPING_INT_MLO,
-
-	IWL_MLD_SCAN_STOPPING_MASK	= 0xff << IWL_MLD_SCAN_STOPPING_SHIFT,
-	IWL_MLD_SCAN_MASK		= 0xff,
 };
 
 /* enum iwl_mld_pass_all_sched_results_states - Defines the states for
@@ -89,6 +73,19 @@ enum iwl_mld_pass_all_sched_results_states {
 };
 
 /**
+ * enum iwl_mld_traffic_load - Levels of traffic load
+ *
+ * @IWL_MLD_TRAFFIC_LOW: low traffic load
+ * @IWL_MLD_TRAFFIC_MEDIUM: medium traffic load
+ * @IWL_MLD_TRAFFIC_HIGH: high traffic load
+ */
+enum iwl_mld_traffic_load {
+	IWL_MLD_TRAFFIC_LOW,
+	IWL_MLD_TRAFFIC_MEDIUM,
+	IWL_MLD_TRAFFIC_HIGH,
+};
+
+/**
  * struct iwl_mld_scan - Scan data
  * @status: scan status, a combination of %enum iwl_mld_scan_status,
  *	reflects the %scan.uid_status array.
@@ -99,12 +96,20 @@ enum iwl_mld_pass_all_sched_results_states {
  * @pass_all_sched_res: see %enum iwl_mld_pass_all_sched_results_states.
  * @fw_link_id: the current (regular) scan fw link id, used by scan
  *	complete notif.
+ * @traffic_load: traffic load related data
+ * @traffic_load.last_stats_ts_usec: The timestamp of the last statistics
+ *	notification, used to calculate the elapsed time between two
+ *	notifications and determine the traffic load
+ * @traffic_load.status: The current traffic load status, see
+ *	&enum iwl_mld_traffic_load
  * @cmd_size: size of %cmd.
  * @cmd: pointer to scan cmd buffer (allocated once in op mode start).
  * @last_6ghz_passive_jiffies: stores the last 6GHz passive scan time
  *	in jiffies.
  * @last_start_time_jiffies: stores the last start time in jiffies
  *	(interface up/reset/resume).
+ * @last_mlo_scan_time: start time of the last MLO scan in nanoseconds since
+ *	boot.
  */
 struct iwl_mld_scan {
 	/* Add here fields that need clean up on restart */
@@ -115,12 +120,17 @@ struct iwl_mld_scan {
 		bool last_ebs_failed;
 		enum iwl_mld_pass_all_sched_results_states pass_all_sched_res;
 		u8 fw_link_id;
+		struct {
+			u32 last_stats_ts_usec;
+			enum iwl_mld_traffic_load status;
+		} traffic_load;
 	);
 	/* And here fields that survive a fw restart */
 	size_t cmd_size;
 	void *cmd;
 	unsigned long last_6ghz_passive_jiffies;
 	unsigned long last_start_time_jiffies;
+	unsigned long last_mlo_scan_time;
 };
 
 #endif /* __iwl_mld_scan_h__ */

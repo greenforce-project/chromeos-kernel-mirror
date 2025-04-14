@@ -74,6 +74,9 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 	lockdep_assert_wiphy(wiphy);
 
 	spin_lock_irqsave(&local->wiphy_work_lock, flags);
+	if (end && list_empty(&end->entry))
+		goto out;
+
 	while (!list_empty(&local->wiphy_work_list)) {
 		struct wiphy_work *wk;
 
@@ -92,6 +95,7 @@ void wiphy_work_flush(struct wiphy *wiphy, struct wiphy_work *end)
 		if (WARN_ON(--runaway_limit == 0))
 			INIT_LIST_HEAD(&local->wiphy_work_list);
 	}
+out:
 	spin_unlock_irqrestore(&local->wiphy_work_lock, flags);
 }
 EXPORT_SYMBOL(wiphy_work_flush);
@@ -183,7 +187,11 @@ EXPORT_SYMBOL_GPL(wiphy_delayed_work_queue);
 void wiphy_delayed_work_cancel(struct wiphy *wiphy,
 			       struct wiphy_delayed_work *dwork)
 {
+#if LINUX_VERSION_IS_LESS(5,12,0)
+	ASSERT_RTNL();
+#else
 	lockdep_assert_held(&wiphy->mtx);
+#endif
 
 	del_timer_sync(&dwork->timer);
 	wiphy_work_cancel(wiphy, &dwork->work);
@@ -269,51 +277,6 @@ int nl80211_chan_width_to_mhz(enum nl80211_chan_width chan_width)
 	return mhz;
 }
 EXPORT_SYMBOL_GPL(nl80211_chan_width_to_mhz);
-
-static int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
-{
-	return nl80211_chan_width_to_mhz(c->width);
-}
-
-int cfg80211_chandef_primary(const struct cfg80211_chan_def *c,
-			     enum nl80211_chan_width primary_chan_width,
-			     u16 *punctured)
-{
-	int pri_width = nl80211_chan_width_to_mhz(primary_chan_width);
-	int width = cfg80211_chandef_get_width(c);
-	u32 control = c->chan->center_freq;
-	u32 center = c->center_freq1;
-	u16 _punct = 0;
-
-	if (WARN_ON_ONCE(pri_width < 0 || width < 0))
-		return -1;
-
-	/* not intended to be called this way, can't determine */
-	if (WARN_ON_ONCE(pri_width > width))
-		return -1;
-
-	if (!punctured)
-		punctured = &_punct;
-
-#if LINUX_VERSION_IS_GEQ(6,9,0)
-	*punctured = 0;
-#endif
-
-	while (width > pri_width) {
-		unsigned int bits_to_drop = width / 20 / 2;
-
-		if (control > center) {
-			center += width / 4;
-			*punctured >>= bits_to_drop;
-		} else {
-			center -= width / 4;
-			*punctured &= (1 << bits_to_drop) - 1;
-		}
-		width /= 2;
-	}
-
-	return center;
-}
 
 bool
 ieee80211_uhb_power_type_valid(struct ieee80211_mgmt *mgmt, size_t len,
@@ -562,3 +525,49 @@ bool ieee80211_operating_class_to_chandef(u8 operating_class,
 		return false;
 	}
 }
+
+static int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
+{
+	return nl80211_chan_width_to_mhz(c->width);
+}
+
+int cfg80211_chandef_primary(const struct cfg80211_chan_def *c,
+			     enum nl80211_chan_width primary_chan_width,
+			     u16 *punctured)
+{
+	int pri_width = nl80211_chan_width_to_mhz(primary_chan_width);
+	int width = cfg80211_chandef_get_width(c);
+	u32 control = c->chan->center_freq;
+	u32 center = c->center_freq1;
+	u16 _punct = 0;
+
+	if (WARN_ON_ONCE(pri_width < 0 || width < 0))
+		return -1;
+
+	/* not intended to be called this way, can't determine */
+	if (WARN_ON_ONCE(pri_width > width))
+		return -1;
+
+	if (!punctured)
+		punctured = &_punct;
+
+#if LINUX_VERSION_IS_GEQ(6,9,0)
+	*punctured = 0;
+#endif
+
+	while (width > pri_width) {
+		unsigned int bits_to_drop = width / 20 / 2;
+
+		if (control > center) {
+			center += width / 4;
+			*punctured >>= bits_to_drop;
+		} else {
+			center -= width / 4;
+			*punctured &= (1 << bits_to_drop) - 1;
+		}
+		width /= 2;
+	}
+
+	return center;
+}
+EXPORT_SYMBOL_GPL(cfg80211_chandef_primary);

@@ -26,7 +26,11 @@
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
 MODULE_LICENSE("GPL");
+#if LINUX_VERSION_IS_LESS(6,13,0)
 MODULE_IMPORT_NS(IWLWIFI);
+#else
+MODULE_IMPORT_NS("IWLWIFI");
+#endif /* LINUX_VERSION_IS_LESS(6,13,0) */
 
 #define TX_QUEUE_CFG_TID (6)
 
@@ -200,7 +204,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	op_mode = kzalloc(sizeof(struct iwl_op_mode) +
 			  sizeof(struct iwl_xvt), GFP_KERNEL);
 	if (!op_mode)
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 
 	op_mode->ops = &iwl_xvt_ops;
 
@@ -212,6 +216,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	iwl_fw_runtime_init(&xvt->fwrt, trans, fw, &iwl_xvt_fwrt_ops, xvt,
 			    NULL, NULL, dbgfs_dir);
+
+	iwl_bios_setup_step(trans, &xvt->fwrt);
 
 	mutex_init(&xvt->mutex);
 	spin_lock_init(&xvt->notif_lock);
@@ -266,8 +272,10 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	/* Init phy db */
 	xvt->phy_db = iwl_phy_db_init(xvt->trans);
-	if (!xvt->phy_db)
+	if (!xvt->phy_db) {
+		err = -ENOMEM;
 		goto out_free;
+	}
 
 	iwl_dnt_init(xvt->trans, dbgfs_dir);
 
@@ -292,15 +300,10 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 
 	trans->dbg.dest_tlv = xvt->fw->dbg.dest_tlv;
 	trans->dbg.n_dest_reg = xvt->fw->dbg.n_dest_reg;
-	memcpy(trans->dbg.conf_tlv, xvt->fw->dbg.conf_tlv,
-	       sizeof(trans->dbg.conf_tlv));
-	trans->dbg.trigger_tlv = xvt->fw->dbg.trigger_tlv;
 
 	IWL_INFO(xvt, "xVT operation mode\n");
 
-	err = iwl_xvt_dbgfs_register(xvt, dbgfs_dir);
-	if (err)
-		IWL_ERR(xvt, "failed register xvt debugfs folder (%d)\n", err);
+	iwl_xvt_dbgfs_register(xvt, dbgfs_dir);
 
 	return op_mode;
 
@@ -308,7 +311,7 @@ out_free:
 	iwl_fw_runtime_free(&xvt->fwrt);
 	kfree(op_mode);
 
-	return NULL;
+	return ERR_PTR(err);
 }
 
 static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
@@ -488,7 +491,7 @@ static void iwl_xvt_rx_ba_notif(struct iwl_xvt *xvt,
 	u16 scd_ssn;
 
 	if (iwl_xvt_is_unified_fw(xvt)) {
-		struct iwl_mvm_compressed_ba_notif *ba_res = (void *)pkt->data;
+		struct iwl_compressed_ba_notif *ba_res = (void *)pkt->data;
 		u16 queue;
 		u16 tfd_idx;
 
@@ -622,7 +625,8 @@ static void iwl_xvt_nic_config(struct iwl_op_mode *op_mode)
 				       ~APMG_PS_CTRL_EARLY_PWR_OFF_RESET_DIS);
 }
 
-static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode, bool sync)
+static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode,
+			      enum iwl_fw_error_type type)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	void *p_table;
@@ -670,8 +674,23 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode, bool sync)
 				 err);
 		kfree(p_table_umac);
 	}
+}
 
-	iwl_fw_error_collect(&xvt->fwrt, sync);
+static void iwl_xvt_dump_error(struct iwl_op_mode *op_mode,
+			       struct iwl_fw_error_dump_mode *mode)
+{
+	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
+
+	/* if we come in from opmode we have the mutex held */
+	if (mode->context == IWL_ERR_CONTEXT_FROM_OPMODE) {
+		lockdep_assert_held(&xvt->mutex);
+		iwl_fw_error_collect(&xvt->fwrt);
+	} else {
+		mutex_lock(&xvt->mutex);
+		if (mode->context != IWL_ERR_CONTEXT_ABORT)
+			iwl_fw_error_collect(&xvt->fwrt);
+		mutex_unlock(&xvt->mutex);
+	}
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
@@ -750,6 +769,7 @@ static const struct iwl_op_mode_ops iwl_xvt_ops = {
 	.rx = iwl_xvt_rx_dispatch,
 	.nic_config = iwl_xvt_nic_config,
 	.nic_error = iwl_xvt_nic_error,
+	.dump_error = iwl_xvt_dump_error,
 	.hw_rf_kill = iwl_xvt_set_hw_rfkill_state,
 	.free_skb = iwl_xvt_free_skb,
 	.queue_full = iwl_xvt_stop_sw_queue,
