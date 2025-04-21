@@ -864,12 +864,13 @@ struct ipu_psys_kbuffer *ipu_psys_mapbuf_locked(int fd, struct ipu_psys_fh *fh)
 		ret = ipu6_dma_map_sgtable(psys->adev, kbuf->sgt,
 					   DMA_BIDIRECTIONAL, 0);
 		if (ret) {
-			dev_dbg(dev, "ipu6 buf map failed\n");
+			dev_err(dev, "ipu6 buf map failed\n");
 			goto kbuf_map_fail;
 		}
 	}
 
-	kbuf->dma_addr = sg_dma_address(kbuf->sgt->sgl);
+	if (!kbuf->userptr && !kbuf->dbuf->ops->end_cpu_access)
+		goto mapbuf_end;
 
 	dmap.is_iomem = false;
 	if (dma_buf_vmap_unlocked(kbuf->dbuf, &dmap)) {
@@ -879,6 +880,8 @@ struct ipu_psys_kbuffer *ipu_psys_mapbuf_locked(int fd, struct ipu_psys_fh *fh)
 	kbuf->kaddr = dmap.vaddr;
 
 mapbuf_end:
+	kbuf->dma_addr = sg_dma_address(kbuf->sgt->sgl);
+
 	dev_dbg(dev, "%s %s kbuf %p fd %d with len %llu mapped\n",
 		__func__, kbuf->userptr ? "private" : "imported", kbuf, fd,
 		kbuf->len);
