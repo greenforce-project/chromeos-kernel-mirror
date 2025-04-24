@@ -145,7 +145,8 @@ subdir-ccflags-y += $(ccflags-y)
 # Kernel Modules
 #
 obj-$(CONFIG_MALI_MTK) += mali_kbase.o
-obj-$(CONFIG_MALI_MTK_ARBITRATION) += ../arbitration/
+# CHROMIUM: we don't port arbitration/ to production
+# obj-$(CONFIG_MALI_MTK_ARBITRATION) += ../arbitration/
 obj-$(CONFIG_MALI_MTK_KUTF)    += tests/
 
 mali_kbase-y := \
@@ -248,6 +249,7 @@ else
 endif
 
 # *** MTK Proprietary ***
+MALI_PLATFORM_DIR := mediatek
 export MALI_PLATFORM_DIR
 include $(src)/platform/$(MALI_PLATFORM_DIR)/mtk_platform_common/Kbuild
 include $(src)/base/arm/Kbuild
