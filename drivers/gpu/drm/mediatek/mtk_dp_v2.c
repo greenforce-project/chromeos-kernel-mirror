@@ -3794,12 +3794,6 @@ static bool mtk_dp_check_sink_cap_v2(struct mtk_dp *mtk_dp)
 
 	memset(tmp, 0x0, sizeof(tmp));
 
-	tmp[0x0] = 0x1;
-	ret = drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00600, tmp, 0x1);
-	if (ret < 0)
-		return false;
-	mdelay(2);
-
 	ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00000, tmp, 0x10);
 	if (ret < 0)
 		return false;
@@ -3872,16 +3866,6 @@ static bool mtk_dp_check_sink_cap_v2(struct mtk_dp *mtk_dp)
 		    mtk_dp->training_info.dp_mst_en,
 		    mtk_dp->training_info.dp_mst_branch,
 		    mtk_dp->training_info.dwn_strm_port_present);
-
-	ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00600, tmp, 0x1);
-	if (ret < 0)
-		return false;
-	if (tmp[0x0] != 0x1) {
-		tmp[0x0] = 0x1;
-		ret = drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00600, tmp, 0x1);
-		if (ret < 0)
-			return false;
-	}
 
 	mtk_dp->training_info.sink_count = mtk_dp_get_sink_count_v2(mtk_dp);
 
@@ -5053,19 +5037,6 @@ static void mtk_dp_training_check_swing_pre_v2(struct mtk_dp *mtk_dp,
 	mdelay(1);
 }
 
-static void mtk_dp_check_and_set_power_state_v2(struct mtk_dp *mtk_dp)
-{
-	u8 temp[0x1];
-	memset(temp, 0x0, sizeof(temp));
-
-	drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00600, temp, 0x1);
-	if (temp[0] != 0x01) {
-		temp[0] = 0x01;
-		drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00600, temp, 0x1);
-		mdelay(1);
-	}
-}
-
 static enum dp_train_stage mtk_dp_check_training_res_v2(struct mtk_dp *mtk_dp, u8 dpcd_202)
 {
 	enum dp_train_stage res = DP_LT_PASS;
@@ -5105,8 +5076,6 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 	memset(dpcd_buffer, 0x0, sizeof(dpcd_buffer));
 	memset(dpcd_202, 0x0, sizeof(dpcd_202));
 	memset(dpcd_200c, 0x0, sizeof(dpcd_200c));
-
-	mtk_dp_check_and_set_power_state_v2(mtk_dp);
 
 	temp[0] = link_rate;
 	temp[1] = (lane_count | DP_AUX_SET_ENAHNCED_FRAME);
@@ -5764,7 +5733,7 @@ static irqreturn_t mtk_dp_hpd_event_thread_v2(int hpd, void *dev)
 	bool cable_state_change;
 	unsigned long flags;
 	u16 phy_status;
-	int i;
+	int i, ret;
 	bool wait_done[DP_ENCODER_NUM] = {false};
 	u8 wait_done_count = 0;
 	unsigned long timeout = 0;
@@ -5840,6 +5809,10 @@ static irqreturn_t mtk_dp_hpd_event_thread_v2(int hpd, void *dev)
 
 				msleep(100);
 			}
+
+			ret = drm_dp_link_power_up(&mtk_dp->aux, mtk_dp->training_info.dpcd_rev);
+			if (ret != 0)
+				return IRQ_NONE;
 
 			mtk_dp_training_handle_v2(mtk_dp);
 
@@ -6049,6 +6022,8 @@ static int mtk_dp_suspend_v2(struct device *dev)
 		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] have suspended and do nothing\n");
 		return 0;
 	}
+
+	drm_dp_link_power_down(&mtk_dp->aux, mtk_dp->training_info.dpcd_rev);
 
 	mtk_dp->disp_state = DP_DISP_STATE_SUSPENDING;
 

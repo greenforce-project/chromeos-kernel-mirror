@@ -21,7 +21,6 @@
 #define DPCD_00201									0x00201
 #define DPCD_00202									0x00202
 #define DPCD_00206									0x00206
-#define DPCD_00600									0x00600
 #define DPCD_02002									0x02002
 #define DPCD_02003									0x02003
 #define DPCD_0200C									0x0200c
