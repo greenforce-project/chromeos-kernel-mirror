@@ -74,7 +74,7 @@ static irqreturn_t vcp_mbox_isr(int irq, void *dev_id)
 	struct mtk_mbox_info *minfo = (struct mtk_mbox_info *)dev_id;
 	struct mtk_mbox_device *mbdev = minfo->mbdev;
 	unsigned long flags;
-	u32 pin, mbox, irq_status, irq_flag, irq_temp = 0;
+	u32 pin, mbox, irq_status, irq_temp = 0;
 	int ret = MBOX_DONE;
 
 	mbox = minfo->id;
@@ -95,18 +95,16 @@ static irqreturn_t vcp_mbox_isr(int irq, void *dev_id)
 		if (pin_recv->mbox != mbox)
 			continue;
 
-		irq_flag = 0x1 << pin_recv->pin_index;
 		/* recv irq trigger */
-		if (irq_flag & irq_status) {
-			irq_temp |= irq_flag;
+		if (BIT(pin_recv->pin_index) & irq_status) {
+			irq_temp |= BIT(pin_recv->pin_index);
 
 			/* check user buf */
 			if (!pin_recv->pin_buf) {
 				dev_err(mbdev->dev, "%s:null ptr dev=%s ipi_id=%d", __func__,
 					mbdev->name, pin_recv->chan_id);
-				WARN_ON_ONCE(1);
+				continue;
 			}
-
 			/* direct mode */
 			if (pin_recv->offset >  minfo->slot) {
 				ret = MBOX_READ_SZ_ERR;
@@ -156,7 +154,7 @@ skip:
 			continue;
 
 		/* recv irq trigger */
-		if (irq_flag & irq_status) {
+		if (BIT(pin_recv->pin_index) & irq_status) {
 			/* notify task */
 			if (mbdev->ipi_cb)
 				mbdev->ipi_cb(pin_recv, mbdev->ipi_priv);
@@ -181,7 +179,7 @@ int vcp_ipi_send(struct mtk_ipi_device *ipidev, u32 id,
 {
 	struct mtk_mbox_pin_send *pin;
 	struct device *dev;
-	int ret;
+	int ret, rpmsg_ret;
 
 	if (!ipidev || !ipidev->ipi_inited || !ipidev->mbdev)
 		return IPI_UNAVAILABLE;
@@ -211,7 +209,7 @@ int vcp_ipi_send(struct mtk_ipi_device *ipidev, u32 id,
 	}
 
 	mutex_lock(&pin->mutex_send);
-	ret = read_poll_timeout_atomic(rpmsg_trysend, ret, !ret,
+	ret = read_poll_timeout_atomic(rpmsg_trysend, rpmsg_ret, !rpmsg_ret,
 				       USEC_PER_MSEC, timeout_ms * USEC_PER_MSEC,
 				       false, ipidev->table[id].ept, data, len);
 	mutex_unlock(&pin->mutex_send);
@@ -222,10 +220,8 @@ int vcp_ipi_send(struct mtk_ipi_device *ipidev, u32 id,
 		return IPI_POST_CB_FAIL;
 	}
 
-	if (ret == MBOX_PIN_BUSY) {
-		return IPI_PIN_BUSY;
-	} else if (ret != IPI_ACTION_DONE) {
-		dev_err(dev, "%s IPI %d send fail (%d)\n", ipidev->name, id, ret);
+	if (ret == -ETIMEDOUT) {
+		dev_err(dev, "%s IPI %d send fail %d\n", ipidev->name, id, rpmsg_ret);
 		return IPI_RPMSG_ERR;
 	}
 
@@ -239,7 +235,7 @@ int vcp_ipi_send_compl(struct mtk_ipi_device *ipidev, u32 id,
 	struct mtk_mbox_pin_send *pin_s;
 	struct mtk_mbox_pin_recv *pin_r;
 	struct device *dev;
-	int ret;
+	int ret, rpmsg_ret;
 
 	if (!ipidev || !ipidev->ipi_inited || !ipidev->mbdev)
 		return IPI_DEV_ILLEGAL;
@@ -273,7 +269,7 @@ int vcp_ipi_send_compl(struct mtk_ipi_device *ipidev, u32 id,
 
 	atomic_inc(&ipidev->table[id].holder);
 
-	ret = read_poll_timeout_atomic(rpmsg_trysend, ret, !ret,
+	ret = read_poll_timeout_atomic(rpmsg_trysend, rpmsg_ret, !rpmsg_ret,
 				       USEC_PER_MSEC, timeout_ms * USEC_PER_MSEC,
 				       false, ipidev->table[id].ept, data, len);
 	if (ret) {
@@ -286,8 +282,8 @@ int vcp_ipi_send_compl(struct mtk_ipi_device *ipidev, u32 id,
 			return IPI_POST_CB_FAIL;
 		}
 
-		dev_err(dev, "%s Pin%d send failed(%d)\n", ipidev->name, id, ret);
-		return (ret == MBOX_PIN_BUSY) ? IPI_PIN_BUSY : IPI_RPMSG_ERR;
+		dev_err(dev, "%s IPI %d send fail %d\n", ipidev->name, id, rpmsg_ret);
+		return IPI_PIN_BUSY;
 	}
 
 	/* wait for completion */
@@ -397,6 +393,7 @@ int vcp_ipi_device_register(struct mtk_ipi_device *ipidev, u32 ipi_chan_count,
 	struct mtk_mbox_channel_info *mtk_rpchan = NULL;
 	char chan_name[RPMSG_NAME_SIZE];
 	u32 index;
+	int ret;
 
 	if (!mbdev || !pdev || !ipidev)
 		return -EINVAL;
@@ -420,8 +417,10 @@ int vcp_ipi_device_register(struct mtk_ipi_device *ipidev, u32 ipi_chan_count,
 	}
 
 	for (index = 0; index < ipi_chan_count; index++) {
-		snprintf(chan_name, RPMSG_NAME_SIZE, "%s_ipi#%d",
-			 ipidev->name, index);
+		ret = snprintf(chan_name, RPMSG_NAME_SIZE, "%s_ipi#%d",
+			       ipidev->name, index);
+		if (ret < 0 || ret > RPMSG_NAME_SIZE)
+			return IPI_RPMSG_ERR;
 
 		/* malloc rpmsg channel info mchan */
 		mtk_rpchan = kzalloc(sizeof(*mtk_rpchan), GFP_KERNEL);
@@ -640,7 +639,9 @@ static int vcp_mbox_init(void __iomem *mbox_base, void __iomem *mbox_init,
 		minfo->init_base_reg = mbox_init + MBOX_SLOT_SIZE * mbox;
 		spin_lock_init(&minfo->mbox_lock);
 
-		snprintf(name, sizeof(name), "mbox%d", mbox);
+		ret = snprintf(name, sizeof(name), "mbox%d", mbox);
+		if (ret < 0 || ret > sizeof(name))
+			return MBOX_CONFIG_ERR;
 		minfo->irq_num = platform_get_irq_byname(pdev, name);
 		if (minfo->irq_num < 0) {
 			dev_err(dev, "mbox%d can't find IRQ\n", mbox);
