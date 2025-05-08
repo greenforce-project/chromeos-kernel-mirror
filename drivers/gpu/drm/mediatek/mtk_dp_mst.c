@@ -59,11 +59,6 @@ static void mtk_dp_mst_hal_mst_enable(struct mtk_dp *mtk_dp, const u8 enable)
 	WRITE_BYTE_MASK(mtk_dp, REG_3888_DP_MST_DPTX,
 			((enable == 0) ? 0x01 : 0x00),
 			HDCP_ECF_BYPASS_DP_MST_DPTX_FLDMASK);
-
-	WRITE_BYTE_MASK(mtk_dp, REG_3980_DP_MST_DPTX,
-			((enable > 0) ? 0x01 : 0x00)
-			<< ENCRYPTION_EN_MST_TX_DP_MST_DPTX_FLDMASK_POS,
-			ENCRYPTION_EN_MST_TX_DP_MST_DPTX_FLDMASK);
 }
 
 static void mtk_dp_mst_hal_trans_enable(struct mtk_dp *mtk_dp, const bool enable)
@@ -196,8 +191,6 @@ static void mtk_dp_mst_hal_set_timeslot(struct mtk_dp *mtk_dp, const enum dp_enc
 				const u16 start_slot, const u16 end_slot, const u32 vcpi)
 {
 	u32 slot, addr;
-	u32 hdcp_bitmap_upper = 0x0;
-	u32 hdcp_bitmap_lower = 0x0;
 
 	if (vcpi > DP_ENCODER_NUM)
 		dev_err(mtk_dp->dev, "[DPTX] Un-expected vcpi%d", vcpi);
@@ -213,24 +206,6 @@ static void mtk_dp_mst_hal_set_timeslot(struct mtk_dp *mtk_dp, const enum dp_enc
 					 vcpi << VC_PAYLOAD_TIMESLOT_0_DP_MST_DPTX_FLDMASK_POS,
 					 VC_PAYLOAD_TIMESLOT_0_DP_MST_DPTX_FLDMASK);
 	}
-
-	hdcp_bitmap_lower = GENMASK_ULL(end_slot, start_slot) & GENMASK(31, 0);
-	hdcp_bitmap_upper = (GENMASK_ULL(end_slot, start_slot) & GENMASK_ULL(63, 32)) >> 32;
-
-	WRITE_2BYTE_MASK(mtk_dp, REG_3984_DP_MST_DPTX, hdcp_bitmap_lower,
-			 hdcp_bitmap_lower & HDCP_TIMESLOT_MST_TX_0_DP_MST_DPTX_FLDMASK);
-	WRITE_2BYTE_MASK(mtk_dp, REG_3988_DP_MST_DPTX, hdcp_bitmap_lower >> 16,
-			 (hdcp_bitmap_lower >> 16) & HDCP_TIMESLOT_MST_TX_1_DP_MST_DPTX_FLDMASK);
-	WRITE_2BYTE_MASK(mtk_dp, REG_398C_DP_MST_DPTX, hdcp_bitmap_upper,
-			 hdcp_bitmap_upper & HDCP_TIMESLOT_MST_TX_2_DP_MST_DPTX_FLDMASK);
-	WRITE_2BYTE_MASK(mtk_dp, REG_3990_DP_MST_DPTX, hdcp_bitmap_upper >> 16,
-			 (hdcp_bitmap_upper >> 16) & HDCP_TIMESLOT_MST_TX_3_DP_MST_DPTX_FLDMASK);
-
-	/*reg_trig_hdcp_timeslot, WO*/
-	WRITE_BYTE_MASK(mtk_dp, REG_3984_DP_MST_DPTX, 0, BIT(0));
-	WRITE_2BYTE_MASK(mtk_dp, REG_3980_DP_MST_DPTX,
-			 1 << TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK_POS,
-			 TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK);
 }
 
 static void mtk_dp_mst_hal_set_id_buf(struct mtk_dp *mtk_dp, const enum dp_encoder_id id,
@@ -342,7 +317,45 @@ static void mtk_dp_mst_hal_trigger_act(struct mtk_dp *mtk_dp)
 		WRITE_BYTE_MASK(mtk_dp, REG_3894_DP_MST_DPTX, 0,
 				RST_MST_FIFO_WPTR_DP_MST_DPTX_FLDMASK |
 				RST_MST_FIFO_RPTR_DP_MST_DPTX_FLDMASK);
+	}
+}
 
+static void mtk_dp_mst_hal_hdcp_enable(struct mtk_dp *mtk_dp, const bool enable)
+{
+	WRITE_BYTE_MASK(mtk_dp, REG_3980_DP_MST_DPTX,
+			((enable > 0) ? 0x01 : 0x00)
+			<< ENCRYPTION_EN_MST_TX_DP_MST_DPTX_FLDMASK_POS,
+			ENCRYPTION_EN_MST_TX_DP_MST_DPTX_FLDMASK);
+}
+
+static void mtk_dp_mst_hal_hdcp_set_timeslot(
+				struct mtk_dp *mtk_dp, const u16 start_slot, const u16 end_slot)
+{
+	u32 hdcp_bitmap_upper = 0x0;
+	u32 hdcp_bitmap_lower = 0x0;
+
+	hdcp_bitmap_lower = GENMASK_ULL(end_slot, start_slot) & GENMASK(31, 0);
+	hdcp_bitmap_upper = (GENMASK_ULL(end_slot, start_slot) & GENMASK_ULL(63, 32)) >> 32;
+
+	WRITE_2BYTE_MASK(mtk_dp, REG_3984_DP_MST_DPTX, hdcp_bitmap_lower,
+			 hdcp_bitmap_lower & HDCP_TIMESLOT_MST_TX_0_DP_MST_DPTX_FLDMASK);
+	WRITE_2BYTE_MASK(mtk_dp, REG_3988_DP_MST_DPTX, hdcp_bitmap_lower >> 16,
+			 (hdcp_bitmap_lower >> 16) & HDCP_TIMESLOT_MST_TX_1_DP_MST_DPTX_FLDMASK);
+	WRITE_2BYTE_MASK(mtk_dp, REG_398C_DP_MST_DPTX, hdcp_bitmap_upper,
+			 hdcp_bitmap_upper & HDCP_TIMESLOT_MST_TX_2_DP_MST_DPTX_FLDMASK);
+	WRITE_2BYTE_MASK(mtk_dp, REG_3990_DP_MST_DPTX, hdcp_bitmap_upper >> 16,
+			 (hdcp_bitmap_upper >> 16) & HDCP_TIMESLOT_MST_TX_3_DP_MST_DPTX_FLDMASK);
+
+	/*reg_trig_hdcp_timeslot, WO*/
+	WRITE_BYTE_MASK(mtk_dp, REG_3984_DP_MST_DPTX, 0, BIT(0));
+	WRITE_2BYTE_MASK(mtk_dp, REG_3980_DP_MST_DPTX,
+			 1 << TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK_POS,
+			 TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK);
+}
+
+static void mtk_dp_mst_hal_hdcp_trigger_act(struct mtk_dp *mtk_dp)
+{
+	if (mtk_dp->training_info.link_rate < DP_LINK_RATE_UHBR10) {
 		WRITE_BYTE_MASK(mtk_dp, REG_3980_DP_MST_DPTX,
 				0x1 << TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK_POS,
 				TRIG_HDCP_TIMESLOT_MST_TX_DP_MST_DPTX_FLDMASK);
@@ -779,6 +792,7 @@ void mtk_dp_mst_drv_unprepare(struct mtk_dp *mtk_dp)
 	mtk_dp_mst_drv_audio_mute_all(mtk_dp);
 
 	mtk_dp_mst_hal_tx_enable(mtk_dp, false);
+	mtk_dp_mst_hal_hdcp_enable(mtk_dp, false);
 
 	drm_dp_mst_topology_mgr_set_mst(&mtk_dp->mgr, false);
 
@@ -942,6 +956,51 @@ static void mtk_dp_mst_drv_read_port_dsc_caps(struct mtk_dp *mtk_dp, struct mtk_
 		return;
 	}
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] FEC cap:0x%x\n", connector->fec_cap);
+}
+
+void mtk_dp_mst_drv_set_hdcp_setting(struct mtk_dp *mtk_dp)
+{
+	u8 i;
+	int encoder_id;
+	u16 start_slot, end_slot;
+	struct drm_dp_mst_atomic_payload *payload;
+	struct drm_dp_mst_topology_state *mst_state;
+
+	mtk_dp_mst_hal_hdcp_enable(mtk_dp, true);
+
+	mst_state = to_drm_dp_mst_topology_state(mtk_dp->mgr.base.state);
+	if (IS_ERR_OR_NULL(mst_state)) {
+		dev_err(mtk_dp->dev, "[DPTX] fail to get mst topology state!\n");
+		return;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(mtk_dp->mtk_con); i++) {
+		if (!mst_con_with_encoder(mtk_dp->mtk_con[i]))
+			continue;
+
+		encoder_id = mtk_dp->mtk_con[i]->encoder;
+		if ((mst_state->payload_mask >> encoder_id) & 0x1) {
+			payload = drm_atomic_get_mst_payload_state(mst_state,
+								   mtk_dp->mtk_con[i]->port);
+			if (IS_ERR_OR_NULL(payload)) {
+				dev_err(mtk_dp->dev, "[DPTX] fail to get mst payload state!\n");
+				continue;
+			}
+
+			start_slot = payload->vc_start_slot;
+			end_slot = start_slot + payload->time_slots;
+
+			/* reg_vc_payload_timeslot */
+			if ((start_slot > 64) || (end_slot > 64))
+				dev_err(mtk_dp->dev,
+					"[DPTX] Invalid slot region, start_slot %d, end_slot %d\n",
+					start_slot, end_slot);
+			else
+				mtk_dp_mst_hal_hdcp_set_timeslot(mtk_dp, start_slot, end_slot);
+		}
+	}
+
+	mtk_dp_mst_hal_hdcp_trigger_act(mtk_dp);
 }
 
 void mtk_dp_mst_atomic_disable(struct mtk_dp *mtk_dp, enum dp_encoder_id id,

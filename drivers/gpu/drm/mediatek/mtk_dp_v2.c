@@ -4256,11 +4256,14 @@ static void mtk_dp_hdcp_enable_handle(struct work_struct *data)
 	if (!need_type1 && ret && mtk_dp->hdcp_info.hdcp1x_info.capable)
 		ret = mtk_dp_hdcp1x_enable(&mtk_dp->hdcp_info);
 
-	if (!ret) {
-		schedule_delayed_work(&mtk_dp->check_work, check_link_interval);
-		mtk_dp_hdcp_update_value(mtk_dp);
-	}
+	if (ret)
+		goto end;
 
+	if (mtk_dp->mst_enable)
+		mtk_dp_mst_drv_set_hdcp_setting(mtk_dp);
+
+	schedule_delayed_work(&mtk_dp->check_work, check_link_interval);
+	mtk_dp_hdcp_update_value(mtk_dp);
 end:
 	mutex_unlock(&mtk_dp->hdcp_mutex);
 }
