@@ -180,6 +180,7 @@ struct mtk_vcodec_dec_pdata {
  *
  * @is_10bit_bitstream: set to true if it's 10bit bitstream
  * @is_secure_playback: Secure Video Playback (SVP) mode
+ * @update_mmpc: update ostd with mmpc
  */
 struct mtk_vcodec_dec_ctx {
 	enum mtk_instance_type type;
@@ -227,6 +228,7 @@ struct mtk_vcodec_dec_ctx {
 
 	bool is_10bit_bitstream;
 	bool is_secure_playback;
+	bool update_mmpc;
 };
 
 /**
@@ -270,6 +272,7 @@ struct mtk_vcodec_dec_ctx {
  * @dbgfs: debug log related information
  *
  * @chip_name: used to distinguish platforms and select the correct codec configuration values
+ * @dvfs_mux: mutex lock used for dvfs control
  *
  * @optee_private: optee private data
  */
@@ -315,7 +318,7 @@ struct mtk_vcodec_dec_dev {
 	struct mtk_vcodec_dbgfs dbgfs;
 
 	enum mtk_vcodec_dec_chip_name chip_name;
-
+	struct mutex dvfs_mux;
 #if IS_REACHABLE(CONFIG_OPTEE)
 	struct mtk_vdec_optee_private *optee_private;
 #endif

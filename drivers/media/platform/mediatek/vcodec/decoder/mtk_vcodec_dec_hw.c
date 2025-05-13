@@ -214,10 +214,10 @@ static int mtk_vdec_hw_probe(struct platform_device *pdev)
 	subdev_dev->vdec_dvfs.main_dev = main_dev;
 	subdev_dev->vdec_dvfs.sub_dev = subdev_dev;
 
-	mtk_prepare_vdec_dvfs(&subdev_dev->vdec_dvfs);
+	ret = mtk_prepare_vdec_dvfs(&subdev_dev->vdec_dvfs);
 #endif
 
-	return 0;
+	return ret;
 }
 
 static struct platform_driver mtk_vdec_driver = {
