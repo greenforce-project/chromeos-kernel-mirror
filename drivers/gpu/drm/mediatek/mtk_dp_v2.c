@@ -3203,13 +3203,10 @@ void mtk_dp_video_mute_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_id encode
 		mtk_dp_atf_call_v2(mtk_dp, MTK_DP_SIP_ATF_VIDEO_UNMUTE, 0);
 	}
 
-	if (mtk_dp->dsc_enable[encoder_id])
-		WRITE_2BYTE_MASK(mtk_dp, REG_31C4_DP_ENCODER0_P0 + reg_offset,
-				 (enable ? 1 : 0) << DSC_BYPASS_EN_DP_ENCODER0_P0_FLDMASK_POS,
-				 DSC_BYPASS_EN_DP_ENCODER0_P0_FLDMASK);
-
 	WRITE_BYTE_MASK(mtk_dp, 0x402c, 0, BIT(4));
 	WRITE_BYTE_MASK(mtk_dp, 0x402c, 1, BIT(4));
+
+	msleep(100);
 }
 
 static void mtk_dp_sdp_set_asp_count_init_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_id encoder_id)
@@ -3694,17 +3691,22 @@ static void mtk_dp_video_config_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_
 	} else {
 		mtk_dp_dsc_pps_send_v2(mtk_dp, encoder_id);
 		mtk_dp_dsc_enable_v2(mtk_dp, encoder_id);
+	}
 
-		if (mtk_dp->mst_enable) {
-			con_id = encoder_id_to_con_id(mtk_dp, encoder_id, DRM_DP_MST);
-			if (con_id < 0)
-				return;
+	if (mtk_dp->mst_enable) {
+		con_id = encoder_id_to_con_id(mtk_dp, encoder_id, DRM_DP_MST);
+		if (con_id < 0)
+			return;
 
+		if (drm_dp_sink_supports_dsc(mtk_dp->mtk_con[con_id]->dsc_dpcd))
 			set_dsc_decompression_flag_v2(mtk_dp->mtk_con[con_id]->dsc_aux,
-						      DP_DECOMPRESSION_EN, true);
-		} else {
-			set_dsc_decompression_flag_v2(&mtk_dp->aux, DP_DECOMPRESSION_EN, true);
-		}
+						      DP_DECOMPRESSION_EN,
+						      mtk_dp->dsc_enable[encoder_id]);
+	} else {
+		if (drm_dp_sink_supports_dsc(mtk_dp->mtk_con[DP_FIRST_CON]->dsc_dpcd))
+			set_dsc_decompression_flag_v2(&mtk_dp->aux,
+						      DP_DECOMPRESSION_EN,
+						      mtk_dp->dsc_enable[encoder_id]);
 	}
 }
 
