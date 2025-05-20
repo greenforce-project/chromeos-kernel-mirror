@@ -8,6 +8,7 @@
 
 #include "mtk_vcodec_dbgfs.h"
 #include "../decoder/mtk_vcodec_dec_drv.h"
+#include "../decoder/mtk_vcodec_dec_dvfs.h"
 #include "../encoder/mtk_vcodec_enc_drv.h"
 #include "mtk_vcodec_util.h"
 
@@ -190,6 +191,7 @@ static void mtk_vcodec_dbgfs_vdec_init(struct mtk_vcodec_dec_dev *vcodec_dev)
 	vcodec_root = vcodec_dev->dbgfs.vcodec_root;
 	debugfs_create_x32("mtk_v4l2_dbg_level", 0644, vcodec_root, &mtk_v4l2_dbg_level);
 	debugfs_create_x32("mtk_vcodec_dbg", 0644, vcodec_root, &mtk_vcodec_dbg);
+	debugfs_create_x32("mtk_mmdvfs_level", 0644, vcodec_root, &mtk_mmdvfs_level);
 
 	vcodec_dev->dbgfs.inst_count = 0;
 	INIT_LIST_HEAD(&vcodec_dev->dbgfs.dbgfs_head);

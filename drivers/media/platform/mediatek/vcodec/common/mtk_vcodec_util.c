@@ -21,6 +21,10 @@ EXPORT_SYMBOL(mtk_vcodec_dbg);
 
 int mtk_v4l2_dbg_level;
 EXPORT_SYMBOL(mtk_v4l2_dbg_level);
+
+int mtk_mmdvfs_level;
+EXPORT_SYMBOL(mtk_mmdvfs_level);
+
 #endif
 
 void __iomem *mtk_vcodec_get_reg_addr(void __iomem **reg_base, unsigned int reg_idx)

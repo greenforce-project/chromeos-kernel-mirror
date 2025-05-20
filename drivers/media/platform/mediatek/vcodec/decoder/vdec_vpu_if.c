@@ -9,6 +9,7 @@
 #include "vdec_ipi_msg.h"
 #include "vdec_vpu_if.h"
 #include "../common/mtk_vcodec_fw_vcp.h"
+#include "mtk_vcodec_dec_dvfs.h"
 
 static void handle_init_ack_msg(const struct vdec_vpu_ipi_init_ack *msg)
 {
@@ -57,6 +58,8 @@ static void handle_init_ack_msg(const struct vdec_vpu_ipi_init_ack *msg)
 		vpu->failure = 1;
 		break;
 	}
+
+	mtk_vdec_fill_dvfs_params(vpu->ctx->dev, (unsigned int *)vpu->vsi);
 }
 
 static void handle_get_param_msg_ack(const struct vdec_vpu_ipi_get_param_ack *msg)

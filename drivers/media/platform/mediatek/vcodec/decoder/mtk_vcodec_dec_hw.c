@@ -209,6 +209,14 @@ static int mtk_vdec_hw_probe(struct platform_device *pdev)
 		main_dev->subdev_prob_done = mtk_vdec_hw_prob_done;
 
 	platform_set_drvdata(pdev, subdev_dev);
+
+#if IS_ENABLED(CONFIG_MTK_MMDVFS)
+	subdev_dev->vdec_dvfs.main_dev = main_dev;
+	subdev_dev->vdec_dvfs.sub_dev = subdev_dev;
+
+	mtk_prepare_vdec_dvfs(&subdev_dev->vdec_dvfs);
+#endif
+
 	return 0;
 }
 

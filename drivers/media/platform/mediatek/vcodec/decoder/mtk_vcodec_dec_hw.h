@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 
 #include "mtk_vcodec_dec_drv.h"
+#include "mtk_vcodec_dec_dvfs.h"
 
 #define VDEC_HW_ACTIVE_ADDR 0x0
 #define VDEC_HW_ACTIVE_MASK BIT(4)
@@ -24,6 +25,7 @@
  * enum mtk_vdec_hw_reg_idx - subdev hardware register base index
  * @VDEC_HW_SYS : vdec soc register index
  * @VDEC_HW_MISC: vdec misc register index
+ * @VDEC_HW_XPC : vdec xpc register index
  * @VDEC_HW_MAX : vdec supported max register index
  */
 enum mtk_vdec_hw_reg_idx {
@@ -55,6 +57,8 @@ struct mtk_vdec_hw_dev {
 	int dec_irq;
 	struct mtk_vcodec_pm pm;
 	int hw_idx;
+
+	struct mtk_vcodec_dec_dvfs vdec_dvfs;
 };
 
 #endif /* _MTK_VCODEC_DEC_HW_H_ */
