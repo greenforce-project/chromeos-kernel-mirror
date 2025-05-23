@@ -4892,6 +4892,7 @@
 			ged-supply = <&ged>;
 			system-coherency = <31>;
 			sleep-mode-enable;
+			firmware-name = "arm/mali/arch13.8/mali_csffw.bin";
 			firmware-idle-hysteresis-time-us = <0>;
 			default-glb-pwroff-timeout-us = <10>;
 			autosuspend-delay-ms = <10>;
