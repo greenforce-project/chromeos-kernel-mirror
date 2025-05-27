@@ -422,7 +422,6 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		mutex_init(&dev->dec_mutex[i]);
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->dev_ctx_lock);
-	mutex_init(&dev->dvfs_mux);
 	spin_lock_init(&dev->irqlock);
 
 	init_waitqueue_head(&dev->sync_decode);
