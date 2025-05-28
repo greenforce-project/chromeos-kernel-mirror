@@ -9,24 +9,22 @@
 #include "venc_vpu_if.h"
 #include "../common/mtk_vcodec_fw_vcp.h"
 
-#define IPI_VSI_OFFSET_MASK 0x0FFFFFFF
+#define VSI_OFFSET_MASK 0x0FFFFFFF
 
 static void handle_enc_init_msg(struct venc_vpu_inst *vpu, const void *data)
 {
 	const struct venc_vpu_ipi_msg_init_comm *msg = data;
 	struct mtk_vcodec_fw *fw = vpu->ctx->dev->fw_handler;
-	__u64 pa_start;
-	__u64 vsi_offset;
+	__u64 pa_start, vsi_offset;
 
 	vpu->inst_addr = msg->init_ack.vpu_inst_addr;
 
 	if (mtk_vcodec_fw_get_type(fw) == VCP) {
-		pa_start = (__u64)mtk_vcodec_vcp_get_vsi_iova(fw);
-		vsi_offset = ((msg->vpu_vsi_addr & IPI_VSI_OFFSET_MASK) -
-			(pa_start & IPI_VSI_OFFSET_MASK));
+		pa_start = (u64)fw->vcp->iova_addr;
+		vsi_offset = (msg->vpu_vsi_addr & VSI_OFFSET_MASK) - (pa_start & VSI_OFFSET_MASK);
 		vpu->vsi = mtk_vcodec_vcp_get_vsi(fw, 0) + vsi_offset;
 	} else {
-		vpu->vsi = mtk_vcodec_fw_map_dm_addr(fw, vpu->inst_addr);
+		vpu->vsi = mtk_vcodec_fw_map_dm_addr(fw, msg->vpu_vsi_addr);
 	}
 
 	/* Firmware version field value is unspecified on MT8173. */
@@ -168,8 +166,8 @@ int vpu_enc_init(struct venc_vpu_inst *vpu)
 	out.base.venc_inst = (unsigned long)vpu;
 	if (MTK_ENC_DRV_IS_COMM(vpu->ctx)) {
 		out.codec_type = vpu->ctx->q_data[MTK_Q_DATA_DST].fmt->fourcc;
-		out.shared_iova =
-			mtk_vcodec_vcp_get_vsi_iova(vpu->ctx->dev->fw_handler);
+		if (mtk_vcodec_fw_get_type(vpu->ctx->dev->fw_handler) == VCP)
+			out.shared_iova = vpu->ctx->dev->fw_handler->vcp->iova_addr;
 		msg_size = sizeof(struct venc_ap_ipi_msg_init_comm);
 	} else {
 		msg_size = sizeof(struct venc_ap_ipi_msg_init);
