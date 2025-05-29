@@ -7266,7 +7266,6 @@ static int dm_plane_helper_check_state(struct drm_plane_state *state,
 				DRM_DEBUG_ATOMIC("Viewport height %d smaller than %d\n", viewport_height, MIN_VIEWPORT_SIZE);
 				return -EINVAL;
 			}
-
 		}
 
 		/* Get min/max allowed scaling factors from plane caps. */
