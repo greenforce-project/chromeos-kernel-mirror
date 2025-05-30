@@ -77,6 +77,7 @@
 #define UVC_QUIRK_DISABLE_AUTOSUSPEND	0x00008000
 #define UVC_QUIRK_PRIVACY_DURING_STREAM	0x80000000
 #define UVC_QUIRK_INVALID_DEVICE_SOF	0x00010000
+#define UVC_QUIRK_MJPEG_NO_EOF		0x00020000
 
 /* Format flags */
 #define UVC_FMT_FLAG_COMPRESSED		0x00000001
@@ -250,6 +251,7 @@ struct uvc_entity {
 			struct mutex event_mutex;
 			int last_event_val;
 			bool is_gpio_ready;
+			bool initialized;
 		} gpio;
 	};
 
