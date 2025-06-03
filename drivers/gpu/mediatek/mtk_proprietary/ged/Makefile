@@ -11,9 +11,8 @@
 # GNU General Public License for more details.
 #
 
-GED_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ged
-MTK_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary
-GPU_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali
+GED_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged
+MTK_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary
 
 subdir-ccflags-y += -Wno-error
 
@@ -42,9 +41,9 @@ ccflags-y += \
 
 ccflags-y += \
 	-I$(GED_TOP)/include/ \
-	-I$(GPU_TOP)/ \
-	-I$(GPU_TOP)/hal/ \
 	-I$(MTK_TOP)/ \
+	-I$(MTK_TOP)/gpueb/include \
+	-I$(MTK_TOP)/gpufreq/ \
 	-I$(MTK_TOP)/gpufreq/v2/include/ \
 	-I$(MTK_TOP)/gpu_bm/
 
@@ -74,9 +73,15 @@ ged-y += \
 	src/ged_eb.o \
 	src/ged_gpu_bm.o \
 	src/ged_gpu_slc.o \
-	src/ged_mali_event.o \
-	src/ged_clk_rate_trace.o
+	src/ged_mali_event.o
 
 ged-$(CONFIG_SYNC_FILE) += src/ged_sync.o
 
-obj-$(CONFIG_MALI_MTK) += ged.o
+ifdef CONFIG_MALI_MTK
+ged-y += src/ged_clk_rate_trace.o
+CFLAGS_src/ged_clk_rate_trace.o += \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali \
+	-DMALI_USE_CSF=1
+endif
+
+obj-$(CONFIG_MTK_GPU_SUPPORT) += ged.o

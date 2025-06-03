@@ -22,8 +22,8 @@ ccflags-y += \
         -I$(srctree)/drivers/gpu/mediatek/arm/mali/include \
         -I$(srctree)/drivers/dma-buf/heaps \
         -I$(srctree)/drivers/misc/mediatek/trusted_mem/public \
-        -I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq \
-        -I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpueb/include
+        -I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/gpufreq \
+        -I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include
 
 subdir-ccflags-y += $(ccflags-y)
 

@@ -253,4 +253,3 @@ MALI_PLATFORM_DIR := mediatek
 export MALI_PLATFORM_DIR
 include $(src)/platform/$(MALI_PLATFORM_DIR)/mtk_platform_common/Kbuild
 include $(src)/base/arm/Kbuild
-obj-y += platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/

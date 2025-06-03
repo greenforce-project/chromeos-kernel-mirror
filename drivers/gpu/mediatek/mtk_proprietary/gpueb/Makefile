@@ -11,13 +11,13 @@
 # GNU General Public License for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/mt-plat/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpueb/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/mt-plat/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include/
 #ccflags-y += -DDEBUG
 
 subdir-ccflags-y += -Wno-error
 
-obj-$(CONFIG_MALI_MTK) += mtk_gpueb.o
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpueb.o
 
 mtk_gpueb-y += \
     gpueb.o \
@@ -38,5 +38,5 @@ mtk_ghpm-y := \
 mtk_ghpm_swwa-y := \
 	ghpm_swwa.o \
 
-obj-$(CONFIG_MALI_MTK) += mtk_ghpm.o
-obj-$(CONFIG_MALI_MTK) += mtk_ghpm_swwa.o
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_ghpm.o
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_ghpm_swwa.o

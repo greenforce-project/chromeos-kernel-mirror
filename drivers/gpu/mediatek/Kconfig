@@ -1,5 +1,7 @@
 config MTK_GPU_SUPPORT
-	bool "Support MTK GPU"
+	tristate "Support MTK GPU"
+	depends on ARM64
+	depends on !MALI && MALI!=m
 	help
 	  config supports MTK GPU driver
 	  CONFIG_MTK_GPU_SUPPORT defines

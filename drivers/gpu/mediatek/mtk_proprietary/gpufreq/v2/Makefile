@@ -12,10 +12,10 @@
 #
 
 ccflags-y += -I$(DEVICE_MODULES_PATH)/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq/v2/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ged/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpueb/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/mt-plat/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq/v2/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include/
+ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/mt-plat/
 
 ccflags-y += \
 	-Wno-unused-variable \
@@ -31,5 +31,5 @@ mtk_gpufreq_mt8196-y := \
 	gpuppm.o \
 	gpufreq_mt8196.o
 
-obj-$(CONFIG_MALI_MTK) += mtk_gpufreq_wrapper.o
-obj-$(CONFIG_MALI_MTK) += mtk_gpufreq_mt8196.o
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpufreq_wrapper.o
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpufreq_mt8196.o

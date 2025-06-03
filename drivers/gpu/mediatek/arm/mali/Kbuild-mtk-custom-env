@@ -9,10 +9,10 @@ ccflags-y += -DMALI_MTK_GPUEB_IRQ
 
 ccflags-y += \
 	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_platform_common \
-	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/ged/include \
-	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpufreq \
-	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/mt-plat \
-	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/gpueb/include \
-	-I$(srctree)/drivers/gpu/mediatek/arm/mali/platform/$(MALI_PLATFORM_DIR)/mtk_proprietary/qos \
+	-I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/ged/include \
+	-I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/gpufreq \
+	-I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/mt-plat \
+	-I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include \
+	-I$(srctree)/drivers/gpu/mediatek/mtk_proprietary/qos \
 	-I$(srctree)/drivers/misc/mediatek/trusted_mem/public \
 	-I$(srctree)/drivers/dma-buf/heaps

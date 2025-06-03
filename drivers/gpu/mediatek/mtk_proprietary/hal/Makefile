@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2025 MediaTek Inc.
+# Copyright (C) 2015 MediaTek Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -11,13 +11,10 @@
 # GNU General Public License for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/firmware/arm_scmi
-ccflags-y += -I$(src)
+ccflags-y += \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ \
+	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq/ \
 
-#ccflags-y += -DDEBUG
-
-mtk_qos-objs := mtk_qos_common.o mtk_qos_scmi.o qos-mt8196.o
-
-ifeq ($(CONFIG_MTK_GPU_QOS_FRAMEWORK), y)
-obj-$(CONFIG_MALI_MTK) += mtk_qos.o
-endif
+obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpu_hal.o
+mtk_gpu_hal-y := mtk_gpu_utility.o
