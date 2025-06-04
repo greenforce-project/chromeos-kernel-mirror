@@ -59,7 +59,8 @@ static void handle_init_ack_msg(const struct vdec_vpu_ipi_init_ack *msg)
 		break;
 	}
 
-	mtk_vdec_fill_dvfs_params(vpu->ctx->dev, (unsigned int *)vpu->vsi);
+	if (IS_ENABLED(CONFIG_VIDEO_MEDIATEK_VCODEC_DVFS) && vpu->ctx->dev->vdec_pdata->has_dvfs)
+		mtk_vdec_fill_dvfs_params(vpu->ctx->dev, (unsigned int *)vpu->vsi);
 }
 
 static void handle_get_param_msg_ack(const struct vdec_vpu_ipi_get_param_ack *msg)
@@ -196,7 +197,8 @@ static int vcodec_vpu_send_msg(struct vdec_vpu_inst *vpu, void *msg, int len)
 		 * There is no need to copy the data (VSI) message to shared memory,
 		 * but we still need to set the buffer size to a non-zero value.
 		 */
-		if (msgid == AP_IPIMSG_DEC_CORE || msgid == AP_IPIMSG_DEC_START)
+		if (msgid == AP_IPIMSG_DEC_INIT || msgid == AP_IPIMSG_DEC_CORE ||
+		    msgid == AP_IPIMSG_DEC_START)
 			mtk_vcodec_dec_optee_set_data_info(optee_data, vpu->ctx->dev, hw_id);
 
 		err = mtk_vcodec_dec_optee_invokd_cmd(vpu->ctx->dev, hw_id, optee_data);

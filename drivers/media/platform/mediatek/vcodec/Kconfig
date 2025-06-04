@@ -52,3 +52,8 @@ config VIDEO_MEDIATEK_VCODEC_TEE
 
 	  Setting this config with Y when the driver need to support
 	  secure video playback(SVP).
+
+config VIDEO_MEDIATEK_VCODEC_DVFS
+	bool
+	depends on VIDEO_MEDIATEK_VCODEC
+	default y if MTK_MMDVFS

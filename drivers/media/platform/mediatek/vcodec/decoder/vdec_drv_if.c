@@ -61,9 +61,9 @@ int vdec_if_init(struct mtk_vcodec_dec_ctx *ctx, unsigned int fourcc)
 		return -EINVAL;
 	}
 
-	mtk_vcodec_dec_enable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_lock_ctx(ctx, ctx->hw_id);
 	ret = ctx->dec_if->init(ctx);
-	mtk_vcodec_dec_disable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_unlock_ctx(ctx, ctx->hw_id);
 
 	return ret;
 }
@@ -91,12 +91,12 @@ int vdec_if_decode(struct mtk_vcodec_dec_ctx *ctx, struct mtk_vcodec_mem *bs,
 	if (!ctx->drv_handle)
 		return -EIO;
 
-	mtk_vcodec_dec_enable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_lock_hardware(ctx, ctx->hw_id, true);
 	ctx->dev->sync_dec_done = false;
 	mtk_vcodec_set_curr_ctx(ctx->dev, ctx, ctx->hw_id);
 	ret = ctx->dec_if->decode(ctx->drv_handle, bs, fb, res_chg);
 	mtk_vcodec_set_curr_ctx(ctx->dev, NULL, ctx->hw_id);
-	mtk_vcodec_dec_disable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_unlock_hardware(ctx, ctx->hw_id, true);
 
 	return ret;
 }
@@ -121,9 +121,9 @@ void vdec_if_deinit(struct mtk_vcodec_dec_ctx *ctx)
 	if (!ctx->drv_handle)
 		return;
 
-	mtk_vcodec_dec_enable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_lock_hardware(ctx, ctx->hw_id, false);
 	ctx->dec_if->deinit(ctx->drv_handle);
-	mtk_vcodec_dec_disable_hardware(ctx, ctx->hw_id);
+	mtk_vcodec_dec_unlock_hardware(ctx, ctx->hw_id, false);
 
 	ctx->drv_handle = NULL;
 }

@@ -230,6 +230,8 @@ void mtk_vcodec_dec_set_default_params(struct mtk_vcodec_dec_ctx *ctx)
 	q_data->bytesperline[0] = q_data->coded_width;
 	q_data->sizeimage[1] = q_data->sizeimage[0] / 2;
 	q_data->bytesperline[1] = q_data->coded_width;
+
+	ctx->update_mmpc = true;
 }
 
 static int mtk_vcodec_dec_init_pic_info(struct mtk_vcodec_dec_ctx *ctx, enum v4l2_buf_type type)
@@ -915,6 +917,10 @@ int vb2ops_vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ctx->state == MTK_STATE_FLUSH)
 		ctx->state = MTK_STATE_HEADER;
 
+	if (IS_ENABLED(CONFIG_VIDEO_MEDIATEK_VCODEC_DVFS) && ctx->dev->vdec_pdata->has_dvfs &&
+	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		mtk_vcodec_dec_enable_hardware(ctx);
+
 	return 0;
 }
 
@@ -972,6 +978,11 @@ void vb2ops_vdec_stop_streaming(struct vb2_queue *q)
 		v4l2_m2m_buf_done(dst_buf, VB2_BUF_STATE_ERROR);
 	}
 
+	if (IS_ENABLED(CONFIG_VIDEO_MEDIATEK_VCODEC_DVFS) && ctx->dev->vdec_pdata->has_dvfs &&
+	    q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		mtk_vcodec_dec_disable_hardware(ctx);
+		ctx->update_mmpc = true;
+	}
 }
 
 static void m2mops_vdec_device_run(void *priv)

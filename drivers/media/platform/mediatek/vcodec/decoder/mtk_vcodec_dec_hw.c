@@ -210,12 +210,14 @@ static int mtk_vdec_hw_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, subdev_dev);
 
-#if IS_ENABLED(CONFIG_MTK_MMDVFS)
-	subdev_dev->vdec_dvfs.main_dev = main_dev;
-	subdev_dev->vdec_dvfs.sub_dev = subdev_dev;
+	if (IS_ENABLED(CONFIG_VIDEO_MEDIATEK_VCODEC_DVFS) && main_dev->vdec_pdata->has_dvfs) {
+		subdev_dev->vdec_dvfs.main_dev = main_dev;
+		subdev_dev->vdec_dvfs.sub_dev = subdev_dev;
 
-	mtk_prepare_vdec_dvfs(&subdev_dev->vdec_dvfs);
-#endif
+		ret = mtk_prepare_vdec_dvfs(&subdev_dev->vdec_dvfs);
+
+		return ret;
+	}
 
 	return 0;
 }

@@ -422,6 +422,7 @@ static int mtk_vcodec_probe(struct platform_device *pdev)
 		mutex_init(&dev->dec_mutex[i]);
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->dev_ctx_lock);
+	mutex_init(&dev->dvfs_mux);
 	spin_lock_init(&dev->irqlock);
 
 	init_waitqueue_head(&dev->sync_decode);
@@ -581,7 +582,7 @@ static const struct of_device_id mtk_vcodec_match[] = {
 	},
 	{
 		.compatible = "mediatek,mt8196-vcodec-dec",
-		.data = &mtk_lat_sig_core_pdata,
+		.data = &mtk_lat_sig_core_dvfs_pdata,
 	},
 	{},
 };

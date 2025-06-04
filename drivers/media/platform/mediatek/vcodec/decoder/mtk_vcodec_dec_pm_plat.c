@@ -392,3 +392,6 @@ void mtk_vdec_fill_dvfs_params(struct mtk_vcodec_dec_dev *main_dev, uint32_t *da
 	fill_dvfs_params(main_dev, MTK_VDEC_LAT0, data);
 }
 EXPORT_SYMBOL_GPL(mtk_vdec_fill_dvfs_params);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("Mediatek video decoder optee driver");
