@@ -53,6 +53,8 @@ static int ec_i2c_forward_msg(struct ec_i2c_device *bus, int cmd,
 	int outmsg_len = outmsg ? outmsg->len : 0;
 
 	msg = kzalloc(sizeof(*msg) + max(inmsg_len, outmsg_len), GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
 
 	msg->command = cmd;
 	msg->outsize = outmsg_len;
@@ -64,6 +66,8 @@ static int ec_i2c_forward_msg(struct ec_i2c_device *bus, int cmd,
 	ret = cros_ec_cmd_xfer_status(bus->ec, msg);
 	if (ret >= 0 && inmsg)
 		memcpy(inmsg->buf, msg->data, inmsg->len);
+
+	kfree(msg);
 	return ret;
 }
 
