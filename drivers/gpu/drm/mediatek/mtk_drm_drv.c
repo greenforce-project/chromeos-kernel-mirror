@@ -632,8 +632,8 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	if (ret)
 		goto put_mutex_dev;
 
-	drm->mode_config.min_width = 1;
-	drm->mode_config.min_height = 1;
+	drm->mode_config.min_width = 64;
+	drm->mode_config.min_height = 64;
 
 	/*
 	 * set max width and height as default value(4096x4096).
