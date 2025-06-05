@@ -16,7 +16,5 @@ ccflags-y += -I$(MTK_TOP)/ged/include
 ccflags-y += -I$(MTK_TOP)/gpueb/include
 ccflags-y += -I$(MTK_TOP)/gpufreq
 
-ifneq ($(wildcard $(srctree)/$(src)/gpu_pdma_mt8196.c),)
 mtk_gpu_pdma_mt8196-y := gpu_pdma_mt8196.o
 obj-y += mtk_gpu_pdma_mt8196.o
-endif
