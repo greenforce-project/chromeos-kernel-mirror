@@ -87,6 +87,20 @@ static struct task_struct *fuse_watchdog_detach(struct fuse_conn *fc)
 	return watchdog;
 }
 
+static bool should_abort_conn_on_suspend(struct fuse_conn *fc)
+{
+	bool ret;
+
+	spin_lock(&fc->bg_lock);
+	/*
+	 * Check if we have blocked requests. We are in suspend so we
+	 * should not race with anything.
+	 */
+	ret = waitqueue_active(&fc->blocked_waitq);
+	spin_unlock(&fc->bg_lock);
+	return ret;
+}
+
 static int fuse_watchdog_fn(void *conn)
 {
 	struct task_struct *watchdog;
@@ -136,7 +150,11 @@ static int fuse_watchdog_fn(void *conn)
 
 sleep:
 		schedule_timeout_interruptible(fuse_watchdog_timeout());
-		try_to_freeze();
+		if (freezing(current)) {
+			if (should_abort_conn_on_suspend(fc))
+				goto abort_conn;
+			try_to_freeze();
+		}
 	}
 
 	watchdog = fuse_watchdog_detach(fc);
@@ -152,7 +170,10 @@ abort_conn:
 	if (watchdog)
 		put_task_struct(watchdog);
 
-	pr_err("%s: connection timeout\n", current->comm);
+	if (freezing(current))
+		pr_err("%s: freezing, abort connection\n", current->comm);
+	else
+		pr_err("%s: connection timeout\n", current->comm);
 	fuse_abort_conn(fc);
 	return 0;
 }
