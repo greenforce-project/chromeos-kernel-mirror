@@ -11,11 +11,9 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq/v2/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/mt-plat/
+ccflags-y += -I$(MTK_TOP)/gpufreq/v2/include
+ccflags-y += -I$(MTK_TOP)/gpueb/include
+ccflags-y += -I$(MTK_TOP)/mt-plat
 
 ccflags-y += \
 	-Wno-unused-variable \

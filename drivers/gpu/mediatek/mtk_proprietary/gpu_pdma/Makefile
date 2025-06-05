@@ -11,10 +11,10 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpu_pdma/include
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq
+ccflags-y += -I$(MTK_TOP)/gpu_pdma/include
+ccflags-y += -I$(MTK_TOP)/ged/include
+ccflags-y += -I$(MTK_TOP)/gpueb/include
+ccflags-y += -I$(MTK_TOP)/gpufreq
 
 ifneq ($(wildcard $(srctree)/$(src)/gpu_pdma_mt8196.c),)
 mtk_gpu_pdma_mt8196-y := gpu_pdma_mt8196.o

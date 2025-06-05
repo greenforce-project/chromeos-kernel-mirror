@@ -11,12 +11,9 @@
 # See http://www.gnu.org/licenses/gpl-2.0.html for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/qos/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/sspm/v2/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/qos/
+ccflags-y += -I$(MTK_TOP)
+ccflags-y += -I$(MTK_TOP)/gpufreq
+ccflags-y += -I$(MTK_TOP)/qos
 
 #ccflags-y += -DDEBUG
 

@@ -12,9 +12,8 @@
 #
 
 ccflags-y += \
-	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged/include \
-	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ \
-	-I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpufreq/ \
+	-I$(MTK_TOP) \
+	-I$(MTK_TOP)/gpufreq
 
 obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_gpu_hal.o
 mtk_gpu_hal-y := mtk_gpu_utility.o

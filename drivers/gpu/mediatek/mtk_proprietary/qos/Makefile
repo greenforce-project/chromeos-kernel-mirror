@@ -12,7 +12,6 @@
 #
 
 ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/firmware/arm_scmi
-ccflags-y += -I$(src)
 
 #ccflags-y += -DDEBUG
 

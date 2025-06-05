@@ -11,7 +11,6 @@
 #include <linux/of.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
-#include "ged_global.h"
 #include "gpu_bm.h"
 #include "mt-plat/mtk_gpu_utility.h"
 #include "mtk_gpufreq.h"

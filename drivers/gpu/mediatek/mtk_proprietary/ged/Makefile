@@ -11,9 +11,6 @@
 # GNU General Public License for more details.
 #
 
-GED_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/ged
-MTK_TOP = $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary
-
 subdir-ccflags-y += -Wno-error
 
 ccflags-y += \
@@ -40,12 +37,12 @@ ccflags-y += \
 	-DMTK_GPU_EB_SUPPORT
 
 ccflags-y += \
-	-I$(GED_TOP)/include/ \
-	-I$(MTK_TOP)/ \
+	-I$(MTK_TOP) \
+	-I$(MTK_TOP)/ged/include \
 	-I$(MTK_TOP)/gpueb/include \
-	-I$(MTK_TOP)/gpufreq/ \
-	-I$(MTK_TOP)/gpufreq/v2/include/ \
-	-I$(MTK_TOP)/gpu_bm/
+	-I$(MTK_TOP)/gpufreq \
+	-I$(MTK_TOP)/gpufreq/v2/include \
+	-I$(MTK_TOP)/gpu_bm
 
 ifeq ($(CONFIG_DEBUG_FS),y)
 ccflags-y += -DGED_DEBUG_FS

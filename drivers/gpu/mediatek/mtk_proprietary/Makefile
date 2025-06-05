@@ -3,6 +3,9 @@
 # taken to initialize them in the correct order. Link order is the only way
 # to ensure this currently.
 
+export DEVICE_MODULES_PATH := $(srctree)
+export MTK_TOP := $(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary
+
 obj-y += hal/
 obj-y += gpueb/
 obj-y += gpufreq/

@@ -11,8 +11,7 @@
 # GNU General Public License for more details.
 #
 
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/mt-plat/
-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/mediatek/mtk_proprietary/gpueb/include/
+ccflags-y += -I$(MTK_TOP)/gpueb/include
 #ccflags-y += -DDEBUG
 
 subdir-ccflags-y += -Wno-error

@@ -11,7 +11,5 @@
 # GNU General Public License for more details.
 #
 
-export DEVICE_MODULES_PATH := $(srctree)
-
 obj-$(CONFIG_MTK_GPU_SUPPORT) += arm/
 obj-$(CONFIG_MTK_GPU_SUPPORT) += mtk_proprietary/
