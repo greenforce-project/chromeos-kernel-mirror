@@ -41,6 +41,7 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_framebuffer.h>
 #include <drm/drm_probe_helper.h>
+#include <drm/drm_panel.h>
 #include <drm/drm_rect.h>
 #include <drm/drm_vblank.h>
 #include <drm/drm_vblank_work.h>
@@ -369,6 +370,9 @@ struct intel_vbt_panel_data {
 };
 
 struct intel_panel {
+	/* Simple drm_panel */
+	struct drm_panel *base;
+
 	/* Fixed EDID for eDP and LVDS. May hold ERR_PTR for invalid EDID. */
 	const struct drm_edid *fixed_edid;
 
