@@ -92,10 +92,8 @@
 #define TRANS_IRQ_MSK				BIT(1)
 #define DP_CTS_RETRAIN_TIMES_14		12
 #define DP_CTS_RETRAIN_TIMES_DEFAULT	6
-#define DP_LT_RETRY_LIMIT			0x8
-#define DP_LT_MAX_LOOP				0x4
-#define DP_LT_MAX_CR_LOOP			0x9
-#define DP_LT_MAX_EQ_LOOP			0x6
+#define DP_LT_RETRY_LIMIT			20
+#define DPTX_TRAIN_MAX_ITERATION		5
 #define HPD_DEBOUNCE				100
 #define ACK_ESI_RETRY_TIMES			3
 #define MAX_MAC_REG_RANG			0x8000
@@ -103,6 +101,8 @@
 #define MST_HPD_EVENT_HANDLE_TIMES		200
 #define MTK_DP_SIP_ATF_VIDEO_UNMUTE		BIT(5)
 #define AUDIO_SRAM_RESET_TIMEOUT_MS		1000
+#define DP_CHECK_PHY_POLLING_DELAY_TIME		0
+#define DP_CHECK_PHY_POLLING_TIMEOUT		10
 
 enum aux_reply_cmd {
 	AUX_REPLY_ACK = 0x00,
@@ -2918,12 +2918,23 @@ static void mtk_dp_phy_clear_lane_pwr_v2(struct mtk_dp *mtk_dp)
 
 static void mtk_dp_phy_power_on_v2(struct mtk_dp *mtk_dp)
 {
+	u8 rdy_status;
+	u8 rdy_bmp = RGS_BIAS_READY_FLDMASK;
+	void *reg = mtk_dp->phyd_regs
+		    + mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_GLB_STATUS_02;
+
 	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x1 << FORCE_PWR_STATE_EN_FLDMASK_POS, FORCE_PWR_STATE_EN_FLDMASK);
 	PHY_WRITE_BYTE_MASK(mtk_dp, mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_PLL_CTL_0,
 			    0x3 << FORCE_PWR_STATE_VAL_FLDMASK_POS, FORCE_PWR_STATE_VAL_FLDMASK);
 
-	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] DP PHYD power on\n");
+	if (readl_poll_timeout_atomic(reg, rdy_status, rdy_status & rdy_bmp,
+		DP_CHECK_PHY_POLLING_DELAY_TIME, DP_CHECK_PHY_POLLING_TIMEOUT)) {
+		dev_err(mtk_dp->dev, "[DPTX] Polling BIAS status fail %x\n", rdy_status);
+		return;
+	}
+	drm_dbg_kms(mtk_dp->drm_dev,
+		    "[DPTX] DP PHYD power on and BIAS status %x\n", rdy_status);
 }
 
 static void mtk_dp_phy_power_down_v2(struct mtk_dp *mtk_dp)
@@ -2942,6 +2953,35 @@ static void mtk_dp_phy_power_down_v2(struct mtk_dp *mtk_dp)
 			    BIT(1) | BIT(3), BIT(1) | BIT(3));
 
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] DP PHYD power down\n");
+}
+
+static void mtk_dp_phy_check_ready_v2(struct mtk_dp *mtk_dp, enum dp_lane_count lane_count)
+{
+	u8 rdy_status;
+	u8 rdy_bmp = (RGS_BIAS_READY_FLDMASK | RGS_TX_LN0_READY_FLDMASK);
+	void *reg = mtk_dp->phyd_regs
+		    + mtk_dp->data->phyd_dig_glb_offset + DP_PHY_DIG_GLB_STATUS_02;
+
+	switch (lane_count) {
+	case DP_4LANE:
+		rdy_bmp |= (RGS_TX_LN3_READY_FLDMASK |
+			    RGS_TX_LN2_READY_FLDMASK |
+			    RGS_TX_LN1_READY_FLDMASK);
+		break;
+	case DP_2LANE:
+		rdy_bmp |= RGS_TX_LN1_READY_FLDMASK;
+		break;
+	default:
+		break;
+	}
+
+	if (readl_poll_timeout_atomic(reg, rdy_status, rdy_status & rdy_bmp,
+		DP_CHECK_PHY_POLLING_DELAY_TIME, DP_CHECK_PHY_POLLING_TIMEOUT)) {
+		dev_err(mtk_dp->dev, "[DPTX] Polling tx_ln status fail %x\n", rdy_status);
+		return;
+	}
+	drm_dbg_kms(mtk_dp->drm_dev,
+		    "[DPTX] Polling tx_ln status pass and tx_ln status %x\n", rdy_status);
 }
 
 static void mtk_dp_phy_reset_swing_pre_v2(struct mtk_dp *mtk_dp)
@@ -3132,6 +3172,7 @@ static void mtk_dp_phy_training_config_v2(struct mtk_dp *mtk_dp, const u8 link_r
 
 	/* step3: phy-d enable lane */
 	mtk_dp_phy_set_lane_pwr_v2(mtk_dp, lane_count);
+	mtk_dp_phy_check_ready_v2(mtk_dp, lane_count);
 }
 
 static void mtk_dp_phy_set_idle_pattern_v2(struct mtk_dp *mtk_dp, bool enable)
@@ -3724,10 +3765,8 @@ static u8 mtk_dp_get_sink_count_v2(struct mtk_dp *mtk_dp)
 	u8 tmp = 0;
 	int ret;
 
-	if (mtk_dp->training_info.sink_ext_cap_en)
-		ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_02002, &tmp, 0x1);
-	else
-		ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00200, &tmp, 0x1);
+	ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00200, &tmp, 0x1);
+
 	if (ret < 0) {
 		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Failed to read DPCD: %d\n", ret);
 		return 0;
@@ -3793,6 +3832,13 @@ static bool mtk_dp_check_sink_cap_v2(struct mtk_dp *mtk_dp)
 		mtk_dp->training_info.sink_ssc_en = false;
 		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] SINK NOT SUPPORT SSC\n");
 	}
+
+	// 4.2.2.7, Read 80 when DOWN_STREAM_PORT were detected
+	// DPCD 00005 or 02205: DOWN_STREAM_PORT_PRESENT
+	// DPCD 00007 or 02207: DFP_COUNT
+	// For pass DP LL CTS even if no need the information
+	if ((tmp[0x5] & BIT(0)) && ((tmp[0x7] & 0x0f) > 0x0))
+		drm_dp_dpcd_read(&mtk_dp->aux, DP_DOWNSTREAM_PORT_0, tmp, 0x10);
 
 	ret = drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00021, tmp, 0x1);
 	if (ret < 0)
@@ -5027,20 +5073,17 @@ static enum dp_train_stage mtk_dp_check_training_res_v2(struct mtk_dp *mtk_dp, u
 
 static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 link_rate, u8 lane_count)
 {
-	u8 dpcd_buffer[0x4], dpcd_202[0x6], temp[0x6], dpcd_200c[0x3];
+	u8 dpcd_buffer[0x4], dpcd_202[0x6], temp[0x6];
 	u8 dpcd_206 = 0xff;
 	u8 retry_times = 0;
 	u8 control = 0;
 	u8 loop = 0;
-	u8 cr_loop = 0;
-	u8 eq_loop = 0;
 	bool ssc_enable = false;
 	enum dp_train_stage res = DP_LT_NONE;
 
 	memset(temp, 0x0, sizeof(temp));
 	memset(dpcd_buffer, 0x0, sizeof(dpcd_buffer));
 	memset(dpcd_202, 0x0, sizeof(dpcd_202));
-	memset(dpcd_200c, 0x0, sizeof(dpcd_200c));
 
 	temp[0] = link_rate;
 	temp[1] = (lane_count | DP_AUX_SET_ENAHNCED_FRAME);
@@ -5052,7 +5095,7 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 	mdelay(5);
 
 	do {
-		loop++;
+		retry_times++;
 
 		if (!mtk_dp->training_info.cable_plug_in) {
 			drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Training Abort, HPD is low\n");
@@ -5068,12 +5111,9 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 				control = 0x1;
 				temp[0] = 0x21;
 				drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00102, temp, 0x1);
-				drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00206, (temp + 4), 0x2);
 				loop++;
 
 				/* force use SWING = 0 & PRE = 0 to start 1st link training */
-				temp[4] = 0x00;
-				temp[5] = 0x00;
 				mtk_dp_training_check_swing_pre_v2(mtk_dp, lane_count, temp,
 								   dpcd_buffer, true, false);
 			}
@@ -5081,12 +5121,6 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 			drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00103, dpcd_buffer, lane_count);
 			drm_dp_link_train_clock_recovery_delay(&mtk_dp->aux, mtk_dp->rx_cap);
 			drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00202, dpcd_202, 0x6);
-			if (mtk_dp->training_info.sink_ext_cap_en) {
-				drm_dp_dpcd_read(&mtk_dp->aux, DPCD_0200C, dpcd_200c, 0x3);
-				dpcd_202[0] = dpcd_200c[0]; /*  copy DPCD200C=>DCPD202 */
-				dpcd_202[1] = dpcd_200c[1]; /*  copy DPCD200D=>DCPD203 */
-				dpcd_202[2] = dpcd_200c[2]; /*  copy DPCD200E=>DCPD204 */
-			}
 
 			if (drm_dp_clock_recovery_ok(dpcd_202, lane_count)) {
 				drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] CR Training Success\n");
@@ -5095,19 +5129,17 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 
 				retry_times = 0x0;
 				loop = 0x1;
-				eq_loop = 0;
 			} else {
 				/* request swing & emp is the same with last time */
 				if (dpcd_206 == dpcd_202[0x4]) {
 					if ((dpcd_206 & 0x3) == 0x3) /* lane0 match max swing */
-						loop = DP_LT_MAX_LOOP;
+						loop = DPTX_TRAIN_MAX_ITERATION;
 					else
 						loop++;
 				} else {
 					dpcd_206 = dpcd_202[0x4];
 				}
 
-				cr_loop++;
 				drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] CR Training Fail\n");
 			}
 		} else if (mtk_dp->training_info.eq_done == 0x0) {
@@ -5138,12 +5170,6 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 			drm_dp_link_train_channel_eq_delay(&mtk_dp->aux, mtk_dp->rx_cap);
 
 			drm_dp_dpcd_read(&mtk_dp->aux, DPCD_00202, dpcd_202, 0x6);
-			if (mtk_dp->training_info.sink_ext_cap_en) {
-				drm_dp_dpcd_read(&mtk_dp->aux, DPCD_0200C, dpcd_200c, 0x3);
-				dpcd_202[0] = dpcd_200c[0]; /* copy DPCD200C=>DCPD202 */
-				dpcd_202[1] = dpcd_200c[1]; /* copy DPCD200D=>DCPD203 */
-				dpcd_202[2] = dpcd_200c[2]; /* copy DPCD200E=>DCPD204 */
-			}
 
 			if (!drm_dp_clock_recovery_ok(dpcd_202, lane_count)) {
 				mtk_dp->training_info.cr_done = false;
@@ -5162,7 +5188,7 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 			}
 
 			drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] EQ Training Fail\n");
-			eq_loop++;
+
 			if (dpcd_206 == dpcd_202[0x4])
 				loop++;
 			else
@@ -5172,9 +5198,8 @@ static enum dp_train_stage mtk_dp_training_flow_v2(struct mtk_dp *mtk_dp, u8 lin
 		mtk_dp_training_check_swing_pre_v2(mtk_dp, lane_count, dpcd_202,
 						   dpcd_buffer, true, false);
 		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] retry_times:%d, loop:%d\n", retry_times, loop);
-	} while ((loop < DP_LT_RETRY_LIMIT) &&
-		 (cr_loop < DP_LT_MAX_CR_LOOP) &&
-		 (eq_loop < DP_LT_MAX_EQ_LOOP));
+	} while ((retry_times < DP_LT_RETRY_LIMIT) &&
+		 (loop < DPTX_TRAIN_MAX_ITERATION));
 
 	temp[0] = 0x0;
 	drm_dp_dpcd_write(&mtk_dp->aux, DPCD_00102, temp, 0x1);

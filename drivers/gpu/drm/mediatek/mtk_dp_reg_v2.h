@@ -40,11 +40,19 @@
 #define DP_PHY_DIG_BIT_RATE									0x3c
 #define DP_PHY_DIG_TX_CTL_0									0x44
 
+#define DP_PHY_DIG_GLB_STATUS_02							0x88
+#define RGS_BIAS_READY_FLDMASK								0x1
+
 #define TPLL_SSC_EN_FLDMASK									0x8
 #define TPLL_SSC_EN_FLDMASK_POS								3
 
 #define TX_LN_EN_FLDMASK									0xf0
 #define TX_LN_EN_FLDMASK_POS								4
+
+#define RGS_TX_LN0_READY_FLDMASK							0x8
+#define RGS_TX_LN1_READY_FLDMASK							0x10
+#define RGS_TX_LN2_READY_FLDMASK							0x20
+#define RGS_TX_LN3_READY_FLDMASK							0x40
 
 #define DRIVING_FORCE										0x18
 
