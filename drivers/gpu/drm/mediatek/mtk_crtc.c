@@ -1165,8 +1165,6 @@ static void mtk_crtc_update_config(struct mtk_crtc *mtk_crtc, bool needs_vblank)
 	}
 #if IS_REACHABLE(CONFIG_MTK_CMDQ)
 	if (mtk_crtc->sec_on) {
-		struct cmdq_sec_data *sec_data;
-
 		cmdq_handle = kzalloc(sizeof(*cmdq_handle), GFP_KERNEL);
 		if (!cmdq_handle) {
 			DRM_ERROR("mtk_crtc %d failed to kzalloc secure cmdq packet\n",
@@ -1184,8 +1182,6 @@ static void mtk_crtc_update_config(struct mtk_crtc *mtk_crtc, bool needs_vblank)
 				  drm_crtc_index(&mtk_crtc->base));
 			goto update_config_err;
 		}
-		sec_data = (struct cmdq_sec_data *)cmdq_handle->sec_data;
-		sec_data->needs_vblank = needs_vblank;
 
 		cmdq_client = mtk_crtc->sec_cmdq_client;
 	} else if (mtk_crtc->cmdq_client.chan) {
