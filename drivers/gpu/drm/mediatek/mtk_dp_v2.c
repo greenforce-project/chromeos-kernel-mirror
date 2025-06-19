@@ -3090,7 +3090,7 @@ void mtk_dp_phy_flip_enable_v2(struct mtk_dp *mtk_dp)
 	tmp |= mtk_dp->data->phy_flip_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
-	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Swap enable\n");
+	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Phy flip enable\n");
 }
 
 void mtk_dp_phy_flip_disable_v2(struct mtk_dp *mtk_dp)
@@ -3108,7 +3108,7 @@ void mtk_dp_phy_flip_disable_v2(struct mtk_dp *mtk_dp)
 	tmp &= ~mtk_dp->data->phy_flip_ctrl_bit;
 	writel(tmp, mtk_dp->phy_mux_regs);
 
-	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Swap disable\n");
+	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Phy flip disable\n");
 }
 
 static void mtk_mt8196_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
@@ -3200,7 +3200,7 @@ static void mtk_dp_phy_setting_v2(struct mtk_dp *mtk_dp)
 	else
 		mtk_dp_phy_4lane_disable_v2(mtk_dp);
 
-	if (mtk_dp->swap_enable)
+	if (mtk_dp->phy_flip_enable)
 		mtk_dp_phy_flip_enable_v2(mtk_dp);
 	else
 		mtk_dp_phy_flip_disable_v2(mtk_dp);
@@ -5938,6 +5938,10 @@ static irqreturn_t mtk_dp_hpd_event_thread_v2(int hpd, void *dev)
 			}
 		} else {
 			drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] HPD_CON\n");
+
+			if (mtk_dp->phy_flip_pin)
+				mtk_dp->phy_flip_enable = gpiod_get_value_cansleep(mtk_dp->phy_flip_pin);
+
 			mtk_dp_init_property_v2(mtk_dp);
 			mtk_dp_initial_setting_v2(mtk_dp);
 			mtk_dp_analog_power_on_v2(mtk_dp);
@@ -6415,6 +6419,10 @@ static int mtk_drm_dp_probe_v2(struct platform_device *pdev)
 	}
 
 	atomic_set(&mtk_dp->refcount, 0);
+
+	mtk_dp->phy_flip_pin = devm_gpiod_get_optional(dev, "mediatek,phy-flip", GPIOD_ASIS);
+	if (IS_ERR(mtk_dp->phy_flip_pin))
+		return PTR_ERR(mtk_dp->phy_flip_pin);
 
 	return ret;
 }

@@ -436,6 +436,7 @@ struct mtk_dp {
 	struct dp_phy_parameter phy_params[DP_PHY_LEVEL_COUNT];
 
 	bool swap_enable;
+	bool phy_flip_enable;
 	bool need_debounce;
 
 	bool init_property;
@@ -459,5 +460,7 @@ struct mtk_dp {
 	struct device *vdisp_ao_dev;
 	/* protect the plugged_cb as it's used in both bridge ops and audio */
 	struct mutex update_plugged_status_lock;
+
+	struct gpio_desc *phy_flip_pin;
 };
 #endif
