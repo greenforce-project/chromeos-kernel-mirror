@@ -978,7 +978,7 @@ void mtk_dp_mst_drv_set_hdcp_setting(struct mtk_dp *mtk_dp)
 		if (!mst_con_with_encoder(mtk_dp->mtk_con[i]))
 			continue;
 
-		encoder_id = mtk_dp->mtk_con[i]->encoder;
+		encoder_id = mtk_dp->mtk_con[i]->encoder_id;
 		if ((mst_state->payload_mask >> encoder_id) & 0x1) {
 			payload = drm_atomic_get_mst_payload_state(mst_state,
 								   mtk_dp->mtk_con[i]->port);
