@@ -62,6 +62,9 @@ static int mt8196_fe_startup(struct snd_pcm_substream *substream,
 
 	snd_pcm_hw_constraint_step(substream->runtime, 0,
 					SNDRV_PCM_HW_PARAM_BUFFER_BYTES, 16);
+	if (memif_num == MT8196_MEMIF_VUL_CM0)
+		snd_pcm_hw_constraint_step(substream->runtime, 0,
+					SNDRV_PCM_HW_PARAM_PERIOD_BYTES, 16);
 
 	snd_soc_set_runtime_hwparams(substream, mtk_afe_hardware);
 
