@@ -82,7 +82,8 @@
 #define MTK_NOR_REG_DMA_DADR		0x720
 #define MTK_NOR_REG_DMA_END_DADR	0x724
 #define MTK_NOR_REG_CG_DIS		0x728
-#define MTK_NOR_SFC_SW_RST		BIT(2)
+/* Both controller register and function software reset bit */
+#define MTK_NOR_SFC_SW_RST		(BIT(2) | BIT(4))
 
 #define MTK_NOR_REG_DMA_DADR_HB		0x738
 #define MTK_NOR_REG_DMA_END_DADR_HB	0x73c
