@@ -206,7 +206,8 @@ static void mausb_get_hub_status(struct usb_hcd *hcd, u16 type_req,
 				 u16 length);
 static int mausb_add_endpoint(struct usb_hcd *hcd, struct usb_device *dev,
 			      struct usb_host_endpoint *endpoint);
-static int mausb_address_device(struct usb_hcd *hcd, struct usb_device *dev);
+static int mausb_address_device(struct usb_hcd *hcd, struct usb_device *dev,
+				unsigned int timeout_ms);
 static int mausb_alloc_dev(struct usb_hcd *hcd, struct usb_device *dev);
 static int mausb_check_bandwidth(struct usb_hcd *hcd, struct usb_device *dev);
 static void mausb_reset_bandwidth(struct usb_hcd *hcd, struct usb_device *dev);
@@ -1056,7 +1057,8 @@ mausb_alloc_device_ctx(struct hub_ctx *hub, struct usb_device *dev,
 	return usb_device_ctx;
 }
 
-static int mausb_address_device(struct usb_hcd *hcd, struct usb_device *dev)
+static int mausb_address_device(struct usb_hcd *hcd, struct usb_device *dev,
+				unsigned int timeout_ms)
 {
 	u8	port_number;
 	int	status;
