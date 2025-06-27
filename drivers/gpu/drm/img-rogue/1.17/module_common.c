@@ -498,8 +498,11 @@ int PVRSRVDeviceServicesOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
 		/* If there is already a valid connection, we can reuse it */
-		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SERVICES)
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES)
 		{
 			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing services connection", __func__));
 			iErr = 0;
@@ -606,8 +609,11 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	{
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 
+		PVR_ASSERT(psConnectionPriv->ui32Type != DKF_CONNECTION_FLAG_INVALID);
+		PVR_ASSERT(psConnectionPriv->ui32Type <= DKF_CONNECTION_FLAG_SERVICES);
+
 		/* If there is already a valid connection, we can reuse it */
-		if (psConnectionPriv->ui32Type & DKF_CONNECTION_FLAG_SYNC)
+		if (psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC)
 		{
 			PVR_DPF((PVR_DBG_WARNING, "%s: Reusing sync connection", __func__));
 			iErr = 0;
@@ -698,8 +704,18 @@ fail_pvr_sync_open:
 fail_private_data_init:
 	kfree(psConnection);
 fail_alloc_connection:
+#if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 	psDRMFile->driver_priv = NULL;
 	kfree(psConnectionPriv);
+#else
+	/* We can't completely destroy the connection because the services
+	 * connection continues to exist, and it could be in use right now!
+	 * It will all be freed once the fd is closed.
+	 *
+	 * The connection type will revert back to being a services connection.
+	 */
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SERVICES;
+#endif
 out:
 	return iErr;
 }
@@ -749,7 +765,10 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 {
 	struct drm_pvr_srvkm_init_data *data = arg;
 	struct pvr_drm_private *priv = dev->dev_private;
+	static DEFINE_MUTEX(sInitMutex);
 	int iErr = 0;
+
+	mutex_lock(&sInitMutex);
 
 	switch (data->init_module)
 	{
@@ -770,6 +789,8 @@ drm_pvr_srvkm_init(struct drm_device *dev, void *arg, struct drm_file *psDRMFile
 			iErr = -EINVAL;
 		}
 	}
+
+	mutex_unlock(&sInitMutex);
 
 	return iErr;
 }
