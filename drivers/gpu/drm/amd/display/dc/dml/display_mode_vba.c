@@ -252,25 +252,6 @@ unsigned int get_total_surface_size_in_mall_bytes(
 	return size;
 }
 
-static unsigned int get_pipe_idx(struct display_mode_lib *mode_lib, unsigned int plane_idx)
-{
-	int pipe_idx = -1;
-	int i;
-
-	ASSERT(plane_idx < DC__NUM_DPP__MAX);
-
-	for (i = 0; i < DC__NUM_DPP__MAX ; i++) {
-		if (plane_idx == mode_lib->vba.pipe_plane[i]) {
-			pipe_idx = i;
-			break;
-		}
-	}
-	ASSERT(pipe_idx >= 0);
-
-	return pipe_idx;
-}
-
-
 double get_det_buffer_size_kbytes(struct display_mode_lib *mode_lib, const display_e2e_pipe_params_st *pipes,
 		unsigned int num_pipes, unsigned int pipe_idx)
 {
@@ -1067,6 +1048,24 @@ static unsigned int CursorBppEnumToBits(enum cursor_bpp ebpp)
 	}
 }
 
+static unsigned int get_pipe_idx(struct display_mode_lib *mode_lib, unsigned int plane_idx)
+{
+	int pipe_idx = -1;
+	int i;
+
+	ASSERT(plane_idx < DC__NUM_DPP__MAX);
+
+	for (i = 0; i < DC__NUM_DPP__MAX ; i++) {
+		if (plane_idx == mode_lib->vba.pipe_plane[i]) {
+			pipe_idx = i;
+			break;
+		}
+	}
+	ASSERT(pipe_idx >= 0);
+
+	return pipe_idx;
+}
+
 void ModeSupportAndSystemConfiguration(struct display_mode_lib *mode_lib)
 {
 	soc_bounding_box_st *soc = &mode_lib->vba.soc;
@@ -1093,6 +1092,11 @@ void ModeSupportAndSystemConfiguration(struct display_mode_lib *mode_lib)
 
 	// Total Available Pipes Support Check
 	for (k = 0; k < mode_lib->vba.NumberOfActivePlanes; ++k) {
+		pipe_idx = get_pipe_idx(mode_lib, k);
+		if (pipe_idx == -1) {
+			ASSERT(0);
+			continue; // skip inactive planes
+		}
 		total_pipes += mode_lib->vba.DPPPerPlane[k];
 		pipe_idx = get_pipe_idx(mode_lib, k);
 		if (mode_lib->vba.cache_pipes[pipe_idx].clks_cfg.dppclk_mhz > 0.0)
