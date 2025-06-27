@@ -154,6 +154,7 @@ CONNECTION_DATA *LinuxServicesConnectionFromFile(struct file *pFile)
 
 		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
 		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SERVICES, "psConnectionPriv is not DKF_CONNECTION_FLAG_SERVICES", NULL);
 
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
 	}
@@ -165,8 +166,15 @@ CONNECTION_DATA *LinuxSyncConnectionFromFile(struct file *pFile)
 {
 	if (pFile)
 	{
-		struct drm_file *psDRMFile = pFile->private_data;
-		PVRSRV_CONNECTION_PRIV *psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		struct drm_file *psDRMFile;
+		PVRSRV_CONNECTION_PRIV *psConnectionPriv;
+
+		psDRMFile = pFile->private_data;
+		PVR_LOG_RETURN_IF_FALSE(psDRMFile != NULL, "psDRMFile is NULL", NULL);
+
+		psConnectionPriv = (PVRSRV_CONNECTION_PRIV*)psDRMFile->driver_priv;
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv != NULL, "psConnectionPriv is NULL", NULL);
+		PVR_LOG_RETURN_IF_FALSE(psConnectionPriv->ui32Type == DKF_CONNECTION_FLAG_SYNC, "psConnectionPriv is not DKF_CONNECTION_FLAG_SYNC", NULL);
 
 #if (PVRSRV_DEVICE_INIT_MODE == PVRSRV_LINUX_DEV_INIT_ON_CONNECT)
 		return (CONNECTION_DATA*)psConnectionPriv->pvConnectionData;
@@ -648,8 +656,6 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 		}
 	}
 
-	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
-
 	/* Allocate connection data area, no stats since process not registered yet */
 	psConnection = kzalloc(sizeof(*psConnection), GFP_KERNEL);
 	if (!psConnection)
@@ -694,6 +700,7 @@ static int PVRSRVDeviceSyncOpen(PVRSRV_DEVICE_NODE *psDeviceNode,
 	psConnectionPriv->pfDeviceRelease = pvr_sync_close;
 #endif
 #endif
+	psConnectionPriv->ui32Type = DKF_CONNECTION_FLAG_SYNC;
 	psDRMFile->driver_priv = psConnectionPriv;
 	goto out;
 
