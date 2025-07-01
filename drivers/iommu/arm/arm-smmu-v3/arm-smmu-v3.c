@@ -3967,7 +3967,7 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 	/* Probe the h/w */
 	ret = arm_smmu_device_hw_probe(smmu);
 	if (ret)
-		return ret;
+		goto err_put_rpm;
 
 	/* Initialise in-memory data structures */
 	ret = arm_smmu_init_structures(smmu);
@@ -3997,6 +3997,7 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		goto err_free_sysfs;
 	}
 
+	arm_smmu_rpm_put(smmu);
 	return 0;
 
 err_free_sysfs:
@@ -4005,6 +4006,8 @@ err_disable:
 	arm_smmu_device_disable(smmu);
 err_free_iopf:
 	iopf_queue_free(smmu->evtq.iopf);
+err_put_rpm:
+	arm_smmu_rpm_put(smmu);
 	return ret;
 }
 
