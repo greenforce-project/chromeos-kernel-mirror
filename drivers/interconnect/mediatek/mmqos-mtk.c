@@ -2083,6 +2083,6 @@ static const struct kernel_param_ops larb_port_ostdl_ops = {
 module_param_cb(larb_port_ostdl, &larb_port_ostdl_ops, &larb_port_ostdl, 0644);
 MODULE_PARM_DESC(larb_port_ostdl, "force set ostdl to larb port");
 
-MODULE_IMPORT_NS("MTK_SMI");
+MODULE_IMPORT_NS(MTK_SMI);
 MODULE_LICENSE("GPL");
 #endif /* MMQOS_MTK_C */
