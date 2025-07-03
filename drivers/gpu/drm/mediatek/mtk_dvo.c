@@ -208,6 +208,8 @@ struct mtk_dvo_conf {
 	u32 pixels_per_iter;
 	bool edge_cfg_in_mmsys;
 	bool has_commit;
+	bool is_dp;
+	bool hfp_adjustment_for_bs;
 };
 
 static struct mtk_dvo_gs_info mtk_dvo_gs[MTK_DVO_GSL_MAX] = {
@@ -589,6 +591,13 @@ static int mtk_dvo_set_display_mode(struct mtk_dvo *dvo,
 	hsync.back_porch = vm.hback_porch / dvo->conf->pixels_per_iter;
 	hsync.front_porch = vm.hfront_porch / dvo->conf->pixels_per_iter;
 
+	if (dvo->conf->hfp_adjustment_for_bs) {
+		/* Tuning the DVO H front porch to generate BS normally */
+		u16 hfp_adjustment = 0;
+		hsync.back_porch += (hsync.front_porch - hfp_adjustment);
+		hsync.front_porch = hfp_adjustment;
+	}
+
 	hsync.shift_half_line = false;
 	vsync_lodd.sync_width = vm.vsync_len;
 	vsync_lodd.back_porch = vm.vback_porch;
@@ -611,11 +620,13 @@ static int mtk_dvo_set_display_mode(struct mtk_dvo *dvo,
 
 	mtk_dvo_info_queue_start(dvo);
 	mtk_dvo_buffer_ctrl(dvo);
-	mtk_dvo_trailing_blank_setting(dvo);
 
-	mtk_dvo_get_gs_level(dvo);
-	mtk_dvo_golden_setting(dvo);
-	mtk_dvo_sodi_setting(dvo, mode);
+	if (!dvo->conf->is_dp) {
+		mtk_dvo_trailing_blank_setting(dvo);
+		mtk_dvo_get_gs_level(dvo);
+		mtk_dvo_golden_setting(dvo);
+		mtk_dvo_sodi_setting(dvo, mode);
+	}
 
 	if (dvo->conf->pixels_per_iter)
 		mtk_dvo_shadow_ctrl(dvo);
@@ -825,17 +836,19 @@ static int mtk_dvo_bind(struct device *dev, struct device *master, void *data)
 	dvo->encoder.possible_crtcs = mtk_find_possible_crtcs(drm_dev, dvo->dev);
 
 	ret = drm_bridge_attach(&dvo->encoder, &dvo->bridge, NULL,
-				DRM_BRIDGE_ATTACH_NO_CONNECTOR);
+				dvo->conf->is_dp ? 0 : DRM_BRIDGE_ATTACH_NO_CONNECTOR);
 	if (ret)
 		goto err_cleanup;
 
-	dvo->connector = drm_bridge_connector_init(drm_dev, &dvo->encoder);
-	if (IS_ERR(dvo->connector)) {
-		dev_err(dev, "Unable to create bridge connector\n");
-		ret = PTR_ERR(dvo->connector);
-		goto err_cleanup;
+	if (!dvo->conf->is_dp) {
+		dvo->connector = drm_bridge_connector_init(drm_dev, &dvo->encoder);
+		if (IS_ERR(dvo->connector)) {
+			dev_err(dev, "Unable to create bridge connector\n");
+			ret = PTR_ERR(dvo->connector);
+			goto err_cleanup;
+		}
+		drm_connector_attach_encoder(dvo->connector, &dvo->encoder);
 	}
-	drm_connector_attach_encoder(dvo->connector, &dvo->encoder);
 
 	return 0;
 
@@ -901,6 +914,7 @@ static const struct mtk_dvo_conf mt8189_conf = {
 static int mtk_dvo_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct device_node *endpoint, *port;
 	struct mtk_dvo *dvo;
 	int ret;
 
@@ -941,14 +955,33 @@ static int mtk_dvo_probe(struct platform_device *pdev)
 	if (dvo->irq < 0)
 		return dvo->irq;
 
-	dvo->next_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-	if (IS_ERR(dvo->next_bridge))
-		return  dev_err_probe(dev, PTR_ERR(dvo->next_bridge),
-				     "Failed to get bridge\n");
-
-	dev_dbg(dev, "Found bridge node: %pOF\n", dvo->next_bridge->of_node);
-
 	platform_set_drvdata(pdev, dvo);
+
+	if (!dvo->conf->is_dp) {
+		dvo->next_bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
+		if (IS_ERR(dvo->next_bridge))
+			return  dev_err_probe(dev, PTR_ERR(dvo->next_bridge),
+					      "Failed to get bridge node: %pOF\n", dev->of_node);
+	} else {
+		endpoint = of_graph_get_endpoint_by_regs(dev->of_node, 0, 0);
+		if (!endpoint)
+			return dev_err_probe(dev, -ENODEV, "Failed to find endpoint!\n");
+
+		/* To support MST,
+		 * the DP bridge (dp-tx) driver registers one bridge per input port.
+		 * which is different from devm_drm_of_get_bridge.
+		 */
+		port = of_graph_get_remote_port(endpoint);
+		of_node_put(endpoint);
+		if (!port)
+			return dev_err_probe(dev, -ENODEV, "Failed to find remote port!\n");
+
+		dvo->next_bridge = of_drm_find_bridge(port);
+		of_node_put(port);
+		if (!dvo->next_bridge)
+			return dev_err_probe(dev, -EPROBE_DEFER, "Failed to find next bridge!\n");
+	}
+	dev_dbg(dev, "Found bridge node: %pOF\n", dvo->next_bridge->of_node);
 
 	dvo->bridge.funcs = &mtk_dvo_bridge_funcs;
 	dvo->bridge.of_node = dev->of_node;
