@@ -171,4 +171,12 @@
 #define DVO_BUF_URGENT_LOW		0x254
 #define DVO_DISP_BUF_MASK		GENMASK(31,0)
 
+#define DVO_MATRIX_SET			0x140
+#define DVO_CSC_EN			BIT(0)
+#define DVO_INT_MTX_SEL_MASK		GENMASK(8, 4)
+
+#define DVO_YUV422_SET			0x170
+#define DVO_YUV422_EN			BIT(0)
+#define DVO_CRYCB_MAP			BIT(8)
+
 #endif /* __MTK_DPI_REGS_H */

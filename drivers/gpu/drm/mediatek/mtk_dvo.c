@@ -509,6 +509,44 @@ err_refcount:
 	return ret;
 }
 
+static void mtk_dvo_config_csc_enable(struct mtk_dvo *dvo)
+{
+	mtk_dvo_mask(dvo, DVO_MATRIX_SET, 0x2, DVO_INT_MTX_SEL_MASK);
+	mtk_dvo_mask(dvo, DVO_MATRIX_SET, DVO_CSC_EN, DVO_CSC_EN);
+}
+
+static void mtk_dvo_config_csc_disable(struct mtk_dvo *dvo)
+{
+	mtk_dvo_mask(dvo, DVO_MATRIX_SET, 0, DVO_INT_MTX_SEL_MASK);
+	mtk_dvo_mask(dvo, DVO_MATRIX_SET, 0, DVO_CSC_EN);
+}
+
+static void mtk_dvo_config_yuv422_enable_v2(struct mtk_dvo *dvo)
+{
+	mtk_dvo_mask(dvo, DVO_YUV422_SET, DVO_YUV422_EN, DVO_YUV422_EN);
+	mtk_dvo_mask(dvo, DVO_YUV422_SET, DVO_CRYCB_MAP, DVO_CRYCB_MAP);
+}
+
+static void mtk_dvo_config_yuv422_disable_v2(struct mtk_dvo *dvo)
+{
+	mtk_dvo_mask(dvo, DVO_YUV422_SET, 0, DVO_YUV422_EN);
+	mtk_dvo_mask(dvo, DVO_YUV422_SET, 0, DVO_CRYCB_MAP);
+}
+
+static void mtk_dvo_config_color_format(struct mtk_dvo *dvo,
+					enum mtk_dvo_out_color_format format)
+{
+	dev_dbg(dvo->dev, "[DPTX] format:%d", format);
+
+	if (format == MTK_DVO_COLOR_FORMAT_YCBCR_422) {
+		mtk_dvo_config_yuv422_enable_v2(dvo);
+		mtk_dvo_config_csc_enable(dvo);
+	} else {
+		mtk_dvo_config_csc_disable(dvo);
+		mtk_dvo_config_yuv422_disable_v2(dvo);
+	}
+}
+
 static int mtk_dvo_set_display_mode(struct mtk_dvo *dvo,
 				    struct drm_display_mode *mode)
 {
@@ -569,6 +607,7 @@ static int mtk_dvo_set_display_mode(struct mtk_dvo *dvo,
 		mtk_dvo_config_fb_size(dvo, vm.hactive, vm.vactive >> 1);
 	else
 		mtk_dvo_config_fb_size(dvo, vm.hactive, vm.vactive);
+	mtk_dvo_config_color_format(dvo, dvo->color_format);
 
 	mtk_dvo_info_queue_start(dvo);
 	mtk_dvo_buffer_ctrl(dvo);
