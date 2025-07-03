@@ -4441,9 +4441,10 @@ static int mtk_dp_bridge_atomic_check_v2(struct drm_bridge *bridge,
 		mtk_dp->info[id].depth = DP_COLOR_DEPTH_8BIT;
 		mtk_dp_dsc_check_prepare_v2(mtk_dp, id);
 		mtk_dp->prop_dsc_enable[id]->values[0] = 1;
-	} else {
-		mtk_dp->prop_dsc_enable[id]->values[0] = 0;
 	}
+
+	if (mtk_dp->prop_dsc_enable[id])
+		mtk_dp->prop_dsc_enable[id]->values[0] = mtk_dp->dsc_enable[id] ? 1 : 0;
 
 	drm_dbg_kms(mtk_dp->drm_dev,
 		    "[DPTX] bridge[%d] SST atomic check, dsc:%d, color:in[0x%04x] out[0x%04x], tt:%d %d, act:%d %d, fps:%d, clk:%d\n",
