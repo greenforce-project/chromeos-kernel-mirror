@@ -268,13 +268,16 @@ struct mtk_dp_data {
 	u16 max_hdisplay;
 	u16 max_vdisplay;
 	u16 min_hblanking;
+	u16 max_fps_at_max_resolution;
 	u16 min_hdisplay;
 	u16 min_vdisplay;
-	void (*mac_power)(struct mtk_dp *mtk_dp);
-	void (*disable_mac_power)(struct mtk_dp *mtk_dp);
+	u32 patch_phy_settings[6];
+	u32 txfir_settings[6];
 	void (*set_param)(struct mtk_dp *mtk_dp);
 	u32 phyd_dig_glb_offset;
 	u32 phyd_dig_lan_offset[4];
+	u32 phyd_ana_glb_offset;
+	u32 phyd_ana_lan_offset[4];
 	u8 max_link_rate;
 	u8 max_lane_count;
 	u8 encoder_num;

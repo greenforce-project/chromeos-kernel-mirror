@@ -3137,6 +3137,61 @@ static void mtk_mt8196_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
 	}
 }
 
+void mtk_mt8189_dp_phy_set_param_v2(struct mtk_dp *mtk_dp)
+{
+	int i;
+
+	PHY_WRITE_4BYTE(mtk_dp,
+			mtk_dp->data->phyd_ana_glb_offset
+			+ DP_PHY_GLB_FORCE_CTRL_00,
+			mtk_dp->data->patch_phy_settings[0]);
+
+	for (i = 0; i < 4; i++) {
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_ana_lan_offset[i]
+				+ DP_PHY_LANE_TX_2,
+				mtk_dp->data->patch_phy_settings[1]);
+	}
+
+	PHY_WRITE_4BYTE(mtk_dp,
+			mtk_dp->data->phyd_dig_glb_offset
+			+ DP_PHY_DIG_GLB_DA_REG_00,
+			mtk_dp->data->patch_phy_settings[2]);
+	PHY_WRITE_4BYTE(mtk_dp,
+			mtk_dp->data->phyd_dig_glb_offset
+			+ DP_PHY_DIG_GLB_DA_REG_01,
+			mtk_dp->data->patch_phy_settings[3]);
+	PHY_WRITE_4BYTE(mtk_dp,
+			mtk_dp->data->phyd_dig_glb_offset
+			+ DP_PHY_DIG_GLB_DA_REG_02,
+			mtk_dp->data->patch_phy_settings[4]);
+	PHY_WRITE_4BYTE(mtk_dp,
+			mtk_dp->data->phyd_dig_glb_offset
+			+ DP_PHY_DIG_GLB_DA_REG_03,
+			mtk_dp->data->patch_phy_settings[5]);
+
+	for (i = 0; i < 4; i++) {
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_3,
+				mtk_dp->data->txfir_settings[0]);
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_4,
+				mtk_dp->data->txfir_settings[1]);
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_5,
+				mtk_dp->data->txfir_settings[2]);
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_6,
+				mtk_dp->data->txfir_settings[3]);
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_7,
+				mtk_dp->data->txfir_settings[4]);
+		PHY_WRITE_4BYTE(mtk_dp,
+				mtk_dp->data->phyd_dig_lan_offset[i] + DRIVING_PARAM_8,
+				mtk_dp->data->txfir_settings[5]);
+	}
+}
+
 static void mtk_dp_phy_setting_v2(struct mtk_dp *mtk_dp)
 {
 	/* step1: phy init */
@@ -4358,10 +4413,20 @@ static enum drm_mode_status mtk_dp_check_mode_v2(struct mtk_dp *mtk_dp,
 	int pixel_clock;
 	u8 color_bpp;
 	enum drm_mode_status ret = MODE_CLOCK_HIGH;
+	bool exceeds_max_fps, is_max_hdisplay, is_max_vdisplay;
 
 	if ((mtk_dp->data->max_hdisplay != 0 && mode->hdisplay > mtk_dp->data->max_hdisplay) ||
 	    (mtk_dp->data->max_vdisplay != 0 && mode->vdisplay > mtk_dp->data->max_vdisplay) ||
 	    (mode->htotal - mode->hdisplay < mtk_dp->data->min_hblanking))
+		return MODE_BAD;
+
+	is_max_hdisplay = (mtk_dp->data->max_hdisplay != 0 &&
+			   mode->hdisplay == mtk_dp->data->max_hdisplay);
+	is_max_vdisplay = (mtk_dp->data->max_vdisplay != 0 &&
+			  mode->vdisplay == mtk_dp->data->max_vdisplay);
+	exceeds_max_fps = (mtk_dp->data->max_fps_at_max_resolution != 0 &&
+			   drm_mode_vrefresh(mode) > mtk_dp->data->max_fps_at_max_resolution);
+	if (is_max_hdisplay && is_max_vdisplay && exceeds_max_fps)
 		return MODE_BAD;
 
 	/* This is for temporarily removing the timing. */
@@ -6070,7 +6135,7 @@ static int mtk_dp_dt_parse_pdata_v2(struct mtk_dp *mtk_dp,
 	return 0;
 }
 
-static void mtk_mt8196_dp_mac_power(struct mtk_dp *mtk_dp)
+static void mtk_dp_enable_mac_power_v2(struct mtk_dp *mtk_dp)
 {
 	writel((readl(mtk_dp->mac_power_regs) & ~BIT(0)), mtk_dp->mac_power_regs);
 	writel((readl(mtk_dp->mac_power_regs) | BIT(4)), mtk_dp->mac_power_regs);
@@ -6111,8 +6176,7 @@ static int mtk_dp_suspend_v2(struct device *dev)
 
 	mtk_dp_disconnect_release_v2(mtk_dp);
 
-	if (mtk_dp->data->disable_mac_power)
-		mtk_dp->data->disable_mac_power(mtk_dp);
+	mtk_dp_disable_mac_power_v2(mtk_dp);
 
 	clk_disable_unprepare(mtk_dp->pclk);
 
@@ -6150,8 +6214,7 @@ static int mtk_dp_resume_v2(struct device *dev)
 		return ret;
 	}
 
-	if (mtk_dp->data->mac_power)
-		mtk_dp->data->mac_power(mtk_dp);
+	mtk_dp_enable_mac_power_v2(mtk_dp);
 
 	mtk_dp_init_port_v2(mtk_dp);
 
@@ -6308,8 +6371,7 @@ static int mtk_drm_dp_probe_v2(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	if (mtk_dp->data->mac_power)
-		mtk_dp->data->mac_power(mtk_dp);
+	mtk_dp_enable_mac_power_v2(mtk_dp);
 
 	mtk_dp->pclk = devm_clk_get_enabled(mtk_dp->dev, "mux_dp");
 	if (IS_ERR(mtk_dp->pclk))
@@ -6402,8 +6464,6 @@ static const struct mtk_dp_data mt8196_dp_data = {
 	.min_hblanking = 80,
 	.min_hdisplay = 800,
 	.min_vdisplay = 600,
-	.mac_power = mtk_mt8196_dp_mac_power,
-	.disable_mac_power = mtk_dp_disable_mac_power_v2,
 	.set_param = mtk_mt8196_dp_phy_set_param_v2,
 	.phyd_dig_glb_offset = 0x1000,
 	.phyd_dig_lan_offset = {0x1100, 0x1200, 0x1300, 0x1400},
@@ -6416,9 +6476,39 @@ static const struct mtk_dp_data mt8196_dp_data = {
 	.phy_flip_ctrl_bit = BIT(18),
 };
 
+static const struct mtk_dp_data mt8189_dp_data = {
+	.bridge_type = DRM_MODE_CONNECTOR_DisplayPort,
+	.smc_cmd = BIT(5),
+	.efuse_fmt = mt8196_dp_efuse_fmt,
+	.audio_supported = true,
+	.audio_m_div2_bit = 0,
+	.max_hdisplay = 3840,
+	.max_vdisplay = 2160,
+	.min_hblanking = 80,
+	.max_fps_at_max_resolution = 30,
+	.min_hdisplay = 800,
+	.min_vdisplay = 600,
+	.patch_phy_settings = {0x21, 0x1000e, 0x20fff00, 0x20202, 0xa5231a, 0xdde70305},
+	.txfir_settings = {0x20181410, 0x20241e18, 0x3028, 0x10080400, 0xc0600, 0x8},
+	.set_param = mtk_mt8189_dp_phy_set_param_v2,
+	.phyd_dig_glb_offset = 0x1400,
+	.phyd_dig_lan_offset = {0x1000, 0x1100, 0x1200, 0x1300},
+	.phyd_ana_glb_offset = 0x400,
+	.phyd_ana_lan_offset = {0x0, 0x100, 0x200, 0x300},
+	.max_link_rate = DP_LINK_RATE_HBR2,
+	.max_lane_count = DP_2LANE,
+	.encoder_num = 1,
+	.phy_4lane_ctrl_bit = BIT(8),
+	.phy_flip_ctrl_bit = BIT(7),
+	.ssc_support = true,
+};
+
 static const struct of_device_id mtk_dp_of_match_v2[] = {
 	{ .compatible = "mediatek,mt8196-dp-tx",
 		.data = &mt8196_dp_data,
+	},
+	{ .compatible = "mediatek,mt8189-dp-tx",
+		.data = &mt8189_dp_data,
 	},
 	{ },
 };

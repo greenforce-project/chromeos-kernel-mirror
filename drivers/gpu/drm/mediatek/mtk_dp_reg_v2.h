@@ -39,6 +39,10 @@
 #define DP_PHY_DIG_SW_RST									0x38
 #define DP_PHY_DIG_BIT_RATE									0x3c
 #define DP_PHY_DIG_TX_CTL_0									0x44
+#define DP_PHY_DIG_GLB_DA_REG_00					0xa0
+#define DP_PHY_DIG_GLB_DA_REG_01					0xa4
+#define DP_PHY_DIG_GLB_DA_REG_02					0xa8
+#define DP_PHY_DIG_GLB_DA_REG_03					0xac
 
 #define DP_PHY_DIG_GLB_STATUS_02							0x88
 #define RGS_BIAS_READY_FLDMASK								0x1
@@ -68,12 +72,14 @@
 #define DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK					0x60
 #define DP_TX_FORCE_PRE_EMPH_VAL_FLDMASK_POS				5
 
-#define DRIVING_PARAM_3										0x38
-#define DRIVING_PARAM_4										0x3c
-#define DRIVING_PARAM_5										0x40
-#define DRIVING_PARAM_6										0x44
-#define DRIVING_PARAM_7										0x48
-#define DRIVING_PARAM_8										0x4c
+#define DP_PHY_LANE_TX_2						0x0c
+#define DP_PHY_GLB_FORCE_CTRL_00					0x30
+#define DRIVING_PARAM_3							0x38
+#define DRIVING_PARAM_4							0x3c
+#define DRIVING_PARAM_5							0x40
+#define DRIVING_PARAM_6							0x44
+#define DRIVING_PARAM_7							0x48
+#define DRIVING_PARAM_8							0x4c
 
 #define DP_TX_TOP_PWR_STATE									0x2000
 #define DP_PWR_STATE_FLDMASK								0x3
