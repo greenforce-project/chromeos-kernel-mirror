@@ -211,11 +211,11 @@ static void mtk_dpi_config_hsync_v2(struct mtk_dpi *dpi,
 				 struct mtk_dpi_sync_param *sync)
 {
 	mtk_dpi_mask_v2(dpi, DPI_TGEN_HWIDTH, sync->sync_width << HPW,
-		     dpi->conf->dimension_mask << HPW);
+			dpi->conf->dimension_mask << HPW);
 	mtk_dpi_mask_v2(dpi, DPI_TGEN_HPORCH, sync->back_porch << HBP,
-		     dpi->conf->dimension_mask << HBP);
+			dpi->conf->dimension_mask << HBP);
 	mtk_dpi_mask_v2(dpi, DPI_TGEN_HPORCH, sync->front_porch << HFP,
-		     dpi->conf->dimension_mask << HFP);
+			dpi->conf->dimension_mask << HFP);
 }
 
 static void mtk_dpi_config_vsync_v2(struct mtk_dpi *dpi,
@@ -223,17 +223,17 @@ static void mtk_dpi_config_vsync_v2(struct mtk_dpi *dpi,
 				 u32 width_addr, u32 porch_addr)
 {
 	mtk_dpi_mask_v2(dpi, width_addr,
-		     sync->shift_half_line << VSYNC_HALF_LINE_SHIFT,
-		     VSYNC_HALF_LINE_MASK);
+			sync->shift_half_line << VSYNC_HALF_LINE_SHIFT,
+			VSYNC_HALF_LINE_MASK);
 	mtk_dpi_mask_v2(dpi, width_addr,
-		     sync->sync_width << VSYNC_WIDTH_SHIFT,
-		     dpi->conf->dimension_mask << VSYNC_WIDTH_SHIFT);
+			sync->sync_width << VSYNC_WIDTH_SHIFT,
+			dpi->conf->dimension_mask << VSYNC_WIDTH_SHIFT);
 	mtk_dpi_mask_v2(dpi, porch_addr,
-		     sync->back_porch << VSYNC_BACK_PORCH_SHIFT,
-		     dpi->conf->dimension_mask << VSYNC_BACK_PORCH_SHIFT);
+			sync->back_porch << VSYNC_BACK_PORCH_SHIFT,
+			dpi->conf->dimension_mask << VSYNC_BACK_PORCH_SHIFT);
 	mtk_dpi_mask_v2(dpi, porch_addr,
-		     sync->front_porch << VSYNC_FRONT_PORCH_SHIFT,
-		     dpi->conf->dimension_mask << VSYNC_FRONT_PORCH_SHIFT);
+			sync->front_porch << VSYNC_FRONT_PORCH_SHIFT,
+			dpi->conf->dimension_mask << VSYNC_FRONT_PORCH_SHIFT);
 }
 
 static void mtk_dpi_config_vsync_lodd_v2(struct mtk_dpi *dpi,
@@ -297,9 +297,9 @@ static void mtk_dpi_config_interface_v2(struct mtk_dpi *dpi, bool inter)
 static void mtk_dpi_config_fb_size_v2(struct mtk_dpi *dpi, u32 width, u32 height)
 {
 	mtk_dpi_mask_v2(dpi, DPI_SIZE, width << HSIZE,
-		     dpi->conf->hvsize_mask << HSIZE);
+			dpi->conf->hvsize_mask << HSIZE);
 	mtk_dpi_mask_v2(dpi, DPI_SIZE, height << VSIZE,
-		     dpi->conf->hvsize_mask << VSIZE);
+			dpi->conf->hvsize_mask << VSIZE);
 }
 
 static void mtk_dpi_config_channel_limit_v2(struct mtk_dpi *dpi)
@@ -352,7 +352,7 @@ static void mtk_dpi_config_bit_num_v2(struct mtk_dpi *dpi,
 		break;
 	}
 	mtk_dpi_mask_v2(dpi, DPI_OUTPUT_SETTING, val << OUT_BIT,
-		     OUT_BIT_MASK);
+			OUT_BIT_MASK);
 }
 
 static void mtk_dpi_config_yc_map_v2(struct mtk_dpi *dpi,
@@ -414,8 +414,8 @@ static void mtk_dpi_config_channel_swap_v2(struct mtk_dpi *dpi,
 	}
 
 	mtk_dpi_mask_v2(dpi, DPI_OUTPUT_SETTING,
-		     val << dpi->conf->channel_swap_shift,
-		     CH_SWAP_MASK << dpi->conf->channel_swap_shift);
+			val << dpi->conf->channel_swap_shift,
+			CH_SWAP_MASK << dpi->conf->channel_swap_shift);
 }
 
 static void mtk_dpi_config_yuv422_enable_v2(struct mtk_dpi *dpi)
