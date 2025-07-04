@@ -458,7 +458,7 @@ static void mtk_dvo_config_fb_size(struct mtk_dvo *dvo, u32 width, u32 height)
 	mtk_dvo_mask(dvo, DVO_PIC_SIZE, height << PIC_VSIZE,
 		     dvo->conf->hvsize_mask << PIC_VSIZE);
 
-	mtk_dvo_mask(dvo, DVO_TGEN_H1, (width / dvo->conf->pixels_per_iter) << HACT,
+	mtk_dvo_mask(dvo, DVO_TGEN_H1, DIV_ROUND_UP(width, dvo->conf->pixels_per_iter) << HACT,
 		     dvo->conf->hvsize_mask << HACT);
 	mtk_dvo_mask(dvo, DVO_TGEN_V1, height << VACT,
 		     dvo->conf->hvsize_mask << VACT);
