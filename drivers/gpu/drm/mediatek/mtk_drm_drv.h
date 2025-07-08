@@ -67,6 +67,7 @@ struct mtk_mmsys_driver_data {
 	u16 min_width;
 	u16 min_height;
 	bool has_secure;
+	bool default_sec_mode;
 	unsigned int sec_mbox_index;
 	const char *secure_heap;
 };

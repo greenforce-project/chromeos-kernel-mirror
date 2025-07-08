@@ -3,6 +3,7 @@
  * Copyright (c) 2015 MediaTek Inc.
  */
 
+#include <linux/arm-smccc.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/mailbox_controller.h>
@@ -12,6 +13,7 @@
 #include <linux/soc/mediatek/mtk-cmdq.h>
 #include <linux/soc/mediatek/mtk-mmsys.h>
 #include <linux/soc/mediatek/mtk-mutex.h>
+#include <linux/soc/mediatek/mtk_sip_svc.h>
 
 #include <asm/barrier.h>
 
@@ -1447,6 +1449,7 @@ static void mtk_crtc_atomic_enable(struct drm_crtc *crtc,
 	int i, j;
 	int mmsys_cnt = 0;
 	struct mtk_drm_private *priv;
+	struct arm_smccc_res res;
 
 	DRM_DEBUG_DRIVER("%s %d\n", __func__, crtc->base.id);
 
@@ -1473,6 +1476,17 @@ static void mtk_crtc_atomic_enable(struct drm_crtc *crtc,
 						pm_runtime_put(mtk_crtc->mmsys_dev[j]);
 				return;
 			}
+		}
+	}
+
+	priv = crtc->dev->dev_private;
+	/* We should disable the secure state before use the display in some SOC,such as,mt8189 */
+	if (priv->data->default_sec_mode) {
+		arm_smccc_smc(MTK_SIP_KERNEL_DISP_CONTROL, DISP_ATF_CMD_CONFIG_DISP_CONFIG,
+			      0, 0, 0, 0, 0, 0, &res);
+		if (res.a0 != 0) {
+			DRM_DEV_ERROR(comp->dev, "Disp disable security fail, ret %ld\n", res.a0);
+			return;
 		}
 	}
 

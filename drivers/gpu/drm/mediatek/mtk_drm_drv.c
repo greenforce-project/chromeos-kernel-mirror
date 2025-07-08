@@ -395,6 +395,7 @@ static const struct mtk_mmsys_driver_data mt8189_mmsys_driver_data = {
 	.max_width = 8191,
 	.min_width = 1,
 	.min_height = 1,
+	.default_sec_mode = true,/* The default register status is secure mode*/
 };
 
 static const struct mtk_mmsys_driver_data mt8192_mmsys_driver_data = {
