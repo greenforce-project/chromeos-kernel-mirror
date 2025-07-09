@@ -1335,6 +1335,7 @@ static int mtk_pcie_suspend_noirq(struct device *dev)
 	 */
 	if (pm_suspend_default_s2idle()) {
 		dev_info(dev, "System enter s2idle state, keep PCIe power and clocks\n");
+		device_set_wakeup_path(dev);
 		return 0;
 	}
 
