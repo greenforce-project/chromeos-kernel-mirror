@@ -1051,6 +1051,10 @@ static int mt6363_regulator_probe(struct platform_device *pdev)
 
 	config.dev = pdev->dev.parent;
 	config.regmap = dev_get_regmap(pdev->dev.parent, NULL);
+	if (!config.regmap) {
+		return dev_err_probe(&pdev->dev, -EINVAL, "failed to get regmap\n");
+	}
+
 	for (i = 0; i < MT6363_MAX_REGULATOR; i++) {
 		info = &mt6363_regulators[i];
 		info->irq = platform_get_irq_byname_optional(pdev, info->desc.name);
