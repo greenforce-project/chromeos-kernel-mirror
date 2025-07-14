@@ -3097,14 +3097,10 @@ static int mtk_dp_probe(struct platform_device *pdev)
 	mtk_dp->aux.wait_hpd_asserted = mtk_dp_wait_hpd_asserted;
 	drm_dp_aux_init(&mtk_dp->aux);
 
-	mtk_dp->power_clk = devm_clk_get_optional(dev, NULL);
-	if (IS_ERR(mtk_dp->power_clk)) {
-		dev_info(dev, "Failed to get optional clock power_clk\n");
-		mtk_dp->power_clk = NULL;
-	}
-
-	if (mtk_dp->power_clk)
-		clk_prepare_enable(mtk_dp->power_clk);
+	mtk_dp->power_clk = devm_clk_get_optional_enabled(dev, NULL);
+	if (IS_ERR(mtk_dp->power_clk))
+		return dev_err_probe(dev, PTR_ERR(mtk_dp->power_clk),
+				     "Failed to get or enable optional clock power_clk\n");
 
 	pm_runtime_enable(dev);
 	pm_runtime_get_sync(dev);
@@ -3237,8 +3233,13 @@ static int mtk_dp_resume(struct device *dev)
 
 	pm_runtime_force_resume(dev);
 
-	if (mtk_dp->power_clk)
-		clk_prepare_enable(mtk_dp->power_clk);
+	if (mtk_dp->power_clk) {
+		ret = clk_prepare_enable(mtk_dp->power_clk);
+		if (ret < 0) {
+			dev_err(dev, "Failed to enable eDP power_clk: %d\n", ret);
+			return ret;
+		}
+	}
 	if (mtk_dp->pwr_regs)
 		mtk_edp_pm_ctl(mtk_dp, true);
 
