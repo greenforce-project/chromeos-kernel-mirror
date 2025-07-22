@@ -414,6 +414,7 @@ static const struct mtk_ddp_comp_funcs ddp_dvo = {
 	.start = mtk_dvo_start,
 	.stop = mtk_dvo_stop,
 	.get_hrt_bw_by_datarate = mtk_dvo_get_hrt_bw_by_datarate,
+	.encoder_index = mtk_dvo_encoder_index,
 };
 
 static const struct mtk_ddp_comp_funcs ddp_gamma = {
@@ -624,6 +625,7 @@ static const struct mtk_ddp_comp_match mtk_ddp_matches[DDP_COMPONENT_DRM_ID_MAX]
 	[DDP_COMPONENT_DSI2]		= { MTK_DSI,			2, &ddp_dsi },
 	[DDP_COMPONENT_DSI3]		= { MTK_DSI,			3, &ddp_dsi },
 	[DDP_COMPONENT_DVO0]            = { MTK_DVO,                    0, &ddp_dvo },
+	[DDP_COMPONENT_DVO1]            = { MTK_DVO,                    1, &ddp_dvo },
 	[DDP_COMPONENT_GAMMA]		= { MTK_DISP_GAMMA,		0, &ddp_gamma },
 	[DDP_COMPONENT_MDP_RSZ0]	= { MTK_DISP_MDP_RSZ,		0, &ddp_mdp_rsz},
 	[DDP_COMPONENT_MERGE0]		= { MTK_DISP_MERGE,		0, &ddp_merge },
@@ -654,6 +656,8 @@ static const struct mtk_ddp_comp_match mtk_ddp_matches[DDP_COMPONENT_DRM_ID_MAX]
 	[DDP_COMPONENT_UFOE]		= { MTK_DISP_UFOE,		0, &ddp_ufoe },
 	[DDP_COMPONENT_WDMA0]		= { MTK_DISP_WDMA,		0, NULL },
 	[DDP_COMPONENT_WDMA1]		= { MTK_DISP_WDMA,		1, NULL },
+	[DDP_COMPONENT_COMP0_OUT_CB4]	= { MTK_DISP_VIRTUAL,		-1, NULL },
+	[DDP_COMPONENT_COMP0_OUT_CB5]	= { MTK_DISP_VIRTUAL,		-1, NULL },
 };
 
 static void mtk_ddp_comp_override_dpi_v2_funcs(struct mtk_ddp_comp *ddp_comp)

@@ -805,6 +805,15 @@ void mtk_dvo_get_hrt_bw_by_datarate(struct device *dev, unsigned int *bw_base)
 					 1000000);
 }
 
+unsigned int mtk_dvo_encoder_index(struct device *dev)
+{
+	struct mtk_dvo *dvo = dev_get_drvdata(dev);
+	unsigned int encoder_index = drm_encoder_index(&dvo->encoder);
+
+	dev_dbg(dev, "encoder index:%d\n", encoder_index);
+	return encoder_index;
+}
+
 static int mtk_dvo_bind(struct device *dev, struct device *master, void *data)
 {
 	struct mtk_dvo *dvo = dev_get_drvdata(dev);

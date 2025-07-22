@@ -293,6 +293,24 @@ static const unsigned int mt8196_mtk_ddp_disp1_third[] = {
 	DDP_COMPONENT_DSC1,
 };
 
+static enum mtk_ddp_comp_id mt8189_mtk_ddp_main[] = {
+	DDP_COMPONENT_OVL0,
+	DDP_COMPONENT_RDMA0,
+	DDP_COMPONENT_COMP0_OUT_CB4,
+	DDP_COMPONENT_DVO0,
+};
+
+static enum mtk_ddp_comp_id mt8189_mtk_ddp_ext[] = {
+	DDP_COMPONENT_OVL1,
+	DDP_COMPONENT_RDMA1,
+	DDP_COMPONENT_COMP0_OUT_CB5,
+};
+
+static const struct mtk_drm_route mt8189_mtk_ddp_ext_routes[] = {
+	{1, DDP_COMPONENT_DVO1},
+	{1, DDP_COMPONENT_DSI0},
+};
+
 static const struct mtk_mmsys_driver_data mt2701_mmsys_driver_data = {
 	.main_path = mt2701_mtk_ddp_main,
 	.main_len = ARRAY_SIZE(mt2701_mtk_ddp_main),
@@ -364,6 +382,19 @@ static const struct mtk_mmsys_driver_data mt8188_vdosys0_driver_data = {
 	.has_secure = true,
 	.sec_mbox_index = 1,
 	.secure_heap = "restricted_mtk_cma",
+};
+
+static const struct mtk_mmsys_driver_data mt8189_mmsys_driver_data = {
+	.main_path = mt8189_mtk_ddp_main,
+	.main_len = ARRAY_SIZE(mt8189_mtk_ddp_main),
+	.mmsys_dev_num = 1,
+	.ext_path = mt8189_mtk_ddp_ext,
+	.ext_len = ARRAY_SIZE(mt8189_mtk_ddp_ext),
+	.conn_routes = mt8189_mtk_ddp_ext_routes,
+	.num_conn_routes = ARRAY_SIZE(mt8189_mtk_ddp_ext_routes),
+	.max_width = 8191,
+	.min_width = 1,
+	.min_height = 1,
 };
 
 static const struct mtk_mmsys_driver_data mt8192_mmsys_driver_data = {
@@ -487,6 +518,8 @@ static const struct of_device_id mtk_drm_of_ids[] = {
 	  .data = &mt8188_vdosys0_driver_data},
 	{ .compatible = "mediatek,mt8188-vdosys1",
 	  .data = &mt8195_vdosys1_driver_data},
+	{ .compatible = "mediatek,mt8189-mmsys",
+	  .data = &mt8189_mmsys_driver_data},
 	{ .compatible = "mediatek,mt8192-mmsys",
 	  .data = &mt8192_mmsys_driver_data},
 	{ .compatible = "mediatek,mt8195-mmsys",
@@ -820,8 +853,10 @@ static int mtk_drm_bind(struct device *dev)
 	struct platform_device *pdev_pmqos;
 	int ret, i;
 
-	if (!iommu_present(&platform_bus_type))
+	if (!iommu_present(&platform_bus_type)) {
+		dev_err(dev, "%s iommu_present is null\n", __func__);
 		return -EPROBE_DEFER;
+	}
 
 	pdev = of_find_device_by_node(private->mutex_node);
 	if (!pdev) {
@@ -884,12 +919,16 @@ static int mtk_drm_bind(struct device *dev)
 	}
 
 	ret = mtk_drm_kms_init(drm);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(dev, "%s mtk_drm_kms_init fail\n", __func__);
 		goto err_free;
+	}
 
 	ret = drm_dev_register(drm, 0);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(dev, "%s drm_dev_register fail\n", __func__);
 		goto err_deinit;
+	}
 
 	drm_fbdev_generic_setup(drm, 32);
 
@@ -989,6 +1028,8 @@ static const struct of_device_id mtk_ddp_comp_dt_ids[] = {
 	  .data = (void *)MTK_DISP_MUTEX },
 	{ .compatible = "mediatek,mt8188-disp-mutex",
 	  .data = (void *)MTK_DISP_MUTEX },
+	{ .compatible = "mediatek,mt8189-disp-mutex",
+	  .data = (void *)MTK_DISP_MUTEX},
 	{ .compatible = "mediatek,mt8192-disp-mutex",
 	  .data = (void *)MTK_DISP_MUTEX },
 	{ .compatible = "mediatek,mt8195-disp-mutex",
@@ -1005,6 +1046,8 @@ static const struct of_device_id mtk_ddp_comp_dt_ids[] = {
 	  .data = (void *)MTK_DISP_OVL },
 	{ .compatible = "mediatek,mt8183-disp-ovl",
 	  .data = (void *)MTK_DISP_OVL },
+	{ .compatible = "mediatek,mt8189-disp-ovl",
+	  .data = (void *)MTK_DISP_OVL},
 	{ .compatible = "mediatek,mt8192-disp-ovl",
 	  .data = (void *)MTK_DISP_OVL },
 	{ .compatible = "mediatek,mt8195-disp-ovl",
@@ -1028,6 +1071,8 @@ static const struct of_device_id mtk_ddp_comp_dt_ids[] = {
 	{ .compatible = "mediatek,mt8173-disp-rdma",
 	  .data = (void *)MTK_DISP_RDMA },
 	{ .compatible = "mediatek,mt8183-disp-rdma",
+	  .data = (void *)MTK_DISP_RDMA },
+	{ .compatible = "mediatek,mt8189-disp-rdma",
 	  .data = (void *)MTK_DISP_RDMA },
 	{ .compatible = "mediatek,mt8195-disp-rdma",
 	  .data = (void *)MTK_DISP_RDMA },
@@ -1067,8 +1112,14 @@ static const struct of_device_id mtk_ddp_comp_dt_ids[] = {
 	  .data = (void *)MTK_DSI },
 	{ .compatible = "mediatek,mt8188-dsi",
 	  .data = (void *)MTK_DSI },
+	{ .compatible = "mediatek,mt8189-dsi",
+	  .data = (void *)MTK_DSI },
 	{ .compatible = "mediatek,mt8196-dsi",
 	  .data = (void *)MTK_DSI },
+	{ .compatible = "mediatek,mt8189-dp-dvo",
+	  .data = (void *)MTK_DVO },
+	{ .compatible = "mediatek,mt8189-edp-dvo",
+	  .data = (void *)MTK_DVO },
 	{ .compatible = "mediatek,mt8196-edp-dvo",
 	  .data = (void *)MTK_DVO },
 	{ .compatible = "mediatek,mt8196-vdisp-ao",
@@ -1237,8 +1288,11 @@ static int mtk_drm_probe(struct platform_device *pdev)
 			continue;
 		}
 
-		if (!mtk_drm_find_mmsys_comp(private, comp_id))
+		if (!mtk_drm_find_mmsys_comp(private, comp_id)) {
+			dev_dbg(dev, "mmsys component %pOF id %u not found\n",
+				 node, comp_id);
 			continue;
+		}
 
 		private->comp_node[comp_id] = of_node_get(node);
 
@@ -1266,6 +1320,8 @@ static int mtk_drm_probe(struct platform_device *pdev)
 			drm_of_component_match_add(dev, &match, component_compare_of,
 						   node);
 		}
+		dev_dbg(dev, "component type %d id %u %pOF\n",
+			 comp_type, comp_id, node);
 
 		ret = mtk_ddp_comp_init(node, &private->ddp_comp[comp_id], comp_id);
 		if (ret) {
