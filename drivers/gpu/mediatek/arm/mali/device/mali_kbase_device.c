@@ -53,6 +53,10 @@
 #include "mali_kbase_pbha.h"
 #include "arbiter/mali_kbase_arbiter_pm.h"
 
+#ifdef MALI_MTK_COMMON
+#include "mtk_platform_common.h"
+#endif /* MALI_MTK_COMMON */
+
 #if defined(CONFIG_DEBUG_FS) && !IS_ENABLED(CONFIG_MALI_MTK_NO_MALI)
 
 /* Number of register accesses for the buffer that we allocate during
@@ -563,6 +567,16 @@ int kbase_device_early_init(struct kbase_device *kbdev)
 	err = kbase_hw_set_issues_mask(kbdev);
 	if (err)
 		goto gpuprops_term;
+
+#ifdef MALI_MTK_COMMON
+	/* For business considerations, the GPU has 11 cores, but different platforms will have
+	 * different core masks. The core mask settings need to be configured during GPU
+	 * initialization.
+	 */
+	err = mtk_common_platform_coremask_init(kbdev);
+	if (err)
+		goto gpuprops_term;
+#endif
 
 	/* We're done accessing the GPU registers for now. */
 	kbase_pm_register_access_disable(kbdev);
