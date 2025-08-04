@@ -274,30 +274,6 @@ static void mtk_dvo_get_gs_level(struct mtk_dvo *dvo)
 		*gsl = MTK_DVO_8K_30FPS;
 }
 
-void mtk_dvo_mutex_vsync_set(struct mtk_dvo *dvo)
-{
-	u32 val = 0x5;
-	struct drm_display_mode *mode;
-	struct videomode vm = { 0 };
-	unsigned int vfporch;
-
-	if (!dvo)
-		return;
-
-	mode = &dvo->mode;
-	drm_display_mode_to_videomode(mode, &vm);
-
-	vfporch = vm.vfront_porch;
-	if (vfporch > 10) {
-		dev_dbg(dvo->dev, "%s vfporch %d no need set mutex_vsync_sel\n",
-				   __func__, vfporch);
-		return;
-	}
-
-	val = (val << 4) | MUTEX_VSYNC_SEL;
-	mtk_dvo_mask(dvo, DVO_MUTEX_VSYNC_SET, val, MUTEX_VSYNC_SEL | MUTEX_VFP_MASK);
-}
-
 static void mtk_dvo_sodi_setting(struct mtk_dvo *dvo, struct drm_display_mode *mode)
 {
 	u32 mmsys_clk = 273;
@@ -383,8 +359,6 @@ static void mtk_dvo_sodi_setting(struct mtk_dvo *dvo, struct drm_display_mode *m
 	mtk_dvo_mask(dvo, DVO_BUF_URGENT_HIGHT, urgent_high, DVO_DISP_BUF_MASK);
 	mtk_dvo_mask(dvo, DVO_BUF_URGENT_LOW, urgent_low, DVO_DISP_BUF_MASK);
 	mtk_dvo_mask(dvo, DVO_BUF_URGENT_LOW, urgent_low, DVO_DISP_BUF_MASK);
-
-	mtk_dvo_mutex_vsync_set(dvo);
 }
 
 static void mtk_dvo_golden_setting(struct mtk_dvo *dvo)
