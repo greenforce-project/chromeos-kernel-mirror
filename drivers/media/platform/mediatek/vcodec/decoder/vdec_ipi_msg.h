@@ -55,11 +55,13 @@ struct vdec_ap_ipi_cmd {
  * @msg_id	: vdec_ipi_msgid
  * @status	: VPU exeuction result
  * @ap_inst_addr	: AP video decoder instance address
+ * @shared_iova	: reserved share memory address
  */
 struct vdec_vpu_ipi_ack {
 	uint32_t msg_id;
 	int32_t status;
 	uint64_t ap_inst_addr;
+	u64 shared_iova;
 };
 
 /**
