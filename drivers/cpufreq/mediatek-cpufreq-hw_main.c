@@ -683,6 +683,7 @@ static int mtk_cpufreq_hw_driver_probe(struct platform_device *pdev)
 	}
 	register_die_notifier(&die_blk);
 	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
+	cpufreq_fdvfs_cci_switch(CCI_MAX_FREQ);
 
 	return 0;
 
@@ -701,6 +702,7 @@ static const struct of_device_id mtk_cpufreq_hw_match[] = {
 	{ .compatible = "mediatek,cpufreq-hw-v1", .data = &cpufreq_mtk_offsets },
 	{}
 };
+MODULE_DEVICE_TABLE(of, mtk_cpufreq_hw_match);
 
 static struct platform_driver mtk_cpufreq_hw_driver = {
 	.probe = mtk_cpufreq_hw_driver_probe,

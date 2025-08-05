@@ -160,9 +160,9 @@ config ARM_OMAP2PLUS_CPUFREQ
 	default ARCH_OMAP2PLUS
 
 config ARM_MEDIATEK_CPUFREQ_HW_V1
-	bool "MediaTek CPUFreq HW driver"
+	tristate "MediaTek CPUFreq HW driver"
 	depends on ARCH_MEDIATEK || COMPILE_TEST
-	default y
+	default m
 	help
 	  Support for the CPUFreq HW driver.
 	  Some MediaTek chipsets have a HW engine to offload the steps
