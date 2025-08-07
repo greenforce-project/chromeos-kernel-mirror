@@ -738,17 +738,11 @@ static void mtk_dvo_bridge_disable(struct drm_bridge *bridge)
 	struct mtk_dvo *dvo = bridge_to_dvo(bridge);
 
 	mtk_dvo_power_off(dvo);
-
-	if (dvo->pinctrl && dvo->pins_gpio)
-		pinctrl_select_state(dvo->pinctrl, dvo->pins_gpio);
 }
 
 static void mtk_dvo_bridge_enable(struct drm_bridge *bridge)
 {
 	struct mtk_dvo *dvo = bridge_to_dvo(bridge);
-
-	if (dvo->pinctrl && dvo->pins_dvo)
-		pinctrl_select_state(dvo->pinctrl, dvo->pins_dvo);
 
 	mtk_dvo_power_on(dvo);
 	mtk_dvo_set_display_mode(dvo, &dvo->mode);
@@ -918,26 +912,6 @@ static int mtk_dvo_probe(struct platform_device *pdev)
 	dvo->conf = (struct mtk_dvo_conf *)of_device_get_match_data(dev);
 	dvo->output_fmt = MEDIA_BUS_FMT_RGB888_1X24;
 
-	dvo->pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR(dvo->pinctrl)) {
-		dvo->pinctrl = NULL;
-		dev_dbg(&pdev->dev, "Cannot find pinctrl!\n");
-	}
-	if (dvo->pinctrl) {
-		dvo->pins_gpio = pinctrl_lookup_state(dvo->pinctrl, "sleep");
-		if (IS_ERR(dvo->pins_gpio)) {
-			dvo->pins_gpio = NULL;
-			dev_dbg(&pdev->dev, "Cannot find pinctrl idle!\n");
-		}
-		if (dvo->pins_gpio)
-			pinctrl_select_state(dvo->pinctrl, dvo->pins_gpio);
-
-		dvo->pins_dvo = pinctrl_lookup_state(dvo->pinctrl, "default");
-		if (IS_ERR(dvo->pins_dvo)) {
-			dvo->pins_dvo = NULL;
-			dev_dbg(&pdev->dev, "Cannot find pinctrl active!\n");
-		}
-	}
 	dvo->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(dvo->regs))
 		return dev_err_probe(dev, PTR_ERR(dvo->regs),
