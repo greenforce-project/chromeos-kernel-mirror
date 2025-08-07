@@ -1050,36 +1050,26 @@ static void mtk_dp_set_swing_pre_emphasis(struct mtk_dp *mtk_dp, int lane_num,
 			   preemphasis << (DP_TX0_PRE_EMPH_SHIFT + lane_shift),
 			   DP_TX0_PRE_EMPH_MASK << lane_shift);
 	if (mtk_dp->data->edp_ver && mtk_dp->phy_regs) {
-		/* set swing and pre */
-		switch (lane_num) {
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-			if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8196) {
-				regmap_update_bits(mtk_dp->phy_regs,
-					   PHYD_DIG_DRV_FORCE_LANE(lane_num),
-					   EDP_TX_LN_VOLT_SWING_VAL_FLDMASK |
-					   EDP_TX_LN_PRE_EMPH_VAL_FLDMASK,
-					   swing_val << 1 |
-					   preemphasis << 3);
-			} else if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8189) {
-				regmap_update_bits(mtk_dp->phy_regs,
-					   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
-					   EDP_TX_LN_VOLT_SWING_VAL_8189_FLDMASK |
-					   EDP_TX_LN_PRE_EMPH_VAL_8189_FLDMASK,
-					   swing_val << 1 |
-					   preemphasis << 5);
-				regmap_update_bits(mtk_dp->phy_regs,
-					   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
-					   EDP_TX_LN_VOLT_SWING_EN_8189 |
-					   EDP_TX_LN_PRE_EMPH_EN_8189,
-					   EDP_TX_LN_VOLT_SWING_EN_8189 |
-					   EDP_TX_LN_PRE_EMPH_EN_8189);
-			}
-			break;
-		default:
-			break;
+		if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8196) {
+			regmap_update_bits(mtk_dp->phy_regs,
+				   PHYD_DIG_DRV_FORCE_LANE(lane_num),
+				   EDP_TX_LN_VOLT_SWING_VAL_FLDMASK |
+				   EDP_TX_LN_PRE_EMPH_VAL_FLDMASK,
+				   swing_val << 1 |
+				   preemphasis << 3);
+		} else if (mtk_dp->data->edp_ver == MTK_EDP_SOC_TYPE_MT8189) {
+			regmap_update_bits(mtk_dp->phy_regs,
+				   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
+				   EDP_TX_LN_VOLT_SWING_VAL_8189_FLDMASK |
+				   EDP_TX_LN_PRE_EMPH_VAL_8189_FLDMASK,
+				   swing_val << 1 |
+				   preemphasis << 5);
+			regmap_update_bits(mtk_dp->phy_regs,
+				   PHYD_DIG_DRV_FORCE_LANE_8189(lane_num),
+				   EDP_TX_LN_VOLT_SWING_EN_8189 |
+				   EDP_TX_LN_PRE_EMPH_EN_8189,
+				   EDP_TX_LN_VOLT_SWING_EN_8189 |
+				   EDP_TX_LN_PRE_EMPH_EN_8189);
 		}
 		if (preemphasis != 0)
 			mtk_dp_update_bits(mtk_dp, RG_DSI_DEM_EN,
