@@ -306,6 +306,10 @@ static const u32 mt8196_output_fmts[] = {
 	MEDIA_BUS_FMT_YUYV8_1X16,
 };
 
+static bool mtk_dp_mst_link_status(struct mtk_dp *mtk_dp);
+static bool mtk_dp_link_status_v2(struct mtk_dp *mtk_dp);
+static int mtk_dp_training_handle_v2(struct mtk_dp *mtk_dp);
+
 static unsigned long mtk_dp_atf_call_v2(struct mtk_dp *mtk_dp, unsigned int cmd, unsigned int para)
 {
 	struct arm_smccc_res res;
@@ -4561,6 +4565,21 @@ static void mtk_dp_bridge_atomic_enable_v2(struct drm_bridge *bridge,
 	struct mtk_dp *mtk_dp = mtk_bridge->mtk_dp;
 	struct drm_atomic_state *state = old_state->base.state;
 	int con_id;
+	bool link_ok = true;
+
+	if (mtk_dp->mst_enable) {
+		if (!mtk_dp_mst_link_status(mtk_dp))
+			link_ok = false;
+	} else {
+		if (!mtk_dp_link_status_v2(mtk_dp))
+			link_ok = false;
+	}
+
+	if (!link_ok) {
+		dev_err(mtk_dp->dev, "[DPTX] link fail, training again\n");
+		mtk_dp->dp_ready = false;
+		mtk_dp_training_handle_v2(mtk_dp);
+	}
 
 	if (mtk_dp->mst_enable) {
 		mtk_dp_mst_atomic_enable(mtk_dp, id, state);
