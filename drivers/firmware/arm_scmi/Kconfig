@@ -196,7 +196,6 @@ config ARM_SCMI_POWER_CONTROL
 config MTK_TINYSYS_SCMI
 	tristate "Specify TINYSYS SCMI Interface Support"
 	depends on ARM_SCMI_PROTOCOL || (COMPILE_TEST && OF)
-	default y
 	help
 	  TINYSYS SCMI is for MediaTek in-house power protocol
 	  Set Y to enable this feature.
