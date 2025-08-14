@@ -178,7 +178,7 @@ static int venc_init(struct mtk_vcodec_enc_ctx *ctx)
 
 	inst->ctx = ctx;
 	inst->vpu_inst.ctx = ctx;
-	inst->vpu_inst.id = IPI_VENC;
+	inst->vpu_inst.id = mtk_vcodec_fw_get_venc_ipi(ctx->dev->fw_handler->type);
 	inst->hw_base = mtk_vcodec_get_reg_addr(inst->ctx->dev->reg_base,
 						VENC_SYS);
 
@@ -424,7 +424,10 @@ static int mtk_venc_mem_alloc(struct venc_inst *inst,
 {
 	dma_addr_t dma_addr;
 
-	if (!buf || buf->size == 0)
+	if (WARN_ON(!dev || !buf))
+		return -EINVAL;
+
+	if (buf->size == 0)
 		return 0;
 
 	buf->va = dma_alloc_coherent(dev, buf->size, &dma_addr, GFP_KERNEL);
@@ -433,9 +436,8 @@ static int mtk_venc_mem_alloc(struct venc_inst *inst,
 
 	buf->iova = (unsigned long long)dma_addr;
 
-	mtk_venc_debug(inst->ctx,
-		       "allocate buffer, size: %d, va: %p, iova: %pad",
-		       buf->size, buf->va, &buf->iova);
+	mtk_venc_debug(inst->ctx, "allocate buffer, size: %d, va: %p, iova: 0x%llx",
+		       buf->size, buf->va, buf->iova);
 
 	return 0;
 }
@@ -444,17 +446,33 @@ static void mtk_venc_mem_free(struct venc_inst *inst,
 			      struct device *dev,
 			      struct venc_work_buf *buf)
 {
-	if (!buf || !buf->va || !dev)
+	if (WARN_ON(!dev || !buf))
 		return;
 
-	mtk_venc_debug(inst->ctx,
-		       "allocate buffer, size: %d, va: %p, iova: %pad",
-		       buf->size, buf->va, &buf->iova);
+	if (!buf->va)
+		return;
+
+	mtk_venc_debug(inst->ctx, "free buffer, size: %d, va: %p, iova: 0x%llx",
+		       buf->size, buf->va, buf->iova);
 
 	dma_free_coherent(dev, buf->size, buf->va, buf->iova);
 	buf->va = NULL;
 	buf->iova = 0;
 	buf->size = 0;
+}
+
+static void venc_free_rc_buf(struct venc_inst *inst,
+			     struct venc_work_buf_list *bufs,
+			     unsigned int core_num)
+{
+	int i;
+	struct device *dev;
+
+	dev = &inst->ctx->dev->plat_dev->dev;
+	mtk_venc_mem_free(inst, dev, &bufs->rc_code);
+
+	for (i = 0; i < core_num; i++)
+		mtk_venc_mem_free(inst, dev, &bufs->rc_info[i]);
 }
 
 static void venc_free_work_buf(struct venc_inst *inst)
@@ -463,23 +481,10 @@ static void venc_free_work_buf(struct venc_inst *inst)
 	struct venc_work_buf_list *bufs = &inst->vsi->bufs;
 	unsigned int core_num = inst->vsi->config.core_num;
 	unsigned int dpb_size = inst->vsi->config.dpb_size;
-	struct mtk_vcodec_fw *fw = inst->ctx->dev->fw_handler;
-	struct device *dev = NULL;
+	struct device *dev;
 
-	if (bufs->rc_code.va) {
-		if (mtk_vcodec_fw_get_type(fw) == VCP) {
-			dev = mtk_vcodec_fw_get_io_dev(fw);
-			if (!dev)
-				mtk_venc_err(inst->ctx,
-					     "failed get vcp io device");
-
-			mtk_venc_mem_free(inst, dev, &bufs->rc_code);
-
-			for (i = 0; i < core_num; i++)
-				mtk_venc_mem_free(inst, dev,
-						  &bufs->rc_info[i]);
-		}
-	}
+	if (bufs->rc_code.va)
+		venc_free_rc_buf(inst, bufs, core_num);
 
 	dev = &inst->ctx->dev->plat_dev->dev;
 
@@ -503,31 +508,48 @@ static void venc_free_work_buf(struct venc_inst *inst)
 		mtk_vcodec_mem_free(inst->ctx, &inst->seq_buf);
 }
 
+static int venc_alloc_rc_buf(struct venc_inst *inst,
+			     struct venc_work_buf_list *bufs,
+			     unsigned int core_num)
+{
+	int i;
+	struct mtk_vcodec_fw *fw = inst->ctx->dev->fw_handler;
+	struct device *dev;
+	void *tmp_va;
+
+	dev = &inst->ctx->dev->plat_dev->dev;
+	if (mtk_venc_mem_alloc(inst, dev, &bufs->rc_code))
+		return -ENOMEM;
+
+	tmp_va = mtk_vcodec_fw_map_dm_addr(fw, bufs->rc_code.pa);
+	memcpy(bufs->rc_code.va, tmp_va, bufs->rc_code.size);
+
+	for (i = 0; i < core_num; i++) {
+		if (mtk_venc_mem_alloc(inst, dev, &bufs->rc_info[i]))
+			goto err_rc_buf;
+	}
+
+	return 0;
+
+err_rc_buf:
+	venc_free_rc_buf(inst, bufs, core_num);
+
+	return -ENOMEM;
+}
+
 static int venc_alloc_work_buf(struct venc_inst *inst)
 {
 	int i, ret;
 	struct venc_work_buf_list *bufs = &inst->vsi->bufs;
 	unsigned int core_num = inst->vsi->config.core_num;
 	unsigned int dpb_size = inst->vsi->config.dpb_size;
-	struct mtk_vcodec_fw *fw = inst->ctx->dev->fw_handler;
-	struct device *dev = NULL;
+	struct device *dev;
 
 	if (bufs->rc_code.size != 0) {
-		if (mtk_vcodec_fw_get_type(fw) == VCP) {
-			dev = mtk_vcodec_fw_get_io_dev(fw);
-			if (!dev) {
-				mtk_venc_err(inst->ctx,
-					     "failed get vcp io device");
-				return -ENODEV;
-			}
-			if (mtk_venc_mem_alloc(inst, dev, &bufs->rc_code))
-				return -ENOMEM;
-
-			for (i = 0; i < core_num; i++) {
-				if (mtk_venc_mem_alloc(inst, dev,
-						       &bufs->rc_info[i]))
-					goto err_alloc;
-			}
+		ret = venc_alloc_rc_buf(inst, bufs, core_num);
+		if (ret) {
+			mtk_venc_err(inst->ctx, "cannot allocate rc buf");
+			return -ENOMEM;
 		}
 	}
 
@@ -589,8 +611,8 @@ static int venc_set_param(void *handle,
 		inst->vsi->config.gop_size = enc_prm->gop_size;
 		inst->vsi->config.framerate = enc_prm->frm_rate;
 		inst->vsi->config.intra_period = enc_prm->intra_period;
-		inst->vsi->config.profile = enc_prm->h264_profile;
-		inst->vsi->config.level = enc_prm->h264_level;
+		inst->vsi->config.profile = enc_prm->profile;
+		inst->vsi->config.level = enc_prm->level;
 
 		ret = vpu_enc_set_param(&inst->vpu_inst, type, enc_prm);
 		if (ret)

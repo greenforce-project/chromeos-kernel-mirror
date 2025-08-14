@@ -75,8 +75,8 @@ enum mtk_encode_param {
  * @framerate_denom: frame rate denominator. ex: framerate_num=30 and
  *		     framerate_denom=1 means FPS is 30
  * @h264_max_qp: Max value for H.264 quantization parameter
- * @h264_profile: V4L2 defined H.264 profile
- * @h264_level: V4L2 defined H.264 level
+ * @profile: V4L2 defined profile
+ * @level: V4L2 defined level
  * @force_intra: force/insert intra frame
  */
 struct mtk_enc_params {
@@ -90,8 +90,8 @@ struct mtk_enc_params {
 	unsigned int	framerate_num;
 	unsigned int	framerate_denom;
 	unsigned int	h264_max_qp;
-	unsigned int	h264_profile;
-	unsigned int	h264_level;
+	unsigned int	profile;
+	unsigned int	level;
 	unsigned int	force_intra;
 };
 

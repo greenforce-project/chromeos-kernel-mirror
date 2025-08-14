@@ -66,8 +66,8 @@ enum venc_set_param_type {
  * struct venc_enc_prm - encoder settings for VENC_SET_PARAM_ENC used in
  *					  venc_if_set_param()
  * @input_fourcc: input yuv format
- * @h264_profile: V4L2 defined H.264 profile
- * @h264_level: V4L2 defined H.264 level
+ * @profile: V4L2 defined profile
+ * @level: V4L2 defined level
  * @width: image width
  * @height: image height
  * @buf_width: buffer width
@@ -79,8 +79,8 @@ enum venc_set_param_type {
  */
 struct venc_enc_param {
 	enum venc_yuv_fmt input_yuv_fmt;
-	unsigned int h264_profile;
-	unsigned int h264_level;
+	unsigned int profile;
+	unsigned int level;
 	unsigned int width;
 	unsigned int height;
 	unsigned int buf_width;
@@ -107,6 +107,7 @@ struct venc_frame_info {
 /*
  * struct venc_frm_buf - frame buffer information used in venc_if_encode()
  * @fb_addr: plane frame buffer addresses
+ * @num_planes: number of planes
  */
 struct venc_frm_buf {
 	struct mtk_vcodec_fb fb_addr[MTK_VCODEC_MAX_PLANES];

@@ -82,11 +82,11 @@ static int vidioc_venc_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
 		mtk_v4l2_venc_dbg(2, ctx, "V4L2_CID_MPEG_VIDEO_H264_PROFILE val = %d", ctrl->val);
-		p->h264_profile = ctrl->val;
+		p->profile = ctrl->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
 		mtk_v4l2_venc_dbg(2, ctx, "V4L2_CID_MPEG_VIDEO_H264_LEVEL val = %d", ctrl->val);
-		p->h264_level = ctrl->val;
+		p->level = ctrl->val;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_I_PERIOD:
 		mtk_v4l2_venc_dbg(2, ctx, "V4L2_CID_MPEG_VIDEO_H264_I_PERIOD val = %d", ctrl->val);
@@ -387,8 +387,8 @@ static void mtk_venc_set_param(struct mtk_vcodec_enc_ctx *ctx,
 		mtk_v4l2_venc_err(ctx, "Unsupported fourcc =%d", q_data_src->fmt->fourcc);
 		break;
 	}
-	param->h264_profile = enc_params->h264_profile;
-	param->h264_level = enc_params->h264_level;
+	param->profile = enc_params->profile;
+	param->level = enc_params->level;
 
 	/* Config visible resolution */
 	param->width = q_data_src->visible_width;
@@ -404,8 +404,8 @@ static void mtk_venc_set_param(struct mtk_vcodec_enc_ctx *ctx,
 
 	mtk_v4l2_venc_dbg(0, ctx,
 			  "fmt 0x%x, P/L %d/%d w/h %d/%d buf %d/%d fps/bps %d/%d gop %d i_per %d",
-			  param->input_yuv_fmt, param->h264_profile,
-			  param->h264_level, param->width, param->height,
+			  param->input_yuv_fmt, param->profile,
+			  param->level, param->width, param->height,
 			  param->buf_width, param->buf_height,
 			  param->frm_rate, param->bitrate,
 			  param->gop_size, param->intra_period);

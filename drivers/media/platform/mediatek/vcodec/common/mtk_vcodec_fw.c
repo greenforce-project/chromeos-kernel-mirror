@@ -22,6 +22,19 @@ int mtk_vcodec_fw_get_ipi_id(enum mtk_vcodec_fw_type type, int hw_id, bool is_se
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_get_ipi_id);
 
+int mtk_vcodec_fw_get_venc_ipi(enum mtk_vcodec_fw_type type)
+{
+	switch (type) {
+	case SCP:
+		return SCP_IPI_VENC_H264;
+	case VCP:
+		return VCP_IPI_ENCODER;
+	default:
+		return -EINVAL;
+	}
+}
+EXPORT_SYMBOL_GPL(mtk_vcodec_fw_get_venc_ipi);
+
 struct mtk_vcodec_fw *mtk_vcodec_fw_select(void *priv, enum mtk_vcodec_fw_type type,
 					   enum mtk_vcodec_fw_use fw_use)
 {
@@ -96,9 +109,3 @@ int mtk_vcodec_fw_get_type(struct mtk_vcodec_fw *fw)
 	return fw->type;
 }
 EXPORT_SYMBOL_GPL(mtk_vcodec_fw_get_type);
-
-struct device *mtk_vcodec_fw_get_io_dev(struct mtk_vcodec_fw *fw)
-{
-	return fw->ops->get_io_dev(fw);
-}
-EXPORT_SYMBOL_GPL(mtk_vcodec_fw_get_io_dev);
