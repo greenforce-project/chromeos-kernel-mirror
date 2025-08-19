@@ -2968,6 +2968,7 @@ const struct rtw89_chip_info rtw8852c_chip_info = {
 				  BIT(NL80211_CHAN_WIDTH_80) |
 				  BIT(NL80211_CHAN_WIDTH_160),
 	.support_unii4		= true,
+	.support_noise		= false,
 	.ul_tb_waveform_ctrl	= false,
 	.ul_tb_pwr_diff		= true,
 	.rx_freq_frome_ie	= false,
@@ -3030,6 +3031,8 @@ const struct rtw89_chip_info rtw8852c_chip_info = {
 	.cfo_hw_comp            = false,
 	.dcfo_comp		= &rtw8852c_dcfo_comp,
 	.dcfo_comp_sft		= 12,
+	.nhm_report		= NULL,
+	.nhm_th			= NULL,
 	.imr_info		= &rtw8852c_imr_info,
 	.rrsr_cfgs		= &rtw8852c_rrsr_cfgs,
 	.bss_clr_vld		= {R_BSS_CLR_MAP, B_BSS_CLR_MAP_VLD0},
