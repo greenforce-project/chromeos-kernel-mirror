@@ -4098,6 +4098,9 @@ struct rtw89_chanctx_listener {
 		(struct rtw89_dev *rtwdev, enum rtw89_chanctx_state state);
 };
 
+#define RTW89_NHM_TH_NUM 11
+#define RTW89_NHM_RPT_NUM 12
+
 struct rtw89_chip_info {
 	enum rtw89_core_chip_id chip_id;
 	enum rtw89_chip_gen chip_gen;
@@ -4125,6 +4128,7 @@ struct rtw89_chip_info {
 	u8 support_bands;
 	u16 support_bandwidths;
 	bool support_unii4;
+	bool support_noise;
 	bool ul_tb_waveform_ctrl;
 	bool ul_tb_pwr_diff;
 	bool rx_freq_frome_ie;
@@ -4206,6 +4210,8 @@ struct rtw89_chip_info {
 	bool cfo_hw_comp;
 	const struct rtw89_reg_def *dcfo_comp;
 	u8 dcfo_comp_sft;
+	const struct rtw89_reg_def (*nhm_report)[RTW89_NHM_RPT_NUM];
+	const struct rtw89_reg_def (*nhm_th)[RTW89_NHM_TH_NUM];
 	const struct rtw89_imr_info *imr_info;
 	const struct rtw89_rrsr_cfgs *rrsr_cfgs;
 	struct rtw89_reg_def bss_clr_vld;
@@ -4928,6 +4934,7 @@ enum rtw89_env_racing_lv {
 struct rtw89_ccx_para_info {
 	enum rtw89_env_racing_lv rac_lv;
 	u16 mntr_time;
+	bool nhm_incld_cca;
 	u8 nhm_manual_th_ofst;
 	u8 nhm_manual_th0;
 	enum rtw89_ifs_clm_application ifs_clm_app;
@@ -4961,9 +4968,13 @@ enum rtw89_ccx_edcca_opt_bw_idx {
 	RTW89_CCX_EDCCA_BW20_7 = 7
 };
 
-#define RTW89_NHM_TH_NUM 11
+struct rtw89_nhm_report {
+	struct list_head list;
+	struct ieee80211_channel *channel;
+	u8 noise;
+};
+
 #define RTW89_FAHM_TH_NUM 11
-#define RTW89_NHM_RPT_NUM 12
 #define RTW89_FAHM_RPT_NUM 12
 #define RTW89_IFS_CLM_NUM 4
 struct rtw89_env_monitor_info {
@@ -4997,6 +5008,13 @@ struct rtw89_env_monitor_info {
 	u16 ifs_clm_ofdm_fa_permil;
 	u32 ifs_clm_ifs_avg[RTW89_IFS_CLM_NUM];
 	u32 ifs_clm_cca_avg[RTW89_IFS_CLM_NUM];
+	bool nhm_include_cca;
+	u32 nhm_sum;
+	u32 nhm_mntr_time;
+	u16 nhm_result[RTW89_NHM_RPT_NUM];
+	u8 nhm_th[RTW89_NHM_RPT_NUM];
+	struct rtw89_nhm_report *nhm_his[RTW89_BAND_NUM];
+	struct list_head nhm_rpt_list;
 };
 
 enum rtw89_ser_rcvy_step {
