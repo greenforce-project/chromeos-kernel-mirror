@@ -591,25 +591,30 @@ static int mtk_dpi_set_display_mode_v2(struct mtk_dpi *dpi,
 	struct videomode vm = { 0 };
 	unsigned long pll_rate;
 	unsigned int clksrc = TCK_26M;
+	unsigned int hsize;
 	u16 hblank;
 	u64 htotal;
 	u64 mode_htotal;
 	int ret = 0;
 
 	drm_display_mode_to_videomode(mode, &vm);
+
 	if (dpi->dsc_enable) {
 		hblank = mode->htotal - mode->hdisplay;
+		hsize = DIV_ROUND_UP(vm.hactive, 3);
 		vm.hactive = ((vm.hactive * 8 + (12 * 8 - 1)) / (12 * 8)) * 4;
 		htotal = hblank + vm.hactive;
 		mode_htotal =  mode->htotal;
 		vm.pixelclock = div_u64(mode->clock * 1000 * htotal, mode_htotal);
 
 		drm_dbg_kms(dpi->bridge.dev,
-			    "[DPTX] DSC compress mode, hactive:%d, pixelclock:%lu\n",
-			    vm.hactive, vm.pixelclock);
+			    "[DPTX] DSC compress mode, hactive:%d(%d), pixelclock:%lu\n",
+			    vm.hactive, hsize, vm.pixelclock);
 		dpi->color_format = MTK_DPI_COLOR_FORMAT_RGB;
-	} else
+	} else {
 		vm.pixelclock = mode->clock * 1000;
+		hsize = vm.hactive;
+	}
 
 	if (vm.pixelclock < 70000000)
 		clksrc = TVDPLL_D16;
@@ -714,9 +719,9 @@ static int mtk_dpi_set_display_mode_v2(struct mtk_dpi *dpi,
 	mtk_dpi_config_interface_v2(dpi, !!(vm.flags &
 					 DISPLAY_FLAGS_INTERLACED));
 	if (vm.flags & DISPLAY_FLAGS_INTERLACED)
-		mtk_dpi_config_fb_size_v2(dpi, vm.hactive, vm.vactive >> 1);
+		mtk_dpi_config_fb_size_v2(dpi, hsize, vm.vactive >> 1);
 	else
-		mtk_dpi_config_fb_size_v2(dpi, vm.hactive, vm.vactive);
+		mtk_dpi_config_fb_size_v2(dpi, hsize, vm.vactive);
 
 	mtk_dpi_config_channel_limit_v2(dpi);
 	mtk_dpi_config_bit_num_v2(dpi, dpi->bit_num);

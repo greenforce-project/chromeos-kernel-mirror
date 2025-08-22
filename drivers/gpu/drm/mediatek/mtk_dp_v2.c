@@ -1083,20 +1083,6 @@ static void mtk_dp_mn_calculate_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_
 	}
 }
 
-static void mtk_dp_mvid_renew_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_id encoder_id)
-{
-	u32 reg_offset = DP_REG_OFFSET(encoder_id);
-	u32 mvid, htt;
-
-	htt = mtk_dp->info[encoder_id].dp_output_timing.htt;
-	if (htt % 4 != 0) {
-		mvid = READ_4BYTE(mtk_dp, REG_33C8_DP_ENCODER1_P0 + reg_offset);
-		drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Encoder:%d, Odd Htt:%d, m_vid:%d, overwrite\n",
-			    encoder_id, htt, mvid);
-		mtk_dp_mn_overwrite_v2(mtk_dp, encoder_id, true, mvid, 0x8000);
-	}
-}
-
 u8 mtk_dp_color_get_bpp_v2(u8 color_format, u8 color_depth)
 {
 	u8 color_bpp;
@@ -3667,7 +3653,6 @@ static void mtk_dp_set_dp_out_v2(struct mtk_dp *mtk_dp, const enum dp_encoder_id
 	mtk_dp_pg_enable_v2(mtk_dp, encoder_id, false);
 	drm_dbg_kms(mtk_dp->drm_dev, "[DPTX] Set dpintf output\n");
 
-	mtk_dp_mvid_renew_v2(mtk_dp, encoder_id);
 	mtk_dp_tu_set_v2(mtk_dp, encoder_id);
 }
 
