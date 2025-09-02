@@ -65,4 +65,3 @@ hfi_platform_get_codec_lp_freq(enum hfi_version version, u32 codec, u32 session_
 
 	return freq;
 }
-

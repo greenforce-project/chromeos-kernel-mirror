@@ -463,33 +463,35 @@ static int mtk_dpi_power_on(struct mtk_dpi *dpi)
 	ret = clk_prepare_enable(dpi->tvd_clk);
 	if (ret) {
 		dev_err(dpi->dev, "Failed to enable tvd pll: %d\n", ret);
-		goto err_pixel;
+		goto err_refcount;
 	}
 
 	ret = clk_prepare_enable(dpi->engine_clk);
 	if (ret) {
 		dev_err(dpi->dev, "Failed to enable engine clock: %d\n", ret);
-		goto err_refcount;
+		goto err_tvd;
 	}
 
 	ret = clk_prepare_enable(dpi->dpi_ck_cg);
 	if (ret) {
 		dev_err(dpi->dev, "Failed to enable dpi_ck_cg clock: %d\n", ret);
-		goto err_ck_cg;
+		goto err_engine;
 	}
 
 	ret = clk_prepare_enable(dpi->pixel_clk);
 	if (ret) {
 		dev_err(dpi->dev, "Failed to enable pixel clock: %d\n", ret);
-		goto err_pixel;
+		goto err_ck_cg;
 	}
 
 	return 0;
 
-err_pixel:
-	clk_disable_unprepare(dpi->dpi_ck_cg);
 err_ck_cg:
+	clk_disable_unprepare(dpi->dpi_ck_cg);
+err_engine:
 	clk_disable_unprepare(dpi->engine_clk);
+err_tvd:
+	clk_disable_unprepare(dpi->tvd_clk);
 err_refcount:
 	dpi->refcount--;
 	return ret;

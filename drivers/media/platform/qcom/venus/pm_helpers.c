@@ -1114,6 +1114,9 @@ static unsigned long calculate_inst_freq(struct venus_inst *inst,
 		vpp_freq = mbs_per_sec * inst->clk_data.vpp_freq;
 	}
 
+	if (inst->state != INST_START)
+		return 0;
+
 	/* 21 / 20 is overhead factor */
 	vpp_freq += vpp_freq / 20;
 	vsp_freq = mbs_per_sec * inst->clk_data.vsp_freq;
