@@ -940,8 +940,10 @@ err_deinit:
 err_free:
 	private->drm = NULL;
 	drm_dev_put(drm);
-	for (i = 0; i < private->data->mmsys_dev_num; i++)
-		private->all_drm_private[i]->drm = NULL;
+	for (i = 0; i < MAX_MMSYS; i++) {
+		if (private->all_drm_private[i])
+			private->all_drm_private[i]->drm = NULL;
+	}
 defer_node_put:
 	if (private->mutex_node)
 		of_node_put(private->mutex_node);
