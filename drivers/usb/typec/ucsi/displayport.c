@@ -54,7 +54,7 @@ static int ucsi_displayport_enter(struct typec_altmode *alt, u32 *vdo)
 	u8 cur = 0;
 	int ret;
 
-	if(!ucsi_con_mutex_lock(dp->con))
+	if (!ucsi_con_mutex_lock(dp->con))
 		return -ENOTCONN;
 
 	if (!dp->override && dp->initialized) {
@@ -113,7 +113,7 @@ static int ucsi_displayport_exit(struct typec_altmode *alt)
 	u64 command;
 	int ret = 0;
 
-	if(!ucsi_con_mutex_lock(dp->con))
+	if (!ucsi_con_mutex_lock(dp->con))
 		return -ENOTCONN;
 
 	if (!dp->override) {
@@ -204,7 +204,7 @@ static int ucsi_displayport_vdm(struct typec_altmode *alt,
 	int cmd = PD_VDO_CMD(header);
 	int svdm_version;
 
-	if(!ucsi_con_mutex_lock(dp->con))
+	if (!ucsi_con_mutex_lock(dp->con))
 		return -ENOTCONN;
 
 	if (!dp->override && dp->initialized) {

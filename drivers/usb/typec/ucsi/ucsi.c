@@ -1994,7 +1994,7 @@ bool ucsi_con_mutex_lock(struct ucsi_connector *con)
 }
 
 /**
- * ucsi_con_mutex_lock - Release the connector mutex
+ * ucsi_con_mutex_unlock - Release the connector mutex
  * @con: The connector interface to unlock
  */
 void ucsi_con_mutex_unlock(struct ucsi_connector *con)

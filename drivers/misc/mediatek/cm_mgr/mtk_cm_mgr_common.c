@@ -424,6 +424,7 @@ static void cm_mgr_cpu_frequency_tracer(void *ignore, unsigned int frequency,
 
 	if (policy) {
 		idx = cpufreq_frequency_table_target(policy, frequency,
+						     policy->min, policy->max,
 						     CPUFREQ_RELATION_L);
 		if (cmmgr_data.hk.check_cm_mgr_status)
 			cmmgr_data.hk.check_cm_mgr_status(cluster, frequency, idx);

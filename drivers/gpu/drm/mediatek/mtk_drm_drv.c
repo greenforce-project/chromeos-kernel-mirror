@@ -664,7 +664,7 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 
 	ret = drmm_mode_config_init(drm);
 	if (ret)
-		goto put_mutex_dev;
+		return ret;
 
 	drm->mode_config.min_width = 64;
 	drm->mode_config.min_height = 64;
@@ -685,8 +685,12 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 
 		drm->dev_private = private->all_drm_private[i];
 		ret = component_bind_all(private->all_drm_private[i]->dev, drm);
-		if (ret)
-			goto put_mutex_dev;
+		if (ret) {
+			while (--i >= 0)
+				if (private->all_drm_private[i])
+					component_unbind_all(private->all_drm_private[i]->dev, drm);
+			return ret;
+		}
 	}
 
 	/*
@@ -782,10 +786,6 @@ err_component_unbind:
 	for (i = 0; i < MAX_MMSYS; i++)
 		if (private->all_drm_private[i])
 			component_unbind_all(private->all_drm_private[i]->dev, drm);
-put_mutex_dev:
-	for (i = 0; i < MAX_MMSYS; i++)
-		if (private->all_drm_private[i])
-			put_device(private->all_drm_private[i]->mutex_dev);
 
 	return ret;
 }
@@ -900,7 +900,7 @@ static int mtk_drm_bind(struct device *dev)
 	drm = drm_dev_alloc(&mtk_drm_driver, dev);
 	if (IS_ERR(drm)) {
 		ret = PTR_ERR(drm);
-		goto defer_node_put;
+		goto err_put_dev;
 	}
 
 	private->drm_master = true;
@@ -944,6 +944,14 @@ err_free:
 		if (private->all_drm_private[i])
 			private->all_drm_private[i]->drm = NULL;
 	}
+err_put_dev:
+	for (i = 0; i < MAX_MMSYS; i++) {
+		if (private->all_drm_private[i]) {
+			/* For device_find_child in mtk_drm_get_all_priv() */
+			put_device(private->all_drm_private[i]->dev);
+		}
+	}
+	put_device(private->mutex_dev);
 defer_node_put:
 	if (private->mutex_node)
 		of_node_put(private->mutex_node);
@@ -957,12 +965,21 @@ defer_node_put:
 static void mtk_drm_unbind(struct device *dev)
 {
 	struct mtk_drm_private *private = dev_get_drvdata(dev);
+	int i;
 
 	/* for multi mmsys dev, unregister drm dev in mmsys master */
 	if (private->drm_master) {
 		drm_dev_unregister(private->drm);
 		mtk_drm_kms_deinit(private->drm);
 		drm_dev_put(private->drm);
+
+		for (i = 0; i < MAX_MMSYS; i++) {
+			if (private->all_drm_private[i]) {
+				/* For device_find_child in mtk_drm_get_all_priv() */
+				put_device(private->all_drm_private[i]->dev);
+			}
+		}
+		put_device(private->mutex_dev);
 	}
 	private->mtk_drm_bound = false;
 	private->drm_master = false;
