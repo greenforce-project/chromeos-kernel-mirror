@@ -1194,6 +1194,9 @@ static int verity_alloc_most_once(struct dm_verity *v)
 {
 	struct dm_target *ti = v->ti;
 
+	if (v->validated_blocks)
+		return 0;
+
 	/* the bitset can only handle INT_MAX blocks */
 	if (v->data_blocks > INT_MAX) {
 		ti->error = "device too large to use check_at_most_once";
@@ -1216,6 +1219,9 @@ static int verity_alloc_zero_digest(struct dm_verity *v)
 	int r = -ENOMEM;
 	struct ahash_request *req;
 	u8 *zero_data;
+
+	if (v->zero_digest)
+		return 0;
 
 	v->zero_digest = kmalloc(v->digest_size, GFP_KERNEL);
 
@@ -1714,7 +1720,7 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 			goto bad;
 	}
 
-	/* Root hash signature is  a optional parameter*/
+	/* Root hash signature is an optional parameter */
 	r = verity_verify_root_hash(root_hash_digest_to_validate,
 				    strlen(root_hash_digest_to_validate),
 				    verify_args.sig,
