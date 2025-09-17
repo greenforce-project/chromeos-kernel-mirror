@@ -61,6 +61,7 @@ int intel_pxp_tee_io_message(struct intel_pxp *pxp,
 	struct i915_pxp_component *pxp_component = pxp->pxp_component;
 	u8 tmp_drop_buf[64];
 	int ret = 0;
+	u8 vtag = 1;
 
 	mutex_lock(&pxp->tee_mutex);
 
@@ -73,16 +74,19 @@ int intel_pxp_tee_io_message(struct intel_pxp *pxp,
 		goto unlock;
 	}
 
+	/* The vtag is stored in the first byte of the output buffer */
+	memcpy(&vtag, msg_out, sizeof(vtag));
+
 	if (pxp->mei_pxp_last_msg_interrupted) {
 		/* read and drop data from the previous iteration */
-		ret = pxp_component->ops->recv(pxp_component->tee_dev, &tmp_drop_buf, 64, 1);
+		ret = pxp_component->ops->recv(pxp_component->tee_dev, &tmp_drop_buf, 64, vtag);
 		if (ret == -EINTR)
 			goto unlock;
 
 		pxp->mei_pxp_last_msg_interrupted = false;
 	}
 
-	ret = pxp_component->ops->send(pxp_component->tee_dev, msg_in, msg_in_size, 1);
+	ret = pxp_component->ops->send(pxp_component->tee_dev, msg_in, msg_in_size, vtag);
 
 	if (ret) {
 		/* flag on next msg to drop interrupted msg */
@@ -92,7 +96,7 @@ int intel_pxp_tee_io_message(struct intel_pxp *pxp,
 		goto unlock;
 	}
 
-	ret = pxp_component->ops->recv(pxp_component->tee_dev, msg_out, msg_out_max_size, 1);
+	ret = pxp_component->ops->recv(pxp_component->tee_dev, msg_out, msg_out_max_size, vtag);
 	if (ret < 0) {
 		/* flag on next msg to drop interrupted msg */
 		if (ret == -EINTR)

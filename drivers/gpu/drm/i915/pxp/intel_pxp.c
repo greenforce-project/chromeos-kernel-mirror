@@ -609,9 +609,13 @@ intel_pxp_ioctl_io_message(struct intel_pxp *pxp, struct drm_file *drmfile,
 	}
 
 	if (copy_from_user(msg_in, u64_to_user_ptr(params->msg_in), params->msg_in_size)) {
-		drm_dbg(&i915->drm, "Failed to copy_from_user for TEE message\n");
+		drm_dbg(&i915->drm, "Failed to copy_from_user for TEE input message\n");
 		ret = -EFAULT;
 		goto end;
+	}
+
+	if (copy_from_user(msg_out, u64_to_user_ptr(params->msg_out), params->msg_out_buf_size)) {
+		drm_dbg(&i915->drm, "Failed to copy_from_user for TEE vtag output message\n");
 	}
 
 	if (HAS_ENGINE(pxp->ctrl_gt, GSC0))
@@ -630,7 +634,7 @@ intel_pxp_ioctl_io_message(struct intel_pxp *pxp, struct drm_file *drmfile,
 	}
 
 	if (copy_to_user(u64_to_user_ptr(params->msg_out), msg_out, params->msg_out_ret_size)) {
-		drm_dbg(&i915->drm, "Failed copy_to_user for TEE message\n");
+		drm_dbg(&i915->drm, "Failed copy_to_user for TEE output message\n");
 		ret = -EFAULT;
 		goto end;
 	}
