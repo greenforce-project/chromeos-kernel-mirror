@@ -417,8 +417,7 @@ static void fsnotify_put_mark_wake(struct fsnotify_mark *mark)
 	}
 }
 
-bool fsnotify_prepare_user_wait(struct fsnotify_iter_info *iter_info,
-				s32 *num_gets)
+bool fsnotify_prepare_user_wait(struct fsnotify_iter_info *iter_info)
 	__releases(&fsnotify_mark_srcu)
 {
 	int type;
@@ -429,9 +428,6 @@ bool fsnotify_prepare_user_wait(struct fsnotify_iter_info *iter_info,
 			__release(&fsnotify_mark_srcu);
 			goto fail;
 		}
-
-		if (iter_info->marks[type])
-			*num_gets += 1;
 	}
 
 	/*
@@ -444,26 +440,19 @@ bool fsnotify_prepare_user_wait(struct fsnotify_iter_info *iter_info,
 	return true;
 
 fail:
-	for (type--; type >= 0; type--) {
+	for (type--; type >= 0; type--)
 		fsnotify_put_mark_wake(iter_info->marks[type]);
-		if (iter_info->marks[type])
-			*num_gets -= 1;
-	}
 	return false;
 }
 
-void fsnotify_finish_user_wait(struct fsnotify_iter_info *iter_info,
-			       s32 *num_gets)
+void fsnotify_finish_user_wait(struct fsnotify_iter_info *iter_info)
 	__acquires(&fsnotify_mark_srcu)
 {
 	int type;
 
 	iter_info->srcu_idx = srcu_read_lock(&fsnotify_mark_srcu);
-	fsnotify_foreach_iter_type(type) {
+	fsnotify_foreach_iter_type(type)
 		fsnotify_put_mark_wake(iter_info->marks[type]);
-		if (iter_info->marks[type])
-			*num_gets -= 1;
-	}
 }
 
 /*

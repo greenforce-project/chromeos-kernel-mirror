@@ -902,7 +902,6 @@ static int fanotify_handle_event(struct fsnotify_group *group, u32 mask,
 	struct fsnotify_event *fsn_event;
 	__kernel_fsid_t fsid = {};
 	u32 match_mask = 0;
-	s32 num_gets = 0;
 
 	BUILD_BUG_ON(FAN_ACCESS != FS_ACCESS);
 	BUILD_BUG_ON(FAN_MODIFY != FS_MODIFY);
@@ -941,7 +940,7 @@ static int fanotify_handle_event(struct fsnotify_group *group, u32 mask,
 		 * fsnotify_prepare_user_wait() fails if we race with mark
 		 * deletion.  Just let the operation pass in that case.
 		 */
-		if (!fsnotify_prepare_user_wait(iter_info, &num_gets))
+		if (!fsnotify_prepare_user_wait(iter_info))
 			return 0;
 	}
 
@@ -982,12 +981,8 @@ static int fanotify_handle_event(struct fsnotify_group *group, u32 mask,
 					    iter_info);
 	}
 finish:
-	if (fanotify_is_perm_event(mask)) {
-		fsnotify_finish_user_wait(iter_info, &num_gets);
-		WARN(num_gets != 0,
-		     "fanotify: prepare/finish marks imbalance: %d\n",
-		     num_gets);
-	}
+	if (fanotify_is_perm_event(mask))
+		fsnotify_finish_user_wait(iter_info);
 
 	return ret;
 }
